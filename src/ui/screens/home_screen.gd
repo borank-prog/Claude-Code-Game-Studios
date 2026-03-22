@@ -1,4 +1,4 @@
-## Ana sayfa — profil ozeti, hizli erisim, stat dagitimi.
+## Ana sayfa — profil ozeti, avatar secimi, rank badge, stat dagitimi.
 extends Control
 
 @onready var avatar_rect: TextureRect = %AvatarRect
@@ -9,6 +9,11 @@ extends Control
 @onready var stat_points_label: Label = %StatPointsLabel
 @onready var equip_container: VBoxContainer = %EquipContainer
 
+var _avatar_selector: PanelContainer = null
+var _avatar_color_rect: ColorRect = null
+var _avatar_initial: Label = null
+var _rank_badge: Label = null
+
 const STAT_NAMES: Dictionary = {
 	"strength": "Guc",
 	"endurance": "Dayaniklilik",
@@ -17,6 +22,8 @@ const STAT_NAMES: Dictionary = {
 	"intelligence": "Zeka",
 }
 
+const AvatarSelector := preload("res://src/ui/components/avatar_selector.gd")
+
 
 func _ready() -> void:
 	EventBus.stat_changed.connect(func(_s, _v, _d): _refresh())
@@ -24,7 +31,7 @@ func _ready() -> void:
 	EventBus.equipment_changed.connect(func(_s, _i): _refresh())
 	EventBus.stat_points_available.connect(func(_p): _refresh())
 	visibility_changed.connect(_on_visible)
-	# Geciktirilmis ilk refresh — GameData initialize olduktan sonra
+	_setup_avatar_display()
 	call_deferred("_refresh")
 
 
@@ -33,11 +40,77 @@ func _on_visible() -> void:
 		_refresh()
 
 
+## Avatar gorsel alanini ayarla — renkli placeholder + rank badge
+func _setup_avatar_display() -> void:
+	# Avatar renkli placeholder (TextureRect yerine uzerine ColorRect + Label)
+	_avatar_color_rect = ColorRect.new()
+	_avatar_color_rect.custom_minimum_size = Vector2(80, 80)
+	_avatar_color_rect.size = Vector2(80, 80)
+	_avatar_color_rect.mouse_filter = Control.MOUSE_FILTER_PASS
+	avatar_rect.add_child(_avatar_color_rect)
+
+	_avatar_initial = Label.new()
+	_avatar_initial.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_avatar_initial.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_avatar_initial.add_theme_font_size_override("font_size", 36)
+	_avatar_initial.add_theme_color_override("font_color", ThemeConstants.TEXT_PRIMARY)
+	_avatar_initial.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_avatar_color_rect.add_child(_avatar_initial)
+
+	# Rank badge — sol ust kose
+	_rank_badge = Label.new()
+	_rank_badge.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
+	_rank_badge.add_theme_color_override("font_color", ThemeConstants.BG_COLOR)
+	_rank_badge.position = Vector2(0, 0)
+	_rank_badge.size = Vector2(28, 20)
+	_rank_badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	avatar_rect.add_child(_rank_badge)
+
+	# Avatar'a tikla — secim paneli ac
+	var click_btn := Button.new()
+	click_btn.flat = true
+	click_btn.set_anchors_preset(Control.PRESET_FULL_RECT)
+	click_btn.mouse_filter = Control.MOUSE_FILTER_STOP
+	click_btn.pressed.connect(_toggle_avatar_selector)
+	avatar_rect.add_child(click_btn)
+
+
+func _update_avatar_display() -> void:
+	var color := AvatarSelector.get_avatar_color(GameData.avatar_id)
+	_avatar_color_rect.color = color
+	_avatar_initial.text = AvatarSelector.get_avatar_name(GameData.avatar_id).left(1)
+
+	# Rank badge
+	_rank_badge.text = str(GameData.rank)
+	var badge_bg := StyleBoxFlat.new()
+	badge_bg.bg_color = ThemeConstants.PRIMARY_COLOR
+	badge_bg.corner_radius_bottom_right = 6
+	_rank_badge.add_theme_stylebox_override("normal", badge_bg)
+
+
+func _toggle_avatar_selector() -> void:
+	if _avatar_selector != null:
+		_avatar_selector.queue_free()
+		_avatar_selector = null
+		return
+
+	_avatar_selector = AvatarSelector.new()
+	_avatar_selector.position = Vector2(0, avatar_rect.size.y + 8)
+	_avatar_selector.z_index = 10
+	_avatar_selector.avatar_selected.connect(func(_id):
+		_update_avatar_display()
+		_avatar_selector.queue_free()
+		_avatar_selector = null
+	)
+	add_child(_avatar_selector)
+
+
 func _refresh() -> void:
 	name_label.text = GameData.display_name
 	rank_title.text = "Rank %d — %s" % [GameData.rank, GameData.get_rank_name()]
 	power_value.text = "Power: %s" % ThemeConstants.format_number(InventoryManager.get_total_power())
 
+	_update_avatar_display()
 	_build_stats()
 	_build_equipment()
 

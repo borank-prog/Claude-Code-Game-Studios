@@ -71,13 +71,13 @@ Yok — Sprint 1 tamamen tamamlandi. Tum 12 task bitti.
 
 ## Definition of Done for this Sprint
 
-- [ ] Cloud Save conflict resolution + offline queue calisir
-- [ ] Tum HUD animasyonlari (cash, respect, rank-up, loot) gosteriliyor
-- [ ] Mission System 30s core loop uctan uca oynanabilir
-- [ ] Inventory kusanma/cikarma dogru calisir, stat bonus uygulanir
-- [ ] Shop rank-gate + buy/sell dogru calisir
-- [ ] Mission, Inventory, Shop, Gang, Territory unit testleri geciyor
-- [ ] Bildirim kuyrugu calisir
+- [x] Cloud Save conflict resolution + offline queue calisir
+- [x] Tum HUD animasyonlari (cash, respect, rank-up, loot) gosteriliyor
+- [x] Mission System 30s core loop uctan uca oynanabilir
+- [x] Inventory kusanma/cikarma dogru calisir, stat bonus uygulanir
+- [x] Shop rank-gate + buy/sell dogru calisir
+- [x] Mission, Inventory, Shop, Gang, Territory unit testleri geciyor
+- [x] Bildirim kuyrugu calisir
 - [ ] Android APK'da core loop test edildi
 - [ ] Git'e commit edilmis, temiz calisan durumda
 
