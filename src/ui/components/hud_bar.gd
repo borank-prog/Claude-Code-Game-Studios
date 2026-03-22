@@ -19,7 +19,7 @@ func _ready() -> void:
 	EventBus.respect_gained.connect(_on_respect_gained)
 	EventBus.rank_up.connect(_on_rank_up)
 	EventBus.stat_changed.connect(_on_stat_changed)
-	_refresh_all()
+	call_deferred("_refresh_all")
 
 
 func _process(_delta: float) -> void:

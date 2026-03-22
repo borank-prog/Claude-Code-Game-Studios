@@ -23,7 +23,14 @@ func _ready() -> void:
 	EventBus.rank_up.connect(func(_r, _n): _refresh())
 	EventBus.equipment_changed.connect(func(_s, _i): _refresh())
 	EventBus.stat_points_available.connect(func(_p): _refresh())
-	_refresh()
+	visibility_changed.connect(_on_visible)
+	# Geciktirilmis ilk refresh — GameData initialize olduktan sonra
+	call_deferred("_refresh")
+
+
+func _on_visible() -> void:
+	if visible:
+		_refresh()
 
 
 func _refresh() -> void:

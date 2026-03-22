@@ -93,15 +93,15 @@ func _create_territory_card(territory: Dictionary) -> PanelContainer:
 		indicator.color = ThemeConstants.DANGER_COLOR  # Dusmanlar
 	hbox.add_child(indicator)
 
+	# Spacer
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(8, 0)
+	hbox.add_child(spacer)
+
 	# Orta: bilgi
 	var info := VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hbox.add_child(info)
-
-	var margin := Control.new()
-	margin.custom_minimum_size = Vector2(8, 0)
-	hbox.move_child(margin, 1)
-	info.get_parent().move_child(info, 2)
 
 	var name_label := Label.new()
 	name_label.text = territory.get("name", "???")

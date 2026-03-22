@@ -20,7 +20,8 @@ func _ready() -> void:
 
 	result_panel.visible = false
 	progress_bar.visible = false
-	_refresh_list()
+	visibility_changed.connect(func(): if visible: _refresh_list())
+	call_deferred("_refresh_list")
 
 
 func _process(delta: float) -> void:

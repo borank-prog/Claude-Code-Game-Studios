@@ -35,17 +35,15 @@ func _ready() -> void:
 	EventBus.equipment_changed.connect(func(_s, _i): save_to_cloud())
 
 	# Uygulama arka plana gittiginde kaydet
-	get_tree().auto_accept_quit = false
 
 
 func _notification(what: int) -> void:
-	match what:
-		NOTIFICATION_WM_GO_BACK_REQUEST, \
-		NOTIFICATION_WM_CLOSE_REQUEST, \
-		NOTIFICATION_APPLICATION_PAUSED:
-			save_to_cloud()
-			if what == NOTIFICATION_WM_CLOSE_REQUEST:
-				get_tree().quit()
+	if what == NOTIFICATION_APPLICATION_PAUSED:
+		save_to_cloud()
+	elif what == NOTIFICATION_WM_CLOSE_REQUEST:
+		save_to_cloud()
+	elif what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		save_to_cloud()
 
 
 ## Auth tamamlandiginda yukleme baslat
