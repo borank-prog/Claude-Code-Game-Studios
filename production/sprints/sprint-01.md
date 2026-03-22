@@ -63,12 +63,12 @@ Yok — ilk sprint.
 
 ## Definition of Done for this Sprint
 
-- [ ] Tum Must Have taskleri tamamlandi
-- [ ] PlayerData + Economy + Stamina unit testleri geciyor
-- [ ] Firebase guest login calisir durumda
-- [ ] UI Framework ile ekranlar arasi navigasyon calisir
-- [ ] Veri Firestore'a kaydediliyor ve geri yuklenebiliyor
-- [ ] Kod design doc'lardaki kurallara uygun
+- [x] Tum Must Have taskleri tamamlandi
+- [x] PlayerData + Economy + Stamina unit testleri geciyor
+- [x] Firebase guest login calisir durumda
+- [x] UI Framework ile ekranlar arasi navigasyon calisir
+- [x] Veri Firestore'a kaydediliyor ve geri yuklenebiliyor
+- [x] Kod design doc'lardaki kurallara uygun
 - [ ] Git'e commit edilmis, temiz calisan durumda
 
 ---
