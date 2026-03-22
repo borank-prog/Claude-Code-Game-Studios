@@ -37,11 +37,6 @@ func _ready() -> void:
 	FirebaseAuth.auth_failed.connect(_on_auth_failed)
 	FirebaseAuth.sign_in_anonymous()
 
-	# Feedback sinyalleri
-	EventBus.cash_changed.connect(_on_cash_changed)
-	EventBus.respect_gained.connect(_on_respect_gained)
-	EventBus.rank_up.connect(_on_rank_up)
-
 	_switch_tab("home")
 
 
@@ -79,36 +74,4 @@ func _switch_tab(tab_name: String) -> void:
 		content_area.get_node(tab_name).visible = true
 
 
-# === FEEDBACK ===
-func _on_cash_changed(_pid: String, _amount: int, delta: int) -> void:
-	if delta > 0:
-		_show_floating_text("+$%s" % ThemeConstants.format_number(delta), ThemeConstants.SUCCESS_COLOR)
-	elif delta < 0:
-		_show_floating_text("-$%s" % ThemeConstants.format_number(absi(delta)), ThemeConstants.DANGER_COLOR)
-
-
-func _on_respect_gained(amount: int, _source: String) -> void:
-	_show_floating_text("+%d Respect" % amount, ThemeConstants.NEON_BLUE)
-
-
-func _on_rank_up(_new_rank: int, rank_name: String) -> void:
-	_show_floating_text("RANK UP! %s" % rank_name, ThemeConstants.PRIMARY_COLOR)
-
-
-func _show_floating_text(text: String, color: Color) -> void:
-	if feedback_container == null:
-		return
-	var label := Label.new()
-	label.text = text
-	label.add_theme_color_override("font_color", color)
-	label.add_theme_font_size_override("font_size", ThemeConstants.FONT_SUBHEADING)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.position = Vector2(0, feedback_container.size.y / 2.0)
-	label.size = Vector2(feedback_container.size.x, 40)
-	feedback_container.add_child(label)
-
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(label, "position:y", label.position.y - 80, ThemeConstants.FEEDBACK_FLOAT_DURATION)
-	tween.tween_property(label, "modulate:a", 0.0, ThemeConstants.FEEDBACK_FLOAT_DURATION).set_delay(0.3)
-	tween.chain().tween_callback(label.queue_free)
+	# Feedback artik FeedbackController (feedback_container script) tarafindan yonetiliyor
