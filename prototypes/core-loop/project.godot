@@ -1,0 +1,18 @@
+; PROTOTYPE - NOT FOR PRODUCTION
+; Question: Is the core mission loop satisfying on mobile?
+; Date: 2026-03-22
+
+[application]
+config/name="CartelHood Core Loop Prototype"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.6")
+
+[display]
+window/size/viewport_width=430
+window/size/viewport_height=932
+window/handheld/orientation=1
+window/stretch/mode="viewport"
+window/stretch/aspect="expand"
+
+[rendering]
+renderer/rendering_method="mobile"
