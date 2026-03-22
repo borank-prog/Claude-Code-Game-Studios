@@ -1,0 +1,104 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://src/ui/screens/main_screen.gd" id="1"]
+[ext_resource type="PackedScene" path="res://src/ui/components/hud_bar.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://src/ui/screens/home_screen.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://src/ui/screens/mission_screen.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://src/ui/screens/shop_screen.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://src/ui/screens/map_screen.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://src/ui/screens/gang_screen.tscn" id="7"]
+
+[node name="MainScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1")
+
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.05, 0.05, 0.1, 1)
+
+[node name="MainVBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="HudBar" type="PanelContainer" parent="MainVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HudBarScene" parent="MainVBox/HudBar" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="ContentArea" type="Control" parent="MainVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="home" parent="MainVBox/ContentArea" instance=ExtResource("3")]
+layout_mode = 1
+
+[node name="missions" parent="MainVBox/ContentArea" instance=ExtResource("4")]
+layout_mode = 1
+visible = false
+
+[node name="shop" parent="MainVBox/ContentArea" instance=ExtResource("5")]
+layout_mode = 1
+visible = false
+
+[node name="map" parent="MainVBox/ContentArea" instance=ExtResource("6")]
+layout_mode = 1
+visible = false
+
+[node name="gang" parent="MainVBox/ContentArea" instance=ExtResource("7")]
+layout_mode = 1
+visible = false
+
+[node name="FeedbackContainer" type="Control" parent="MainVBox/ContentArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="TabBar" type="HBoxContainer" parent="MainVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 56)
+
+[node name="TabHome" type="Button" parent="MainVBox/TabBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Ana"
+
+[node name="TabMissions" type="Button" parent="MainVBox/TabBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Gorev"
+
+[node name="TabMap" type="Button" parent="MainVBox/TabBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Harita"
+
+[node name="TabGang" type="Button" parent="MainVBox/TabBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Cete"
+
+[node name="TabShop" type="Button" parent="MainVBox/TabBar"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Magaza"
