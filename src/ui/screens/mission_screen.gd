@@ -56,12 +56,17 @@ func _create_mission_card(mission: Dictionary) -> PanelContainer:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0, 90)
 
+	var difficulty: String = mission.get("difficulty", "EASY")
+	var diff_color := _get_difficulty_color(difficulty)
+
 	var style := StyleBoxFlat.new()
 	style.bg_color = ThemeConstants.SURFACE_COLOR
 	style.corner_radius_top_left = ThemeConstants.CORNER_RADIUS
 	style.corner_radius_top_right = ThemeConstants.CORNER_RADIUS
 	style.corner_radius_bottom_left = ThemeConstants.CORNER_RADIUS
 	style.corner_radius_bottom_right = ThemeConstants.CORNER_RADIUS
+	style.border_width_left = 4
+	style.border_color = diff_color
 	style.content_margin_left = ThemeConstants.CARD_PADDING
 	style.content_margin_right = ThemeConstants.CARD_PADDING
 	style.content_margin_top = 8
@@ -75,6 +80,15 @@ func _create_mission_card(mission: Dictionary) -> PanelContainer:
 	var header := HBoxContainer.new()
 	vbox.add_child(header)
 
+	# Kategori ikonu
+	var cat_label := Label.new()
+	var category: String = mission.get("category", "")
+	cat_label.text = _get_category_icon(category)
+	cat_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
+	cat_label.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
+	cat_label.custom_minimum_size = Vector2(24, 0)
+	header.add_child(cat_label)
+
 	var name_label := Label.new()
 	name_label.text = mission.get("name", "Gorev")
 	name_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
@@ -82,24 +96,50 @@ func _create_mission_card(mission: Dictionary) -> PanelContainer:
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(name_label)
 
-	var diff_label := Label.new()
-	var difficulty: String = mission.get("difficulty", "EASY")
-	diff_label.text = difficulty
-	diff_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
-	diff_label.add_theme_color_override("font_color", _get_difficulty_color(difficulty))
-	header.add_child(diff_label)
+	# Zorluk rozeti
+	var diff_badge := Label.new()
+	diff_badge.text = " %s " % difficulty
+	diff_badge.add_theme_font_size_override("font_size", 11)
+	diff_badge.add_theme_color_override("font_color", ThemeConstants.BG_COLOR)
+	var badge_style := StyleBoxFlat.new()
+	badge_style.bg_color = diff_color
+	badge_style.corner_radius_top_left = 4
+	badge_style.corner_radius_top_right = 4
+	badge_style.corner_radius_bottom_left = 4
+	badge_style.corner_radius_bottom_right = 4
+	badge_style.content_margin_left = 4
+	badge_style.content_margin_right = 4
+	diff_badge.add_theme_stylebox_override("normal", badge_style)
+	header.add_child(diff_badge)
+
+	# Odul onizleme satiri
+	var reward_hbox := HBoxContainer.new()
+	reward_hbox.add_theme_constant_override("separation", 12)
+	vbox.add_child(reward_hbox)
+
+	var cash_label := Label.new()
+	cash_label.text = "$%d-%d" % [mission.get("cash_reward_min", 0), mission.get("cash_reward_max", 0)]
+	cash_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
+	cash_label.add_theme_color_override("font_color", ThemeConstants.SUCCESS_COLOR)
+	reward_hbox.add_child(cash_label)
+
+	var resp_label := Label.new()
+	resp_label.text = "+%d Resp" % mission.get("respect_reward", 0)
+	resp_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
+	resp_label.add_theme_color_override("font_color", ThemeConstants.NEON_BLUE)
+	reward_hbox.add_child(resp_label)
+
+	var success_rate := MissionSystem.calculate_success_rate(mission)
+	var rate_label := Label.new()
+	rate_label.text = "%%%d" % int(success_rate * 100)
+	rate_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
+	rate_label.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
+	reward_hbox.add_child(rate_label)
 
 	# Detay satiri
 	var detail := Label.new()
-	var success_rate := MissionSystem.calculate_success_rate(mission)
 	var cooldown := MissionSystem.get_cooldown_remaining(mission.get("mission_id", ""))
-	detail.text = "Stamina: %d | $%d-%d | +%d Resp | %%%d" % [
-		mission.get("stamina_cost", 5),
-		mission.get("cash_reward_min", 0),
-		mission.get("cash_reward_max", 0),
-		mission.get("respect_reward", 0),
-		int(success_rate * 100),
-	]
+	detail.text = "Stamina: %d" % mission.get("stamina_cost", 5)
 	detail.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
 	detail.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
 	vbox.add_child(detail)
@@ -171,3 +211,12 @@ func _get_difficulty_color(difficulty: String) -> Color:
 		"HARD": return ThemeConstants.NEON_ACCENT
 		"EXTREME": return ThemeConstants.DANGER_COLOR
 		_: return ThemeConstants.TEXT_SECONDARY
+
+
+func _get_category_icon(category: String) -> String:
+	match category:
+		"ROBBERY": return "R"
+		"TRAFFICKING": return "T"
+		"EXTORTION": return "E"
+		"ASSASSINATION": return "A"
+		_: return "?"

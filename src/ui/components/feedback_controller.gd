@@ -32,6 +32,7 @@ func _ready() -> void:
 	EventBus.mission_completed.connect(_on_mission_completed)
 	EventBus.notification_queued.connect(_on_notification_queued)
 	EventBus.show_floating_text.connect(_on_show_floating_text)
+	EventBus.raid_resolved.connect(_on_raid_resolved)
 
 
 # === FLOATING TEXT ===
@@ -204,6 +205,74 @@ func show_mission_result(success: bool, cash: int, respect: int) -> void:
 	tween.tween_callback(label.queue_free)
 
 
+# === BASKIN SONUC ANIMASYONU ===
+
+func show_raid_result(result: String, territory_name: String, loot: int) -> void:
+	var text: String
+	var color: Color
+	match result:
+		"ATTACKER_WIN":
+			text = "ZAFER!"
+			color = ThemeConstants.SUCCESS_COLOR
+		"DEFENDER_WIN":
+			text = "YENILGI"
+			color = ThemeConstants.DANGER_COLOR
+		"DRAW":
+			text = "BERABERE"
+			color = ThemeConstants.PRIMARY_COLOR
+		_:
+			text = "SONUC"
+			color = ThemeConstants.TEXT_PRIMARY
+
+	# Ust baslik
+	var title := Label.new()
+	title.text = text
+	title.add_theme_color_override("font_color", color)
+	title.add_theme_font_size_override("font_size", 44)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.set_anchors_preset(Control.PRESET_CENTER)
+	title.position.y = -80
+	title.size = Vector2(size.x, 60)
+	title.pivot_offset = title.size / 2.0
+	title.scale = Vector2.ZERO
+	add_child(title)
+
+	# Bolge adi
+	var sub := Label.new()
+	sub.text = territory_name
+	sub.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
+	sub.add_theme_font_size_override("font_size", ThemeConstants.FONT_SUBHEADING)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.set_anchors_preset(Control.PRESET_CENTER)
+	sub.position.y = -20
+	sub.size = Vector2(size.x, 30)
+	sub.modulate.a = 0.0
+	add_child(sub)
+
+	var tween := create_tween()
+	# Title zoom in
+	tween.tween_property(title, "scale", Vector2(1.2, 1.2), 0.3)\
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	tween.tween_property(title, "scale", Vector2(1.0, 1.0), 0.15)
+	# Sub fade in
+	tween.parallel().tween_property(sub, "modulate:a", 1.0, 0.3).set_delay(0.15)
+
+	# Loot floating text
+	if result == "ATTACKER_WIN" and loot > 0:
+		tween.tween_callback(show_floating_text.bind(
+			"+$%s YAGMA" % ThemeConstants.format_number(loot),
+			ThemeConstants.SUCCESS_COLOR,
+			Vector2(0, size.y * 0.55)
+		)).set_delay(0.3)
+
+	# Hold + fade out
+	tween.tween_interval(1.0)
+	tween.tween_property(title, "modulate:a", 0.0, 0.3)
+	tween.parallel().tween_property(sub, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(title.queue_free)
+	tween.tween_callback(sub.queue_free)
+
+
 # === BILDIRIM SISTEMI ===
 
 func _on_notification_queued(text: String, type: String) -> void:
@@ -308,3 +377,21 @@ func _on_mission_completed(mission_id: String, success: bool, rewards: Dictionar
 
 func _on_show_floating_text(text: String, color: Color, pos: Vector2) -> void:
 	show_floating_text(text, color, pos)
+
+
+func _on_raid_resolved(raid_id: String, result: String) -> void:
+	var territory_mgr: Node = get_node_or_null("/root/TerritoryManager")
+	var war_mgr: Node = get_node_or_null("/root/GangWarManager")
+	var territory_name := "Bolge"
+	var loot := 0
+
+	if war_mgr:
+		for raid in war_mgr.raid_history:
+			if raid.get("raid_id", "") == raid_id:
+				loot = raid.get("loot_stolen", 0)
+				if territory_mgr:
+					var t: Dictionary = territory_mgr.get_territory(raid.get("target_territory_id", ""))
+					territory_name = t.get("name", "Bolge")
+				break
+
+	show_raid_result(result, territory_name, loot)

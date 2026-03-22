@@ -22,6 +22,16 @@ const RAID_COOLDOWN_HOURS: float = 24.0
 const RAID_DECLARE_COST: int = 15
 const RAID_JOIN_COST: int = 10
 
+# NPC savunma gucu — tier bazli, solo oyuncunun ilerleme hizina uygun
+# Tier 1: Rank 0-3 oyuncu solo alabilir (power ~40-60)
+# Tier 2: Rank 5-7 oyuncu ekipmanla alabilir (power ~100-200)
+# Tier 3: Rank 8+ oyuncu veya 2-3 kisilik cete (power ~250-500)
+const NPC_DEFENSE_BY_TIER: Dictionary = {
+	1: 80,   # Varos — baslangic oyuncusuyla alinabilir
+	2: 250,  # Orta — orta seviye oyuncu + ekipman
+	3: 600,  # Merkez — deneyimli oyuncu veya kucuk cete
+}
+
 var _check_timer: float = 0.0
 
 
@@ -192,10 +202,10 @@ func _resolve_raid(raid: Dictionary) -> void:
 		defense_power = territory_mgr.get_defense_power(target_id)
 
 	# Savunan cete uyelerinin gucu (simule — multiplayer'da gercek veri)
-	# Solo dev: NPC savunma gucu = bolge tier * 200
+	# Solo dev: NPC savunma gucu tier bazli (baslangic oyuncuyla alinabilir)
 	var territory: Dictionary = territory_mgr.get_territory(target_id) if territory_mgr else {}
 	var tier: int = territory.get("tier", 1)
-	var npc_defense: int = tier * 200
+	var npc_defense: int = NPC_DEFENSE_BY_TIER.get(tier, 150)
 	defense_power += npc_defense
 
 	# RNG

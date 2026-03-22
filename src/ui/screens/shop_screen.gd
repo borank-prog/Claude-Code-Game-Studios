@@ -74,12 +74,17 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0, 75)
 
+	var rarity: String = item.get("rarity", "COMMON")
+	var rarity_color := ThemeConstants.get_rarity_color(rarity)
+
 	var style := StyleBoxFlat.new()
 	style.bg_color = ThemeConstants.SURFACE_COLOR
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
+	style.corner_radius_top_left = ThemeConstants.CORNER_RADIUS
+	style.corner_radius_top_right = ThemeConstants.CORNER_RADIUS
+	style.corner_radius_bottom_left = ThemeConstants.CORNER_RADIUS
+	style.corner_radius_bottom_right = ThemeConstants.CORNER_RADIUS
+	style.border_width_left = 3
+	style.border_color = rarity_color
 	style.content_margin_left = 12
 	style.content_margin_right = 12
 	style.content_margin_top = 8
@@ -95,7 +100,6 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 	hbox.add_child(info)
 
 	var name_label := Label.new()
-	var rarity: String = item.get("rarity", "COMMON")
 	name_label.text = item.get("name", "???")
 	name_label.add_theme_color_override("font_color", ThemeConstants.get_rarity_color(rarity))
 	name_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
