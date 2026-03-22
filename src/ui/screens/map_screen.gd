@@ -40,7 +40,7 @@ func _refresh_list() -> void:
 	if territory_mgr == null:
 		return
 
-	var territories := territory_mgr.get_all_territories()
+	var territories: Array = territory_mgr.get_all_territories()
 
 	# Tier'a gore sirala
 	territories.sort_custom(func(a, b): return a.get("tier", 1) < b.get("tier", 1))
@@ -84,7 +84,7 @@ func _create_territory_card(territory: Dictionary) -> PanelContainer:
 	indicator.custom_minimum_size = Vector2(8, 0)
 	indicator.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
-	var controlling := territory.get("controlling_gang_id", "")
+	var controlling: String = territory.get("controlling_gang_id", "")
 	if controlling.is_empty():
 		indicator.color = Color(0.5, 0.5, 0.5)  # Tarafsiz
 	elif controlling == GameData.gang_id and not GameData.gang_id.is_empty():
@@ -110,7 +110,7 @@ func _create_territory_card(territory: Dictionary) -> PanelContainer:
 	info.add_child(name_label)
 
 	var detail := Label.new()
-	var income := territory_mgr.get_territory_income(territory["territory_id"]) if territory_mgr else 0
+	var income: int = territory_mgr.get_territory_income(territory["territory_id"]) if territory_mgr else 0
 	detail.text = "$%d/sa | %d bina slotu" % [territory.get("base_income", 0), territory.get("building_slots", 2)]
 	detail.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
 	detail.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
@@ -135,12 +135,12 @@ func _show_detail(territory: Dictionary) -> void:
 	detail_panel.visible = true
 	detail_name.text = territory.get("name", "???")
 
-	var controlling := territory.get("controlling_gang_id", "")
-	var control_str := territory.get("control_strength", 0.0)
-	var income := territory.get("base_income", 0)
+	var controlling: String = territory.get("controlling_gang_id", "")
+	var control_str: float = territory.get("control_strength", 0.0)
+	var income: int = territory.get("base_income", 0)
 	var buildings: Array = territory.get("buildings", [])
 
-	var info_text := "Tier: %d | Gelir: $%d/sa\n" % [territory.get("tier", 1), income]
+	var info_text: String = "Tier: %d | Gelir: $%d/sa\n" % [territory.get("tier", 1), income]
 
 	if controlling.is_empty():
 		info_text += "Kontrol: Tarafsiz\n"
@@ -181,7 +181,7 @@ func _on_action_pressed() -> void:
 	if selected_territory.is_empty() or gang_war_mgr == null:
 		return
 
-	var result := gang_war_mgr.declare_raid(selected_territory["territory_id"])
+	var result: Dictionary = gang_war_mgr.declare_raid(selected_territory["territory_id"])
 	if result["success"]:
 		if result.get("instant", false):
 			ScreenManager.queue_notification("Bolge ele gecirildi!", "success")
@@ -200,7 +200,7 @@ func _on_build_pressed() -> void:
 	for btype in BuildingManager.BUILDING_DEFS:
 		var bdef: Dictionary = BuildingManager.BUILDING_DEFS[btype]
 		if bdef["required_rank"] <= GameData.rank:
-			var result := building_mgr.build(selected_territory["territory_id"], btype)
+			var result: Dictionary = building_mgr.build(selected_territory["territory_id"], btype)
 			if result["success"]:
 				ScreenManager.queue_notification("%s insa basladi!" % bdef["name"], "success")
 				_show_detail(selected_territory)

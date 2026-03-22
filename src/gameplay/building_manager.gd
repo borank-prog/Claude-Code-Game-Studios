@@ -60,7 +60,7 @@ func build(territory_id: String, building_type: String) -> Dictionary:
 	if territory_mgr == null:
 		return {"success": false, "reason": "System not ready"}
 
-	var territory := territory_mgr.get_territory(territory_id)
+	var territory: Dictionary = territory_mgr.get_territory(territory_id)
 	if territory.is_empty():
 		return {"success": false, "reason": "Bolge bulunamadi"}
 
@@ -123,7 +123,7 @@ func upgrade(territory_id: String, building_id: String) -> Dictionary:
 	if territory_mgr == null:
 		return {"success": false, "reason": "System not ready"}
 
-	var territory := territory_mgr.get_territory(territory_id)
+	var territory: Dictionary = territory_mgr.get_territory(territory_id)
 	var buildings: Array = territory.get("buildings", [])
 
 	for b in buildings:
@@ -151,12 +151,12 @@ func demolish(territory_id: String, building_id: String) -> bool:
 	if territory_mgr == null:
 		return false
 
-	var territory := territory_mgr.get_territory(territory_id)
+	var territory: Dictionary = territory_mgr.get_territory(territory_id)
 	var buildings: Array = territory.get("buildings", [])
 
 	for i in buildings.size():
 		if buildings[i]["building_id"] == building_id:
-			var removed := buildings[i]
+			var removed: Dictionary = buildings[i]
 			buildings.remove_at(i)
 			building_destroyed.emit(territory_id, building_id)
 			return true
@@ -203,7 +203,7 @@ func _complete_build(build_info: Dictionary) -> void:
 	if territory_mgr == null:
 		return
 
-	var territory := territory_mgr.get_territory(build_info["territory_id"])
+	var territory: Dictionary = territory_mgr.get_territory(build_info["territory_id"])
 	if territory.is_empty():
 		return
 

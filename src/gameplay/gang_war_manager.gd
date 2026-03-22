@@ -46,7 +46,7 @@ func declare_raid(target_territory_id: String) -> Dictionary:
 	if not gang_mgr._has_permission("war_declare"):
 		return {"success": false, "reason": "Yetkin yok"}
 
-	var target := territory_mgr.get_territory(target_territory_id)
+	var target: Dictionary = territory_mgr.get_territory(target_territory_id)
 	if target.is_empty():
 		return {"success": false, "reason": "Bolge bulunamadi"}
 
@@ -55,7 +55,7 @@ func declare_raid(target_territory_id: String) -> Dictionary:
 		return {"success": false, "reason": "Kendi bolgen"}
 
 	# Komsuluk kontrolu — cete en az bir komsfu bolgeyi kontrol etmeli
-	var gang_territories := territory_mgr.get_territories_by_gang(GameData.gang_id)
+	var gang_territories: Array = territory_mgr.get_territories_by_gang(GameData.gang_id)
 	var has_adjacent := false
 	for gt in gang_territories:
 		if territory_mgr.are_adjacent(gt["territory_id"], target_territory_id):
@@ -193,7 +193,7 @@ func _resolve_raid(raid: Dictionary) -> void:
 
 	# Savunan cete uyelerinin gucu (simule — multiplayer'da gercek veri)
 	# Solo dev: NPC savunma gucu = bolge tier * 200
-	var territory := territory_mgr.get_territory(target_id) if territory_mgr else {}
+	var territory: Dictionary = territory_mgr.get_territory(target_id) if territory_mgr else {}
 	var tier: int = territory.get("tier", 1)
 	var npc_defense: int = tier * 200
 	defense_power += npc_defense

@@ -116,7 +116,7 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 	price_label.text = "$%s" % ThemeConstants.format_number(item.get("buy_price", 0))
 	price_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
 
-	var can_info := ShopSystem.can_buy(item.get("item_id", ""))
+	var can_info: Dictionary = ShopSystem.can_buy(item.get("item_id", ""))
 	if can_info["can_buy"]:
 		price_label.add_theme_color_override("font_color", ThemeConstants.SUCCESS_COLOR)
 	else:
@@ -153,7 +153,7 @@ func _on_item_tapped(item: Dictionary) -> void:
 	buy_item_stats.text = stat_text
 	buy_price.text = "$%s" % ThemeConstants.format_number(item.get("buy_price", 0))
 
-	var can_info := ShopSystem.can_buy(item.get("item_id", ""))
+	var can_info: Dictionary = ShopSystem.can_buy(item.get("item_id", ""))
 	buy_button.disabled = not can_info["can_buy"]
 	buy_button.text = "SATIN AL" if can_info["can_buy"] else can_info.get("reason", "").to_upper()
 

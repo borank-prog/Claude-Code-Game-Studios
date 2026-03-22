@@ -141,7 +141,7 @@ func _resolve() -> void:
 		}
 
 		# Loot roll
-		var loot := ItemDB.roll_loot(["WEAPON", "ARMOR", "CLOTHING"])
+		var loot: Dictionary = ItemDB.roll_loot(["WEAPON", "ARMOR", "CLOTHING"])
 		if not loot.is_empty():
 			rewards["loot"] = loot
 			EventBus.item_acquired.emit(loot["item_id"], 1)

@@ -111,7 +111,7 @@ func _create_mission_card(mission: Dictionary) -> PanelContainer:
 	card.add_child(btn)
 
 	# Durum renklendirmesi
-	var can_play := StaminaManager.current >= mission.get("stamina_cost", 5) \
+	var can_play: bool = StaminaManager.current >= mission.get("stamina_cost", 5) \
 		and GameData.rank >= mission.get("required_rank", 0) \
 		and cooldown <= 0 \
 		and not MissionSystem.is_running()

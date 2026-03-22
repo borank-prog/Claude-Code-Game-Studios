@@ -8,7 +8,7 @@ signal sale_completed(item_id: String, cash_gained: int)
 
 ## Satin al
 func buy_item(item_id: String) -> bool:
-	var item_def := ItemDB.get_item(item_id)
+	var item_def: Dictionary = ItemDB.get_item(item_id)
 	if item_def.is_empty():
 		purchase_failed.emit("Esya bulunamadi")
 		return false
@@ -42,7 +42,7 @@ func sell_item(item_id: String, quantity: int = 1) -> bool:
 	if inv == null:
 		return false
 
-	var item_def := ItemDB.get_item(item_id)
+	var item_def: Dictionary = ItemDB.get_item(item_id)
 	var sell_price: int = item_def.get("sell_price", 0)
 
 	if inv.sell_item(item_id, quantity):
@@ -58,7 +58,7 @@ func get_shop_items(category: String = "") -> Array:
 
 ## Esya satin alinabilir mi (UI icin)
 func can_buy(item_id: String) -> Dictionary:
-	var item_def := ItemDB.get_item(item_id)
+	var item_def: Dictionary = ItemDB.get_item(item_id)
 	if item_def.is_empty():
 		return {"can_buy": false, "reason": "not_found"}
 

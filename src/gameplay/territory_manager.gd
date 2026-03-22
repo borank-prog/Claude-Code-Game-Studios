@@ -130,13 +130,13 @@ func neutralize_territory(territory_id: String) -> void:
 
 ## Komsuluk kontrolu
 func are_adjacent(territory_a: String, territory_b: String) -> bool:
-	var t := get_territory(territory_a)
+	var t: Dictionary = get_territory(territory_a)
 	return territory_b in t.get("adjacent", [])
 
 
 ## Bolge savunma gucu
 func get_defense_power(territory_id: String) -> int:
-	var t := get_territory(territory_id)
+	var t: Dictionary = get_territory(territory_id)
 	var building_defense := 0
 	for b in t.get("buildings", []):
 		building_defense += b.get("defense_bonus", 0)
@@ -146,7 +146,7 @@ func get_defense_power(territory_id: String) -> int:
 
 ## Bolge geliri (saat basina)
 func get_territory_income(territory_id: String) -> int:
-	var t := get_territory(territory_id)
+	var t: Dictionary = get_territory(territory_id)
 	var base: int = t.get("base_income", 0)
 	var control: float = t.get("control_strength", 0.0)
 	return int(base * control)
@@ -154,7 +154,7 @@ func get_territory_income(territory_id: String) -> int:
 
 ## Gorev bonusu
 func get_mission_bonus(territory_id: String) -> float:
-	var t := get_territory(territory_id)
+	var t: Dictionary = get_territory(territory_id)
 	if t.get("controlling_gang_id", "") == GameData.gang_id and not GameData.gang_id.is_empty():
 		return t.get("mission_bonus", 1.0)
 	return 1.0

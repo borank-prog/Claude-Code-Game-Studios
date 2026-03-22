@@ -94,7 +94,7 @@ func _build_equipment() -> void:
 			item_label.text = "Bos"
 			item_label.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
 		else:
-			var item_def := ItemDB.get_item(item_id)
+			var item_def: Dictionary = ItemDB.get_item(item_id)
 			item_label.text = item_def.get("name", "???")
 			item_label.add_theme_color_override("font_color",
 				ThemeConstants.get_rarity_color(item_def.get("rarity", "COMMON")))

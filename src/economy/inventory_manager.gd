@@ -31,7 +31,7 @@ func _ready() -> void:
 
 ## Envantere esya ekle
 func add_item(item_id: String, quantity: int = 1) -> bool:
-	var item_def := ItemDB.get_item(item_id)
+	var item_def: Dictionary = ItemDB.get_item(item_id)
 	if item_def.is_empty():
 		push_warning("Unknown item: %s" % item_id)
 		return false
@@ -95,7 +95,7 @@ func equip_item(item_id: String) -> bool:
 	if not has_item(item_id):
 		return false
 
-	var item_def := ItemDB.get_item(item_id)
+	var item_def: Dictionary = ItemDB.get_item(item_id)
 	if item_def.is_empty():
 		return false
 
@@ -138,7 +138,7 @@ func sell_item(item_id: String, quantity: int = 1) -> bool:
 		if equipped[slot] == item_id:
 			unequip_slot(slot)
 
-	var item_def := ItemDB.get_item(item_id)
+	var item_def: Dictionary = ItemDB.get_item(item_id)
 	var sell_price: int = item_def.get("sell_price", 0)
 
 	if remove_item(item_id, quantity):
@@ -157,7 +157,7 @@ func _recalculate_equipment_bonuses() -> void:
 		if item_id.is_empty():
 			continue
 
-		var item_def := ItemDB.get_item(item_id)
+		var item_def: Dictionary = ItemDB.get_item(item_id)
 		equipment_power += item_def.get("power_bonus", 0)
 
 		var bonuses: Dictionary = item_def.get("stat_bonuses", {})
@@ -190,7 +190,7 @@ func _get_slot_for_category(category: String) -> String:
 func get_inventory_with_details() -> Array:
 	var result: Array = []
 	for entry in items:
-		var item_def := ItemDB.get_item(entry["item_id"])
+		var item_def: Dictionary = ItemDB.get_item(entry["item_id"])
 		if not item_def.is_empty():
 			var detail := item_def.duplicate()
 			detail["quantity"] = entry["quantity"]
