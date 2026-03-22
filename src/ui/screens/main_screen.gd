@@ -39,6 +39,17 @@ func _ready() -> void:
 
 	_switch_tab("home")
 
+	# Tutorial — ilk giris icin
+	call_deferred("_start_tutorial")
+
+
+func _start_tutorial() -> void:
+	var TutorialOverlay := preload("res://src/ui/components/tutorial_overlay.gd")
+	var tutorial := CanvasLayer.new()
+	tutorial.set_script(TutorialOverlay)
+	add_child(tutorial)
+	tutorial.start_if_needed()
+
 
 func _on_auth_completed(success: bool, user_id: String) -> void:
 	if success:

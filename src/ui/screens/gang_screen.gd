@@ -35,6 +35,14 @@ func _ready() -> void:
 		gang_mgr.gang_updated.connect(func(): _refresh())
 
 	create_cost_label.text = "Maliyet: $%s" % ThemeConstants.format_number(GangManager.GANG_CREATION_COST)
+
+	# Baskinlar butonu (gang_info_panel icerisinde)
+	var war_btn := Button.new()
+	war_btn.text = "BASKINLAR"
+	war_btn.custom_minimum_size = Vector2(0, ThemeConstants.MIN_TOUCH_TARGET)
+	war_btn.pressed.connect(_show_war_screen)
+	gang_info_panel.add_child(war_btn)
+
 	_refresh()
 
 
@@ -146,3 +154,20 @@ func _on_leave_pressed() -> void:
 		return
 	gang_mgr.leave_gang()
 	ScreenManager.queue_notification("Ceteden ayrildin", "info")
+
+
+# === WAR SCREEN NAVIGASYON ===
+
+var _war_screen: Control = null
+
+func _show_war_screen() -> void:
+	if _war_screen != null:
+		_war_screen.queue_free()
+		_war_screen = null
+		return
+
+	var WarScene := preload("res://src/ui/screens/war_screen.tscn")
+	_war_screen = WarScene.instantiate()
+	_war_screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_war_screen.z_index = 10
+	add_child(_war_screen)
