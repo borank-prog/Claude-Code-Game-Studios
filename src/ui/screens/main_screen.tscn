@@ -23,7 +23,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.05, 0.05, 0.1, 1)
+color = Color(0.04, 0.04, 0.07, 1)
 
 [node name="MainVBox" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -79,28 +79,38 @@ custom_minimum_size = Vector2(0, 56)
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Ana"
+text = "HOME"
+theme_override_colors/font_color = Color(0.886, 0.718, 0.078, 1)
+theme_override_font_sizes/font_size = 13
 
 [node name="TabMissions" type="Button" parent="MainVBox/TabBar"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Gorev"
+text = "GOREV"
+theme_override_colors/font_color = Color(0.467, 0.467, 0.467, 1)
+theme_override_font_sizes/font_size = 13
 
 [node name="TabMap" type="Button" parent="MainVBox/TabBar"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Harita"
+text = "HARITA"
+theme_override_colors/font_color = Color(0.467, 0.467, 0.467, 1)
+theme_override_font_sizes/font_size = 13
 
 [node name="TabGang" type="Button" parent="MainVBox/TabBar"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Cete"
+text = "CETE"
+theme_override_colors/font_color = Color(0.467, 0.467, 0.467, 1)
+theme_override_font_sizes/font_size = 13
 
 [node name="TabShop" type="Button" parent="MainVBox/TabBar"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Magaza"
+text = "SHOP"
+theme_override_colors/font_color = Color(0.467, 0.467, 0.467, 1)
+theme_override_font_sizes/font_size = 13
