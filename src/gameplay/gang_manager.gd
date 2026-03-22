@@ -264,6 +264,151 @@ func _generate_id() -> String:
 	return "gang_%d_%d" % [Time.get_unix_time_from_system(), randi()]
 
 
+# === DAVET SISTEMI ===
+
+## Davet kodu olustur (6 haneli, buyuk harf + rakam)
+func generate_invite_code() -> String:
+	if not is_in_gang:
+		return ""
+	if not _has_permission("invite"):
+		return ""
+
+	var chars := "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # Karisik karakterler cikarildi (0/O, 1/I)
+	var code := ""
+	for i in 6:
+		code += chars[randi() % chars.length()]
+
+	# Kodu cete verisine kaydet
+	if not current_gang.has("invite_codes"):
+		current_gang["invite_codes"] = []
+	current_gang["invite_codes"].append({
+		"code": code,
+		"created_by": GameData.player_id,
+		"created_at": Time.get_unix_time_from_system(),
+		"expires": Time.get_unix_time_from_system() + 86400.0,  # 24 saat
+	})
+
+	gang_updated.emit()
+	_sync_to_firebase()
+	return code
+
+
+## Davet kodu ile katil
+func join_with_invite_code(code: String) -> Dictionary:
+	if is_in_gang:
+		return {"success": false, "reason": "Zaten bir cetede"}
+
+	# Firebase'den cete bul (basitlestirilmis — kod lokal aramasi)
+	# Gercek uygulamada Firestore query yapilir
+	return {"success": false, "reason": "Kod aranıyor — Firebase query gerekli"}
+
+
+## Kodu dogrula (cete icindeyken, gelen katilim icin)
+func validate_invite_code(code: String) -> bool:
+	if not current_gang.has("invite_codes"):
+		return false
+	var now := Time.get_unix_time_from_system()
+	for invite in current_gang["invite_codes"]:
+		if invite["code"] == code and invite["expires"] > now:
+			return true
+	return false
+
+
+## Suresi dolan davet kodlarini temizle
+func clean_expired_invites() -> void:
+	if not current_gang.has("invite_codes"):
+		return
+	var now := Time.get_unix_time_from_system()
+	current_gang["invite_codes"] = current_gang["invite_codes"].filter(
+		func(inv): return inv["expires"] > now
+	)
+
+
+# === FIREBASE SYNC ===
+
+var _firestore: Node = null
+
+
+func _init_firebase() -> void:
+	_firestore = get_node_or_null("/root/FirebaseFirestore")
+
+
+## Cete verisini Firebase'e kaydet
+func _sync_to_firebase() -> void:
+	if _firestore == null:
+		_init_firebase()
+	if _firestore == null:
+		return
+
+	var auth: Node = get_node_or_null("/root/FirebaseAuth")
+	if auth == null or not auth.is_authenticated:
+		return
+
+	if not is_in_gang or current_gang.is_empty():
+		return
+
+	var gang_id: String = current_gang.get("gang_id", "")
+	if gang_id.is_empty():
+		return
+
+	# Cete verisini gangs/{gang_id} path'ine kaydet
+	var url := "%s/gangs/%s" % [FirebaseConfig.FIRESTORE_BASE_URL, gang_id]
+	var firestore_data := _firestore._dict_to_firestore(current_gang)
+	var body := JSON.stringify({"fields": firestore_data})
+
+	var http := HTTPRequest.new()
+	http.request_completed.connect(func(result, code, _h, _b):
+		http.queue_free()
+		if result == HTTPRequest.RESULT_SUCCESS and code < 400:
+			print("GangManager: Synced to Firebase")
+		else:
+			print("GangManager: Firebase sync failed (HTTP %d)" % code)
+	)
+	_firestore.add_child(http)
+	http.request(url, auth.get_auth_header(), HTTPClient.METHOD_PATCH, body)
+
+
+## Firebase'den cete verisini yukle
+func load_gang_from_firebase(gang_id: String) -> void:
+	if _firestore == null:
+		_init_firebase()
+	if _firestore == null:
+		return
+
+	var auth: Node = get_node_or_null("/root/FirebaseAuth")
+	if auth == null or not auth.is_authenticated:
+		return
+
+	var url := "%s/gangs/%s" % [FirebaseConfig.FIRESTORE_BASE_URL, gang_id]
+
+	var http := HTTPRequest.new()
+	http.request_completed.connect(_on_gang_load_completed.bind(http))
+	_firestore.add_child(http)
+	http.request(url, auth.get_auth_header(), HTTPClient.METHOD_GET)
+
+
+func _on_gang_load_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray, http: HTTPRequest) -> void:
+	http.queue_free()
+
+	if result != HTTPRequest.RESULT_SUCCESS or response_code >= 400:
+		print("GangManager: Firebase load failed")
+		return
+
+	var json := JSON.new()
+	if json.parse(body.get_string_from_utf8()) != OK:
+		return
+
+	var data: Dictionary = json.data if json.data is Dictionary else {}
+	var fields: Dictionary = data.get("fields", {})
+
+	if not fields.is_empty():
+		current_gang = _firestore._firestore_to_dict(fields)
+		is_in_gang = true
+		gang_joined.emit(current_gang)
+		gang_updated.emit()
+		print("GangManager: Loaded gang from Firebase: %s" % current_gang.get("name", "?"))
+
+
 ## Serialize
 func serialize() -> Dictionary:
 	return {

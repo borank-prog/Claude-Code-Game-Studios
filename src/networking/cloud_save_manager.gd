@@ -99,6 +99,10 @@ func _build_save_data() -> Dictionary:
 	var raw := {
 		"player": player_data,
 		"stamina": stamina_data,
+		"inventory": InventoryManager.serialize(),
+		"gang": GangManager.serialize(),
+		"territory": TerritoryManager.serialize(),
+		"gang_war": GangWarManager.serialize(),
 		"save_version": SAVE_VERSION,
 		"last_save": now,
 	}
@@ -314,3 +318,11 @@ func _apply_loaded_data(data: Dictionary) -> void:
 		GameData.deserialize(data["player"])
 	if data.has("stamina"):
 		StaminaManager.deserialize(data["stamina"])
+	if data.has("inventory"):
+		InventoryManager.deserialize(data["inventory"])
+	if data.has("gang"):
+		GangManager.deserialize(data["gang"])
+	if data.has("territory"):
+		TerritoryManager.deserialize(data["territory"])
+	if data.has("gang_war"):
+		GangWarManager.deserialize(data["gang_war"])
