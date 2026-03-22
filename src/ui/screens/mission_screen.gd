@@ -18,8 +18,27 @@ func _ready() -> void:
 	EventBus.stamina_changed.connect(func(_c, _m): _refresh_list())
 	EventBus.rank_up.connect(func(_r, _n): MissionSystem._refresh_mission_list())
 
+	# Result panel stili
+	var rp_style := StyleBoxFlat.new()
+	rp_style.bg_color = Color(NeonTheme.SURFACE, 0.98)
+	rp_style.corner_radius_top_left = 12
+	rp_style.corner_radius_top_right = 12
+	rp_style.corner_radius_bottom_left = 12
+	rp_style.corner_radius_bottom_right = 12
+	rp_style.border_width_left = 3
+	rp_style.border_width_right = 3
+	rp_style.border_width_top = 3
+	rp_style.border_width_bottom = 3
+	rp_style.border_color = NeonTheme.PRIMARY.darkened(0.3)
+	rp_style.content_margin_left = 20
+	rp_style.content_margin_right = 20
+	rp_style.content_margin_top = 16
+	rp_style.content_margin_bottom = 16
+	result_panel.add_theme_stylebox_override("panel", rp_style)
 	result_panel.visible = false
 	progress_bar.visible = false
+	progress_label.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+	progress_label.add_theme_font_size_override("font_size", 16)
 	visibility_changed.connect(func(): if visible: _refresh_list())
 	call_deferred("_refresh_list")
 
@@ -60,11 +79,11 @@ func _create_mission_card(mission: Dictionary) -> PanelContainer:
 	var diff_color := _get_difficulty_color(difficulty)
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeConstants.SURFACE_COLOR
-	style.corner_radius_top_left = ThemeConstants.CORNER_RADIUS
-	style.corner_radius_top_right = ThemeConstants.CORNER_RADIUS
-	style.corner_radius_bottom_left = ThemeConstants.CORNER_RADIUS
-	style.corner_radius_bottom_right = ThemeConstants.CORNER_RADIUS
+	style.bg_color = NeonTheme.CARD_BG
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
 	style.border_width_left = 4
 	style.border_color = diff_color
 	style.content_margin_left = ThemeConstants.CARD_PADDING

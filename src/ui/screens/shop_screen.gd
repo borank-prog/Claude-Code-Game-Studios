@@ -25,7 +25,31 @@ const CATEGORY_NAMES: Dictionary = {
 
 func _ready() -> void:
 	_build_category_bar()
+
+	# Buy panel stili
+	var bp_style := StyleBoxFlat.new()
+	bp_style.bg_color = Color(NeonTheme.SURFACE, 0.98)
+	bp_style.corner_radius_top_left = 12
+	bp_style.corner_radius_top_right = 12
+	bp_style.corner_radius_bottom_left = 12
+	bp_style.corner_radius_bottom_right = 12
+	bp_style.border_width_left = 2
+	bp_style.border_width_right = 2
+	bp_style.border_width_top = 2
+	bp_style.border_width_bottom = 2
+	bp_style.border_color = NeonTheme.PRIMARY.darkened(0.3)
+	bp_style.content_margin_left = 20
+	bp_style.content_margin_right = 20
+	bp_style.content_margin_top = 16
+	bp_style.content_margin_bottom = 16
+	buy_panel.add_theme_stylebox_override("panel", bp_style)
 	buy_panel.visible = false
+
+	buy_item_name.add_theme_font_size_override("font_size", 20)
+	buy_item_stats.add_theme_color_override("font_color", NeonTheme.TEXT_SECONDARY)
+	buy_price.add_theme_color_override("font_color", NeonTheme.SUCCESS)
+	buy_price.add_theme_font_size_override("font_size", 20)
+
 	buy_button.pressed.connect(_on_buy_pressed)
 	buy_close.pressed.connect(func(): buy_panel.visible = false)
 	ShopSystem.purchase_completed.connect(_on_purchase_completed)
@@ -78,11 +102,11 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 	var rarity_color := ThemeConstants.get_rarity_color(rarity)
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = ThemeConstants.SURFACE_COLOR
-	style.corner_radius_top_left = ThemeConstants.CORNER_RADIUS
-	style.corner_radius_top_right = ThemeConstants.CORNER_RADIUS
-	style.corner_radius_bottom_left = ThemeConstants.CORNER_RADIUS
-	style.corner_radius_bottom_right = ThemeConstants.CORNER_RADIUS
+	style.bg_color = NeonTheme.CARD_BG
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
 	style.border_width_left = 3
 	style.border_color = rarity_color
 	style.content_margin_left = 12
@@ -149,6 +173,7 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 func _on_item_tapped(item: Dictionary) -> void:
 	selected_item = item
 	buy_item_name.text = item.get("name", "???")
+	buy_item_name.add_theme_color_override("font_color", ThemeConstants.get_rarity_color(item.get("rarity", "COMMON")))
 
 	var stat_text := "Power +%d" % item.get("power_bonus", 0)
 	var bonuses: Dictionary = item.get("stat_bonuses", {})
