@@ -55,6 +55,8 @@ layout_mode = 2
 layout_mode = 2
 text = "— STATLAR —"
 horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.886, 0.718, 0.078, 0.7)
+theme_override_font_sizes/font_size = 14
 
 [node name="StatPointsLabel" type="Label" parent="Scroll/VBox"]
 unique_name_in_owner = true
@@ -73,6 +75,8 @@ layout_mode = 2
 layout_mode = 2
 text = "— EKIPMAN —"
 horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.886, 0.718, 0.078, 0.7)
+theme_override_font_sizes/font_size = 14
 
 [node name="EquipContainer" type="VBoxContainer" parent="Scroll/VBox"]
 unique_name_in_owner = true

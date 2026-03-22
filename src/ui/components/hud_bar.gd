@@ -19,6 +19,7 @@ func _ready() -> void:
 	EventBus.respect_gained.connect(_on_respect_gained)
 	EventBus.rank_up.connect(_on_rank_up)
 	EventBus.stat_changed.connect(_on_stat_changed)
+	_apply_hud_styling()
 	call_deferred("_refresh_all")
 
 
@@ -40,6 +41,65 @@ func _refresh_all() -> void:
 	_update_stamina()
 	_update_cash()
 	_update_respect()
+
+
+func _apply_hud_styling() -> void:
+	# Rank label — altin neon
+	rank_label.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+	rank_label.add_theme_font_size_override("font_size", 16)
+
+	# Power label
+	power_label.add_theme_color_override("font_color", NeonTheme.NEON_ORANGE)
+	power_label.add_theme_font_size_override("font_size", 13)
+
+	# Stamina bar — yesil fill
+	var stam_bg := StyleBoxFlat.new()
+	stam_bg.bg_color = Color(0.08, 0.15, 0.08)
+	stam_bg.corner_radius_top_left = 4
+	stam_bg.corner_radius_top_right = 4
+	stam_bg.corner_radius_bottom_left = 4
+	stam_bg.corner_radius_bottom_right = 4
+	stamina_bar.add_theme_stylebox_override("background", stam_bg)
+
+	var stam_fill := StyleBoxFlat.new()
+	stam_fill.bg_color = NeonTheme.SUCCESS
+	stam_fill.corner_radius_top_left = 4
+	stam_fill.corner_radius_top_right = 4
+	stam_fill.corner_radius_bottom_left = 4
+	stam_fill.corner_radius_bottom_right = 4
+	stamina_bar.add_theme_stylebox_override("fill", stam_fill)
+
+	stamina_text.add_theme_color_override("font_color", NeonTheme.SUCCESS)
+	stamina_text.add_theme_font_size_override("font_size", 13)
+	regen_text.add_theme_color_override("font_color", NeonTheme.TEXT_SECONDARY)
+	regen_text.add_theme_font_size_override("font_size", 12)
+
+	# Cash — yesil
+	cash_label.add_theme_color_override("font_color", NeonTheme.SUCCESS)
+	cash_label.add_theme_font_size_override("font_size", 15)
+	# Premium — altin
+	premium_label.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+	premium_label.add_theme_font_size_override("font_size", 15)
+
+	# Respect bar — mavi neon
+	var resp_bg := StyleBoxFlat.new()
+	resp_bg.bg_color = Color(0.05, 0.08, 0.15)
+	resp_bg.corner_radius_top_left = 3
+	resp_bg.corner_radius_top_right = 3
+	resp_bg.corner_radius_bottom_left = 3
+	resp_bg.corner_radius_bottom_right = 3
+	respect_bar.add_theme_stylebox_override("background", resp_bg)
+
+	var resp_fill := StyleBoxFlat.new()
+	resp_fill.bg_color = NeonTheme.NEON_BLUE
+	resp_fill.corner_radius_top_left = 3
+	resp_fill.corner_radius_top_right = 3
+	resp_fill.corner_radius_bottom_left = 3
+	resp_fill.corner_radius_bottom_right = 3
+	respect_bar.add_theme_stylebox_override("fill", resp_fill)
+
+	respect_text.add_theme_color_override("font_color", NeonTheme.NEON_BLUE)
+	respect_text.add_theme_font_size_override("font_size", 12)
 
 
 func _update_rank() -> void:

@@ -106,9 +106,18 @@ func _toggle_avatar_selector() -> void:
 
 
 func _refresh() -> void:
+	# Profil bilgileri
 	name_label.text = GameData.display_name
+	name_label.add_theme_font_size_override("font_size", 24)
+	name_label.add_theme_color_override("font_color", NeonTheme.TEXT_PRIMARY)
+
 	rank_title.text = "Rank %d — %s" % [GameData.rank, GameData.get_rank_name()]
+	rank_title.add_theme_font_size_override("font_size", 16)
+	rank_title.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+
 	power_value.text = "Power: %s" % ThemeConstants.format_number(InventoryManager.get_total_power())
+	power_value.add_theme_font_size_override("font_size", 14)
+	power_value.add_theme_color_override("font_color", NeonTheme.NEON_ORANGE)
 
 	_update_avatar_display()
 	_build_stats()
@@ -121,28 +130,91 @@ func _build_stats() -> void:
 
 	stat_points_label.text = "Stat Puanlari: %d" % GameData.unspent_stat_points
 	stat_points_label.visible = GameData.unspent_stat_points > 0
+	stat_points_label.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+	stat_points_label.add_theme_font_size_override("font_size", 16)
+
+	var stat_colors := {
+		"strength": NeonTheme.DANGER,
+		"endurance": NeonTheme.SUCCESS,
+		"charisma": NeonTheme.PRIMARY,
+		"luck": NeonTheme.NEON_ORANGE,
+		"intelligence": NeonTheme.NEON_BLUE,
+	}
 
 	for stat_name in STAT_NAMES:
-		var row := HBoxContainer.new()
-		stat_container.add_child(row)
+		var card := PanelContainer.new()
+		var card_style := StyleBoxFlat.new()
+		card_style.bg_color = NeonTheme.CARD_BG
+		card_style.corner_radius_top_left = 8
+		card_style.corner_radius_top_right = 8
+		card_style.corner_radius_bottom_left = 8
+		card_style.corner_radius_bottom_right = 8
+		card_style.border_width_left = 3
+		card_style.border_color = stat_colors.get(stat_name, NeonTheme.TEXT_SECONDARY)
+		card_style.content_margin_left = 10
+		card_style.content_margin_right = 10
+		card_style.content_margin_top = 6
+		card_style.content_margin_bottom = 6
+		card.add_theme_stylebox_override("panel", card_style)
+		stat_container.add_child(card)
 
-		var label := Label.new()
+		var row := HBoxContainer.new()
+		card.add_child(row)
+
 		var base_val := GameData.get_stat(stat_name)
 		var equip_bonus := InventoryManager.get_equipment_stat_bonus(stat_name)
-		label.text = "%s: %d" % [STAT_NAMES[stat_name], base_val]
-		if equip_bonus > 0:
-			label.text += " (+%d)" % equip_bonus
-		label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
-		label.add_theme_color_override("font_color", ThemeConstants.TEXT_PRIMARY)
-		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(label)
+		var stat_color: Color = stat_colors.get(stat_name, NeonTheme.TEXT_PRIMARY)
 
-		# Stat cap gostergesi
+		# Sol: isim + deger
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(info)
+
+		var name_hbox := HBoxContainer.new()
+		info.add_child(name_hbox)
+
+		var label := Label.new()
+		label.text = STAT_NAMES[stat_name]
+		label.add_theme_font_size_override("font_size", 14)
+		label.add_theme_color_override("font_color", stat_color)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		name_hbox.add_child(label)
+
+		var val_label := Label.new()
+		val_label.text = "%d" % base_val
+		if equip_bonus > 0:
+			val_label.text += " (+%d)" % equip_bonus
+		val_label.add_theme_font_size_override("font_size", 16)
+		val_label.add_theme_color_override("font_color", NeonTheme.TEXT_PRIMARY)
+		name_hbox.add_child(val_label)
+
 		var cap_label := Label.new()
-		cap_label.text = "/ %d" % GameData.get_stat_cap()
-		cap_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
-		cap_label.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
-		row.add_child(cap_label)
+		cap_label.text = "/%d" % GameData.get_stat_cap()
+		cap_label.add_theme_font_size_override("font_size", 12)
+		cap_label.add_theme_color_override("font_color", NeonTheme.TEXT_DIM)
+		name_hbox.add_child(cap_label)
+
+		# Stat bar
+		var bar := ProgressBar.new()
+		bar.max_value = GameData.get_stat_cap()
+		bar.value = base_val
+		bar.custom_minimum_size = Vector2(0, 6)
+		bar.show_percentage = false
+		var bar_bg := StyleBoxFlat.new()
+		bar_bg.bg_color = Color(0.08, 0.08, 0.12)
+		bar_bg.corner_radius_top_left = 3
+		bar_bg.corner_radius_top_right = 3
+		bar_bg.corner_radius_bottom_left = 3
+		bar_bg.corner_radius_bottom_right = 3
+		bar.add_theme_stylebox_override("background", bar_bg)
+		var bar_fill := StyleBoxFlat.new()
+		bar_fill.bg_color = stat_color.darkened(0.3)
+		bar_fill.corner_radius_top_left = 3
+		bar_fill.corner_radius_top_right = 3
+		bar_fill.corner_radius_bottom_left = 3
+		bar_fill.corner_radius_bottom_right = 3
+		bar.add_theme_stylebox_override("fill", bar_fill)
+		info.add_child(bar)
 
 		# + butonu (stat puani varsa)
 		if GameData.unspent_stat_points > 0 and base_val < GameData.get_stat_cap():
@@ -150,6 +222,14 @@ func _build_stats() -> void:
 			plus_btn.text = "+"
 			plus_btn.custom_minimum_size = Vector2(ThemeConstants.MIN_TOUCH_TARGET, ThemeConstants.MIN_TOUCH_TARGET)
 			plus_btn.pressed.connect(_on_stat_plus.bind(stat_name))
+			var plus_style := StyleBoxFlat.new()
+			plus_style.bg_color = NeonTheme.PRIMARY.darkened(0.5)
+			plus_style.corner_radius_top_left = 6
+			plus_style.corner_radius_top_right = 6
+			plus_style.corner_radius_bottom_left = 6
+			plus_style.corner_radius_bottom_right = 6
+			plus_btn.add_theme_stylebox_override("normal", plus_style)
+			plus_btn.add_theme_color_override("font_color", NeonTheme.PRIMARY)
 			row.add_child(plus_btn)
 
 
@@ -157,30 +237,72 @@ func _build_equipment() -> void:
 	for child in equip_container.get_children():
 		child.queue_free()
 
+	var slot_icons := {"weapon": "W", "armor": "A", "clothing": "C"}
 	var slot_names := {"weapon": "Silah", "armor": "Zirh", "clothing": "Kiyafet"}
+
 	for slot in slot_names:
+		var card := PanelContainer.new()
+		var card_style := StyleBoxFlat.new()
+		card_style.bg_color = NeonTheme.CARD_BG
+		card_style.corner_radius_top_left = 8
+		card_style.corner_radius_top_right = 8
+		card_style.corner_radius_bottom_left = 8
+		card_style.corner_radius_bottom_right = 8
+		card_style.content_margin_left = 10
+		card_style.content_margin_right = 10
+		card_style.content_margin_top = 8
+		card_style.content_margin_bottom = 8
+		card.add_theme_stylebox_override("panel", card_style)
+		equip_container.add_child(card)
+
 		var row := HBoxContainer.new()
-		equip_container.add_child(row)
+		row.add_theme_constant_override("separation", 10)
+		card.add_child(row)
+
+		# Slot ikon (renkli kare)
+		var icon_bg := ColorRect.new()
+		icon_bg.custom_minimum_size = Vector2(36, 36)
+		icon_bg.color = NeonTheme.SURFACE_LIGHT
+		row.add_child(icon_bg)
+
+		var icon_letter := Label.new()
+		icon_letter.text = slot_icons.get(slot, "?")
+		icon_letter.add_theme_font_size_override("font_size", 18)
+		icon_letter.add_theme_color_override("font_color", NeonTheme.TEXT_SECONDARY)
+		icon_letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		icon_letter.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		icon_letter.set_anchors_preset(Control.PRESET_FULL_RECT)
+		icon_bg.add_child(icon_letter)
+
+		# Slot bilgi
+		var info := VBoxContainer.new()
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(info)
 
 		var slot_label := Label.new()
-		slot_label.text = "%s: " % slot_names[slot]
-		slot_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
-		slot_label.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
-		row.add_child(slot_label)
+		slot_label.text = slot_names[slot]
+		slot_label.add_theme_font_size_override("font_size", 12)
+		slot_label.add_theme_color_override("font_color", NeonTheme.TEXT_SECONDARY)
+		info.add_child(slot_label)
 
 		var item_id: String = InventoryManager.equipped.get(slot, "")
 		var item_label := Label.new()
 		if item_id.is_empty():
 			item_label.text = "Bos"
-			item_label.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
+			item_label.add_theme_color_override("font_color", NeonTheme.TEXT_DIM)
+			icon_bg.color = NeonTheme.SURFACE_LIGHT
 		else:
 			var item_def: Dictionary = ItemDB.get_item(item_id)
+			var rarity_color := ThemeConstants.get_rarity_color(item_def.get("rarity", "COMMON"))
 			item_label.text = item_def.get("name", "???")
-			item_label.add_theme_color_override("font_color",
-				ThemeConstants.get_rarity_color(item_def.get("rarity", "COMMON")))
-		item_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
-		item_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_child(item_label)
+			item_label.add_theme_color_override("font_color", rarity_color)
+			icon_bg.color = rarity_color.darkened(0.6)
+			icon_letter.add_theme_color_override("font_color", rarity_color)
+			card_style.border_width_left = 3
+			card_style.border_color = rarity_color.darkened(0.3)
+			card.add_theme_stylebox_override("panel", card_style)
+		item_label.add_theme_font_size_override("font_size", 15)
+		info.add_child(item_label)
 
 
 func _on_stat_plus(stat_name: String) -> void:
