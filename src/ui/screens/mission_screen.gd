@@ -1,6 +1,8 @@
 ## Gorev ekrani — gorev listesi, calistirma, sonuc gosterimi.
 extends Control
 
+const NeonThemeClass := preload("res://src/ui/neon_theme.gd")
+
 @onready var mission_list: VBoxContainer = %MissionList
 @onready var progress_bar: ProgressBar = %MissionProgress
 @onready var progress_label: Label = %ProgressLabel
@@ -20,7 +22,7 @@ func _ready() -> void:
 
 	# Result panel stili
 	var rp_style := StyleBoxFlat.new()
-	rp_style.bg_color = Color(NeonTheme.SURFACE, 0.98)
+	rp_style.bg_color = Color(NeonThemeClass.SURFACE, 0.98)
 	rp_style.corner_radius_top_left = 12
 	rp_style.corner_radius_top_right = 12
 	rp_style.corner_radius_bottom_left = 12
@@ -29,7 +31,7 @@ func _ready() -> void:
 	rp_style.border_width_right = 3
 	rp_style.border_width_top = 3
 	rp_style.border_width_bottom = 3
-	rp_style.border_color = NeonTheme.PRIMARY.darkened(0.3)
+	rp_style.border_color = NeonThemeClass.PRIMARY.darkened(0.3)
 	rp_style.content_margin_left = 20
 	rp_style.content_margin_right = 20
 	rp_style.content_margin_top = 16
@@ -37,7 +39,7 @@ func _ready() -> void:
 	result_panel.add_theme_stylebox_override("panel", rp_style)
 	result_panel.visible = false
 	progress_bar.visible = false
-	progress_label.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+	progress_label.add_theme_color_override("font_color", NeonThemeClass.PRIMARY)
 	progress_label.add_theme_font_size_override("font_size", 16)
 	visibility_changed.connect(func(): if visible: _refresh_list())
 	call_deferred("_refresh_list")
@@ -79,7 +81,7 @@ func _create_mission_card(mission: Dictionary) -> PanelContainer:
 	var diff_color := _get_difficulty_color(difficulty)
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = NeonTheme.CARD_BG
+	style.bg_color = NeonThemeClass.CARD_BG
 	style.corner_radius_top_left = 10
 	style.corner_radius_top_right = 10
 	style.corner_radius_bottom_left = 10

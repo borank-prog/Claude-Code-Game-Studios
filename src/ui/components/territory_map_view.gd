@@ -2,6 +2,8 @@
 ## Pinch-to-zoom (0.5x-3.0x), drag pan destekli.
 extends Control
 
+const NeonThemeClass := preload("res://src/ui/neon_theme.gd")
+
 signal territory_tapped(territory_id: String)
 
 var territory_mgr: Node
@@ -79,7 +81,7 @@ func _create_territory_node(territory: Dictionary) -> PanelContainer:
 	panel.pivot_offset = NODE_SIZE / 2.0
 
 	var style := StyleBoxFlat.new()
-	style.bg_color = NeonTheme.CARD_BG
+	style.bg_color = NeonThemeClass.CARD_BG
 	style.corner_radius_top_left = 10
 	style.corner_radius_top_right = 10
 	style.corner_radius_bottom_left = 10
@@ -88,7 +90,7 @@ func _create_territory_node(territory: Dictionary) -> PanelContainer:
 	style.border_width_right = 3
 	style.border_width_top = 3
 	style.border_width_bottom = 3
-	style.border_color = NeonTheme.BORDER
+	style.border_color = NeonThemeClass.BORDER
 	style.content_margin_left = 6
 	style.content_margin_right = 6
 	style.content_margin_top = 4

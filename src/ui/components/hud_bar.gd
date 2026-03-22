@@ -1,6 +1,8 @@
 ## HUD ust bar — rank, stamina, cash, respect gosterimi.
 extends PanelContainer
 
+const NeonThemeClass := preload("res://src/ui/neon_theme.gd")
+
 @onready var rank_label: Label = %RankLabel
 @onready var power_label: Label = %PowerLabel
 @onready var stamina_bar: ProgressBar = %StaminaBar
@@ -45,11 +47,11 @@ func _refresh_all() -> void:
 
 func _apply_hud_styling() -> void:
 	# Rank label — altin neon
-	rank_label.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+	rank_label.add_theme_color_override("font_color", NeonThemeClass.PRIMARY)
 	rank_label.add_theme_font_size_override("font_size", 16)
 
 	# Power label
-	power_label.add_theme_color_override("font_color", NeonTheme.NEON_ORANGE)
+	power_label.add_theme_color_override("font_color", NeonThemeClass.NEON_ORANGE)
 	power_label.add_theme_font_size_override("font_size", 13)
 
 	# Stamina bar — yesil fill
@@ -62,23 +64,23 @@ func _apply_hud_styling() -> void:
 	stamina_bar.add_theme_stylebox_override("background", stam_bg)
 
 	var stam_fill := StyleBoxFlat.new()
-	stam_fill.bg_color = NeonTheme.SUCCESS
+	stam_fill.bg_color = NeonThemeClass.SUCCESS
 	stam_fill.corner_radius_top_left = 4
 	stam_fill.corner_radius_top_right = 4
 	stam_fill.corner_radius_bottom_left = 4
 	stam_fill.corner_radius_bottom_right = 4
 	stamina_bar.add_theme_stylebox_override("fill", stam_fill)
 
-	stamina_text.add_theme_color_override("font_color", NeonTheme.SUCCESS)
+	stamina_text.add_theme_color_override("font_color", NeonThemeClass.SUCCESS)
 	stamina_text.add_theme_font_size_override("font_size", 13)
-	regen_text.add_theme_color_override("font_color", NeonTheme.TEXT_SECONDARY)
+	regen_text.add_theme_color_override("font_color", NeonThemeClass.TEXT_SECONDARY)
 	regen_text.add_theme_font_size_override("font_size", 12)
 
 	# Cash — yesil
-	cash_label.add_theme_color_override("font_color", NeonTheme.SUCCESS)
+	cash_label.add_theme_color_override("font_color", NeonThemeClass.SUCCESS)
 	cash_label.add_theme_font_size_override("font_size", 15)
 	# Premium — altin
-	premium_label.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+	premium_label.add_theme_color_override("font_color", NeonThemeClass.PRIMARY)
 	premium_label.add_theme_font_size_override("font_size", 15)
 
 	# Respect bar — mavi neon
@@ -91,14 +93,14 @@ func _apply_hud_styling() -> void:
 	respect_bar.add_theme_stylebox_override("background", resp_bg)
 
 	var resp_fill := StyleBoxFlat.new()
-	resp_fill.bg_color = NeonTheme.NEON_BLUE
+	resp_fill.bg_color = NeonThemeClass.NEON_BLUE
 	resp_fill.corner_radius_top_left = 3
 	resp_fill.corner_radius_top_right = 3
 	resp_fill.corner_radius_bottom_left = 3
 	resp_fill.corner_radius_bottom_right = 3
 	respect_bar.add_theme_stylebox_override("fill", resp_fill)
 
-	respect_text.add_theme_color_override("font_color", NeonTheme.NEON_BLUE)
+	respect_text.add_theme_color_override("font_color", NeonThemeClass.NEON_BLUE)
 	respect_text.add_theme_font_size_override("font_size", 12)
 
 

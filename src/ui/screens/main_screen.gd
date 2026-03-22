@@ -2,6 +2,8 @@
 ## Tum alt ekranlari icerir ve tab bar ile gecis saglar.
 extends Control
 
+const NeonThemeClass := preload("res://src/ui/neon_theme.gd")
+
 @onready var hud_bar: PanelContainer = %HudBar
 @onready var content_area: Control = %ContentArea
 @onready var tab_home: Button = %TabHome
@@ -25,7 +27,10 @@ const TAB_ICONS: Dictionary = {
 
 func _ready() -> void:
 	# Global neon tema uygula
-	theme = NeonTheme.create_theme()
+	# Global neon tema uygula — tum child'lar miras alir
+	var neon_theme := NeonThemeClass.create_theme()
+	theme = neon_theme
+	print("MainScreen: NeonTheme applied")
 
 	# Hemen oynanabilir olsun — auth arka planda
 	if GameData.player_id.is_empty():
@@ -91,17 +96,17 @@ func _switch_tab(tab_name: String) -> void:
 	for tn in tab_buttons:
 		var btn: Button = tab_buttons[tn]
 		if tn == tab_name:
-			btn.add_theme_color_override("font_color", NeonTheme.PRIMARY)
+			btn.add_theme_color_override("font_color", NeonThemeClass.PRIMARY)
 			# Ust border goster
 			var active_sb := StyleBoxFlat.new()
 			active_sb.bg_color = Color.TRANSPARENT
 			active_sb.border_width_top = 3
-			active_sb.border_color = NeonTheme.PRIMARY
+			active_sb.border_color = NeonThemeClass.PRIMARY
 			active_sb.content_margin_top = 12
 			active_sb.content_margin_bottom = 12
 			btn.add_theme_stylebox_override("normal", active_sb)
 		else:
-			btn.add_theme_color_override("font_color", NeonTheme.TEXT_SECONDARY)
+			btn.add_theme_color_override("font_color", NeonThemeClass.TEXT_SECONDARY)
 			var inactive_sb := StyleBoxFlat.new()
 			inactive_sb.bg_color = Color.TRANSPARENT
 			inactive_sb.content_margin_top = 12
@@ -123,7 +128,7 @@ func _style_hud_bar() -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.06, 0.06, 0.12, 0.95)
 	style.border_width_bottom = 2
-	style.border_color = NeonTheme.PRIMARY.darkened(0.5)
+	style.border_color = NeonThemeClass.PRIMARY.darkened(0.5)
 	style.content_margin_left = 12
 	style.content_margin_right = 12
 	style.content_margin_top = 8
@@ -137,9 +142,9 @@ func _style_tab_bar() -> void:
 	# Tab bar arka plan — koyu panel
 	var tab_panel := PanelContainer.new()
 	var tab_style := StyleBoxFlat.new()
-	tab_style.bg_color = NeonTheme.TAB_BG
+	tab_style.bg_color = NeonThemeClass.TAB_BG
 	tab_style.border_width_top = 1
-	tab_style.border_color = NeonTheme.BORDER
+	tab_style.border_color = NeonThemeClass.BORDER
 	tab_panel.add_theme_stylebox_override("panel", tab_style)
 
 	# Tab butonlari icin ozel stil
@@ -155,7 +160,7 @@ func _style_tab_bar() -> void:
 		var pressed_sb := StyleBoxFlat.new()
 		pressed_sb.bg_color = Color.TRANSPARENT
 		pressed_sb.border_width_top = 3
-		pressed_sb.border_color = NeonTheme.PRIMARY
+		pressed_sb.border_color = NeonThemeClass.PRIMARY
 		pressed_sb.content_margin_top = 12
 		pressed_sb.content_margin_bottom = 12
 		btn.add_theme_stylebox_override("pressed", pressed_sb)
