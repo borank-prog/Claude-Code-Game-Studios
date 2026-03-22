@@ -262,7 +262,7 @@ func _show_building_panel() -> void:
 				continue  # Ayni tipten zaten var
 
 			var bdef: Dictionary = BuildingManager.BUILDING_DEFS[btype]
-			var can_build := bdef["required_rank"] <= GameData.rank
+			var can_build: bool = bdef["required_rank"] <= GameData.rank
 
 			var row := HBoxContainer.new()
 			vbox.add_child(row)

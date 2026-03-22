@@ -353,7 +353,7 @@ func _sync_to_firebase() -> void:
 
 	# Cete verisini gangs/{gang_id} path'ine kaydet
 	var url := "%s/gangs/%s" % [FirebaseConfig.FIRESTORE_BASE_URL, gang_id]
-	var firestore_data := _firestore._dict_to_firestore(current_gang)
+	var firestore_data: Dictionary = _firestore._dict_to_firestore(current_gang)
 	var body := JSON.stringify({"fields": firestore_data})
 
 	var http := HTTPRequest.new()

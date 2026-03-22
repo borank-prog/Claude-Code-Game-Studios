@@ -105,7 +105,7 @@ func _create_raid_card(raid: Dictionary) -> PanelContainer:
 	var attack_power := 0
 	for attacker in raid.get("attackers", []):
 		attack_power += attacker.get("power_contribution", 0)
-	var morale := 1.0 + raid.get("attackers", []).size() * GangWarManager.MORALE_PER_MEMBER
+	var morale: float = 1.0 + raid.get("attackers", []).size() * GangWarManager.MORALE_PER_MEMBER
 	attack_power = int(attack_power * morale)
 
 	var defense_power := 0

@@ -20,7 +20,6 @@ func _ready() -> void:
 	# Bildirim timer'i
 	_notification_timer = Timer.new()
 	_notification_timer.one_shot = true
-	_notification_timer.timeout.connect(_on_notification_timeout)
 	add_child(_notification_timer)
 
 	# Sinyalleri dinle
@@ -284,6 +283,9 @@ func _on_notification_queued(text: String, type: String) -> void:
 		_show_next_notification()
 
 
+var _active_notification_panel: PanelContainer = null
+
+
 func _show_next_notification() -> void:
 	if _notification_queue.is_empty():
 		_is_showing_notification = false
@@ -300,6 +302,7 @@ func _show_next_notification() -> void:
 		_: color = ThemeConstants.TEXT_PRIMARY
 
 	var panel := PanelContainer.new()
+	_active_notification_panel = panel
 	var stylebox := StyleBoxFlat.new()
 	stylebox.bg_color = Color(ThemeConstants.SURFACE_COLOR, 0.95)
 	stylebox.corner_radius_top_left = ThemeConstants.CORNER_RADIUS
@@ -325,19 +328,14 @@ func _show_next_notification() -> void:
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	panel.add_child(label)
 
-	# Slide in
+	# Slide in, bekle, slide out
 	var tween := create_tween()
-	tween.tween_property(panel, "position:y", ThemeConstants.SCREEN_MARGIN, 0.2)\
+	tween.tween_property(panel, "position:y", float(ThemeConstants.SCREEN_MARGIN), 0.2)\
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	tween.tween_callback(func(): _notification_timer.start(NOTIFICATION_DISPLAY_TIME))
-
-	# Timeout'ta slide out
-	_notification_timer.timeout.connect(func():
-		var out_tween := create_tween()
-		out_tween.tween_property(panel, "position:y", -60.0, 0.15)
-		out_tween.tween_callback(panel.queue_free)
-		out_tween.tween_callback(_show_next_notification)
-	, CONNECT_ONE_SHOT)
+	tween.tween_interval(NOTIFICATION_DISPLAY_TIME)
+	tween.tween_property(panel, "position:y", -60.0, 0.15)
+	tween.tween_callback(panel.queue_free)
+	tween.tween_callback(_show_next_notification)
 
 
 # === SINYAL YANITLARI ===
