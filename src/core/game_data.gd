@@ -33,6 +33,7 @@ var gang_role: String = ""  # "", "LEADER", "OFFICER", "MEMBER"
 # === OTURUM ===
 var is_online: bool = false
 var current_territory: String = ""
+var tutorial_completed: bool = false
 
 # === TUNING KNOBS ===
 const INITIAL_STAT_VALUE: int = 5
@@ -82,6 +83,7 @@ func initialize_new_player(id: String, name: String) -> void:
 	gang_role = ""
 	is_online = true
 	current_territory = ""
+	tutorial_completed = false
 
 
 # === STAT ISLEMLERI (delta bazli) ===
@@ -187,7 +189,9 @@ func get_power_score() -> int:
 
 
 func get_total_power() -> int:
-	# Power score + equipment power (inventory'den gelecek)
+	var inventory_mgr: Node = get_node_or_null("/root/InventoryManager")
+	if inventory_mgr and inventory_mgr.has_method("get_total_power"):
+		return inventory_mgr.get_total_power()
 	return get_power_score()
 
 
@@ -226,6 +230,7 @@ func serialize() -> Dictionary:
 		"premium_currency": premium_currency,
 		"gang_id": gang_id,
 		"gang_role": gang_role,
+		"tutorial_completed": tutorial_completed,
 	}
 
 
@@ -248,5 +253,6 @@ func deserialize(data_dict: Dictionary) -> void:
 	premium_currency = data_dict.get("premium_currency", 0)
 	gang_id = data_dict.get("gang_id", "")
 	gang_role = data_dict.get("gang_role", "")
+	tutorial_completed = data_dict.get("tutorial_completed", false)
 
 	StaminaManager.recalculate_max()

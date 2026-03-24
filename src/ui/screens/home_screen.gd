@@ -117,7 +117,7 @@ func _refresh() -> void:
 	rank_title.add_theme_font_size_override("font_size", 16)
 	rank_title.add_theme_color_override("font_color", NeonThemeClass.PRIMARY)
 
-	power_value.text = "Power: %s" % ThemeConstants.format_number(InventoryManager.get_total_power())
+	power_value.text = "Power: %s" % ThemeConstants.format_number(GameData.get_total_power())
 	power_value.add_theme_font_size_override("font_size", 14)
 	power_value.add_theme_color_override("font_color", NeonThemeClass.NEON_ORANGE)
 

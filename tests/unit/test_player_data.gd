@@ -42,6 +42,10 @@ func test_initialize_no_gang() -> void:
 	assert_eq(gd.gang_role, "", "baslangicta gang_role bos olmali")
 
 
+func test_initialize_tutorial_not_completed() -> void:
+	assert_false(gd.tutorial_completed, "yeni oyuncuda tutorial tamamlanmis olmamali")
+
+
 # === STAT ISLEMLERI ===
 
 func test_get_stat_returns_correct_values() -> void:
@@ -224,6 +228,7 @@ func test_serialize_roundtrip() -> void:
 	gd.strength = 15
 	gd.cash = 9999
 	gd.premium_currency = 50
+	gd.tutorial_completed = true
 	gd.set_gang("g1", "OFFICER")
 
 	var data := gd.serialize()
@@ -238,6 +243,7 @@ func test_serialize_roundtrip() -> void:
 	assert_eq(gd.strength, 15)
 	assert_eq(gd.cash, 9999)
 	assert_eq(gd.premium_currency, 50)
+	assert_true(gd.tutorial_completed, "tutorial flag'i korunmali")
 	assert_eq(gd.gang_id, "g1")
 	assert_eq(gd.gang_role, "OFFICER")
 

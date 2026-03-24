@@ -63,11 +63,13 @@ func force_start() -> void:
 
 
 func _is_tutorial_completed() -> bool:
-	# GameData'da flag kontrol — serialize'da saklanacak
-	return GameData.get_meta(SAVE_KEY, false)
+	# Kalici flag — CloudSave/GameData serialize ile saklanir
+	return GameData.tutorial_completed or GameData.get_meta(SAVE_KEY, false)
 
 
 func _mark_completed() -> void:
+	GameData.tutorial_completed = true
+	# Geriye donuk uyumluluk: eski metadata yolu
 	GameData.set_meta(SAVE_KEY, true)
 
 

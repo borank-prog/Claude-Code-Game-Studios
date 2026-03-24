@@ -192,7 +192,7 @@ func get_member_count() -> int:
 ## Cete toplam gucu
 func get_total_power() -> int:
 	# Solo dev'de sadece mevcut oyuncunun gucu — multiplayer'da tum uyeler
-	return InventoryManager.get_total_power()
+	return GameData.get_total_power()
 
 
 ## Level icin gereken XP
