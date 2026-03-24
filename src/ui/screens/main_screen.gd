@@ -59,6 +59,7 @@ func _ready() -> void:
 	FirebaseAuth.auth_completed.connect(_on_auth_completed)
 	FirebaseAuth.auth_failed.connect(_on_auth_failed)
 	FirebaseAuth.sign_in_anonymous()
+	ScreenManager.screen_switched.connect(_on_screen_switched)
 
 	_switch_tab("home")
 
@@ -88,7 +89,17 @@ func _on_tab_pressed(tab_name: String) -> void:
 	_switch_tab(tab_name)
 
 
+func _on_screen_switched(screen_name: String) -> void:
+	if screen_name == current_tab:
+		return
+	if tab_buttons.has(screen_name):
+		_switch_tab(screen_name)
+
+
 func _switch_tab(tab_name: String) -> void:
+	if not tab_buttons.has(tab_name):
+		return
+
 	current_tab = tab_name
 	ScreenManager.switch_screen(tab_name)
 

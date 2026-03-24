@@ -8,11 +8,13 @@ signal step_shown(step_index: int)
 var _current_step: int = 0
 var _overlay: ColorRect
 var _tooltip: PanelContainer
+var _button_grid: GridContainer
 var _is_active: bool = false
 
 const SAVE_KEY := "tutorial_completed"
 const TOOLTIP_MIN_WIDTH := 260.0
 const TOOLTIP_MAX_WIDTH := 420.0
+const BUTTON_STACK_THRESHOLD_WIDTH := 320.0
 
 const STEPS: Array[Dictionary] = [
 	{
@@ -46,6 +48,7 @@ const STEPS: Array[Dictionary] = [
 func _ready() -> void:
 	layer = 100
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	get_viewport().size_changed.connect(_on_viewport_resized)
 
 
 ## Tutorial'i baslat (eger daha once tamamlanmadiysa)
@@ -111,6 +114,7 @@ func _show_step() -> void:
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 8)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_tooltip.add_child(vbox)
 
 	# Adim gostergesi
@@ -141,27 +145,32 @@ func _show_step() -> void:
 	vbox.add_child(text)
 
 	# Butonlar
-	var btn_hbox := HBoxContainer.new()
-	btn_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	btn_hbox.add_theme_constant_override("separation", 12)
-	vbox.add_child(btn_hbox)
+	_button_grid = GridContainer.new()
+	_button_grid.columns = 2
+	_button_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_button_grid.add_theme_constant_override("h_separation", 12)
+	_button_grid.add_theme_constant_override("v_separation", 8)
+	vbox.add_child(_button_grid)
 
 	var skip_btn := Button.new()
 	skip_btn.text = "ATLA"
-	skip_btn.custom_minimum_size = Vector2(100, ThemeConstants.MIN_TOUCH_TARGET)
+	skip_btn.custom_minimum_size = Vector2(0, ThemeConstants.MIN_TOUCH_TARGET)
+	skip_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	skip_btn.pressed.connect(_finish_tutorial)
-	btn_hbox.add_child(skip_btn)
+	_button_grid.add_child(skip_btn)
 
 	var next_btn := Button.new()
 	next_btn.text = "SONRAKI" if _current_step < STEPS.size() - 1 else "TAMAM"
-	next_btn.custom_minimum_size = Vector2(140, ThemeConstants.MIN_TOUCH_TARGET)
+	next_btn.custom_minimum_size = Vector2(0, ThemeConstants.MIN_TOUCH_TARGET)
+	next_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	next_btn.pressed.connect(_next_step)
-	btn_hbox.add_child(next_btn)
+	_button_grid.add_child(next_btn)
 
 	# Tab'a gecis
 	ScreenManager.switch_screen(step.get("tab", "home"))
 
 	_fit_and_center_tooltip()
+	call_deferred("_fit_and_center_tooltip")
 	step_shown.emit(_current_step)
 
 	# Fade in
@@ -180,15 +189,31 @@ func _show_step() -> void:
 func _fit_and_center_tooltip() -> void:
 	var view_size: Vector2 = get_viewport().get_visible_rect().size
 	var margin := float(ThemeConstants.SCREEN_MARGIN)
-	var target_width := clampf(view_size.x - (margin * 2.0), TOOLTIP_MIN_WIDTH, TOOLTIP_MAX_WIDTH)
+	var target_width := calculate_tooltip_width(view_size.x, margin)
+	if _button_grid:
+		_button_grid.columns = calculate_button_columns(target_width)
 
 	_tooltip.custom_minimum_size = Vector2(target_width, 0.0)
 	var min_size := _tooltip.get_combined_minimum_size()
-	_tooltip.size = Vector2(target_width, min_size.y)
+	var max_height := maxf(180.0, view_size.y - (margin * 2.0))
+	_tooltip.size = Vector2(target_width, minf(min_size.y, max_height))
 	_tooltip.position.x = floorf((view_size.x - target_width) * 0.5)
 
 	var desired_top := (view_size.y * 0.55) - (_tooltip.size.y * 0.5)
 	_tooltip.position.y = clampf(desired_top, margin, view_size.y - _tooltip.size.y - margin)
+
+
+func _on_viewport_resized() -> void:
+	if _is_active and _tooltip:
+		_fit_and_center_tooltip()
+
+
+static func calculate_tooltip_width(view_width: float, margin: float) -> float:
+	return clampf(view_width - (margin * 2.0), TOOLTIP_MIN_WIDTH, TOOLTIP_MAX_WIDTH)
+
+
+static func calculate_button_columns(target_width: float) -> int:
+	return 1 if target_width < BUTTON_STACK_THRESHOLD_WIDTH else 2
 
 
 func _next_step() -> void:
@@ -211,3 +236,4 @@ func _clear_ui() -> void:
 	if _tooltip:
 		_tooltip.queue_free()
 		_tooltip = null
+	_button_grid = null
