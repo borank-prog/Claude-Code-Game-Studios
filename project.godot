@@ -39,24 +39,18 @@ CloudSave="*res://src/networking/cloud_save_manager.gd"
 
 window/size/viewport_width=430
 window/size/viewport_height=932
-window/handheld/orientation=1
 window/stretch/mode="viewport"
 window/stretch/aspect="expand"
+window/handheld/orientation=1
 
 [input_devices]
 
 pointing/emulate_touch_from_mouse=true
 
-[debug]
-
-gdscript/warnings/inferred_declaration=0
-gdscript/warnings/untyped_declaration=0
-gdscript/warnings/unsafe_property_access=0
-gdscript/warnings/unsafe_method_access=0
-gdscript/warnings/unsafe_cast=0
-gdscript/warnings/unsafe_call_argument=0
-
 [rendering]
 
 renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="gl_compatibility"
+rendering_device/fallback_to_opengl3=true
+gl_compatibility/driver.android="opengl3"
 textures/vram_compression/import_etc2_astc=true
