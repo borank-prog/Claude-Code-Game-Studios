@@ -124,6 +124,10 @@ func upgrade(territory_id: String, building_id: String) -> Dictionary:
 		return {"success": false, "reason": "System not ready"}
 
 	var territory: Dictionary = territory_mgr.get_territory(territory_id)
+	if territory.is_empty():
+		return {"success": false, "reason": "Bolge bulunamadi"}
+	if territory.get("controlling_gang_id", "") != GameData.gang_id or GameData.gang_id.is_empty():
+		return {"success": false, "reason": "Bu bolge sana ait degil"}
 	var buildings: Array = territory.get("buildings", [])
 
 	for b in buildings:
@@ -152,6 +156,10 @@ func demolish(territory_id: String, building_id: String) -> bool:
 		return false
 
 	var territory: Dictionary = territory_mgr.get_territory(territory_id)
+	if territory.is_empty():
+		return false
+	if territory.get("controlling_gang_id", "") != GameData.gang_id or GameData.gang_id.is_empty():
+		return false
 	var buildings: Array = territory.get("buildings", [])
 
 	for i in buildings.size():

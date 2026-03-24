@@ -39,6 +39,18 @@ func test_success_rate_with_stat_influence() -> void:
 	assert_almost_eq(rate, expected, 0.01, "stat influence rate'i artirmali")
 
 
+func test_territory_cash_multiplier_no_gang() -> void:
+	GameData.gang_id = ""
+	assert_eq(MissionSystem._get_territory_cash_multiplier(), 1.0)
+
+
+func test_territory_cash_multiplier_from_controlled_territory() -> void:
+	GameData.gang_id = "gang_01"
+	TerritoryManager.capture_territory("suburbs", "gang_01")
+	var bonus := MissionSystem._get_territory_cash_multiplier()
+	assert_gt(bonus, 1.0, "kontrol edilen bolgeden mission bonusu alinmali")
+
+
 # === GOREV BASLAMA ===
 
 func test_start_mission_spends_stamina() -> void:

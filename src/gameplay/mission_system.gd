@@ -122,7 +122,7 @@ func _resolve() -> void:
 		var cash_max: int = mission.get("cash_reward_max", 150)
 		var cash_earned: int = randi_range(cash_min, cash_max)
 		cash_earned = int(cash_earned * EconomyManager.get_charisma_multiplier())
-		# TODO: Territory bonus uygula
+		cash_earned = int(cash_earned * _get_territory_cash_multiplier())
 
 		# Respect odulu
 		var respect_earned: int = mission.get("respect_reward", 10)
@@ -144,7 +144,11 @@ func _resolve() -> void:
 		var loot: Dictionary = ItemDB.roll_loot(["WEAPON", "ARMOR", "CLOTHING"])
 		if not loot.is_empty():
 			rewards["loot"] = loot
-			EventBus.item_acquired.emit(loot["item_id"], 1)
+			var inv: Node = get_node_or_null("/root/InventoryManager")
+			if inv:
+				inv.add_item(loot["item_id"], 1)
+			else:
+				EventBus.item_acquired.emit(loot["item_id"], 1)
 	else:
 		# Basarisizlik — kucuk respect
 		var fail_respect: int = maxi(1, int(mission.get("respect_reward", 10) * FAILURE_RESPECT_RATIO))
@@ -174,6 +178,29 @@ func calculate_success_rate(mission: Dictionary) -> float:
 	for stat_name in influences:
 		rate += GameData.get_stat(stat_name) * influences[stat_name]
 	return clampf(rate, MIN_SUCCESS_RATE, MAX_SUCCESS_RATE)
+
+
+## Kontrol edilen bolgelerden mission cash bonusu
+func _get_territory_cash_multiplier() -> float:
+	if GameData.gang_id.is_empty():
+		return 1.0
+
+	var territory_mgr: Node = get_node_or_null("/root/TerritoryManager")
+	if territory_mgr == null:
+		return 1.0
+
+	# Aktif bolge seciliyse onu kullan
+	if not GameData.current_territory.is_empty():
+		var current_bonus: float = territory_mgr.get_mission_bonus(GameData.current_territory)
+		if current_bonus > 1.0:
+			return current_bonus
+
+	# Geriye donuk uyumluluk: secili bolge yoksa kontrol edilen bolgelerden en iyi bonus
+	var best_bonus := 1.0
+	var controlled: Array = territory_mgr.get_territories_by_gang(GameData.gang_id)
+	for territory in controlled:
+		best_bonus = maxf(best_bonus, territory.get("mission_bonus", TERRITORY_BONUS))
+	return best_bonus
 
 
 ## Cooldown kontrolu

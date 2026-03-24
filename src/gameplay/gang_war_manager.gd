@@ -125,6 +125,11 @@ func declare_raid(target_territory_id: String) -> Dictionary:
 func join_raid(raid_id: String) -> bool:
 	for raid in active_raids:
 		if raid["raid_id"] == raid_id and not raid["resolved"]:
+			# Ayni oyuncu ayni baskina iki kez katilamaz
+			for attacker in raid.get("attackers", []):
+				if attacker.get("player_id", "") == GameData.player_id:
+					return false
+
 			# Kilitlenme kontrolu
 			var lockout_time: float = raid["resolves_at"] - (WAR_LOCKOUT_HOURS * 3600)
 			if Time.get_unix_time_from_system() > lockout_time:

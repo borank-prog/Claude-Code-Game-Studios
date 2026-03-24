@@ -99,6 +99,14 @@ func test_join_raid_success() -> void:
 	assert_true(joined, "baskina katilinabilmeli")
 
 
+func test_join_raid_twice_fails() -> void:
+	TerritoryManager.capture_territory("suburbs", "defender_gang")
+	TerritoryManager.capture_territory("slums", "attacker_gang")
+	var result := GangWarManager.declare_raid("suburbs")
+	var raid_id: String = result["raid"]["raid_id"]
+	assert_false(GangWarManager.join_raid(raid_id), "ayni oyuncu ikinci kez katilamamali")
+
+
 func test_join_nonexistent_raid_fails() -> void:
 	var result := GangWarManager.join_raid("nonexistent_raid")
 	assert_false(result)

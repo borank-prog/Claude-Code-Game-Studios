@@ -109,6 +109,14 @@ func test_upgrade_nonexistent_building_fails() -> void:
 	assert_false(result["success"])
 
 
+func test_upgrade_not_owned_territory_fails() -> void:
+	TerritoryManager.territories["suburbs"]["controlling_gang_id"] = "enemy_gang"
+	var t: Dictionary = TerritoryManager.territories["suburbs"]
+	t["buildings"] = [{"building_id": "bld_enemy", "type": "stash_house", "level": 1}]
+	var result := BuildingManager.upgrade("suburbs", "bld_enemy")
+	assert_false(result["success"], "sahip olunmayan bolgede yukseltme olmamali")
+
+
 # === DEMOLISH ===
 
 func test_demolish_success() -> void:
@@ -122,6 +130,14 @@ func test_demolish_success() -> void:
 func test_demolish_nonexistent_fails() -> void:
 	var result := BuildingManager.demolish("suburbs", "nonexistent_bld")
 	assert_false(result)
+
+
+func test_demolish_not_owned_territory_fails() -> void:
+	var t: Dictionary = TerritoryManager.territories["suburbs"]
+	t["buildings"] = [{"building_id": "bld_enemy", "type": "stash_house", "level": 1}]
+	t["controlling_gang_id"] = "enemy_gang"
+	var result := BuildingManager.demolish("suburbs", "bld_enemy")
+	assert_false(result, "sahip olunmayan bolgede yikim olmamali")
 
 
 # === INCOME & DEFENSE ===
