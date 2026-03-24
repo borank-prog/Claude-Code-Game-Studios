@@ -11,6 +11,8 @@ var _tooltip: PanelContainer
 var _is_active: bool = false
 
 const SAVE_KEY := "tutorial_completed"
+const TOOLTIP_MIN_WIDTH := 260.0
+const TOOLTIP_MAX_WIDTH := 420.0
 
 const STEPS: Array[Dictionary] = [
 	{
@@ -104,9 +106,7 @@ func _show_step() -> void:
 	style.content_margin_top = 16
 	style.content_margin_bottom = 16
 	_tooltip.add_theme_stylebox_override("panel", style)
-	_tooltip.set_anchors_preset(Control.PRESET_CENTER)
-	_tooltip.offset_top = -50
-	_tooltip.custom_minimum_size = Vector2(350, 0)
+	_tooltip.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	add_child(_tooltip)
 
 	var vbox := VBoxContainer.new()
@@ -127,6 +127,7 @@ func _show_step() -> void:
 	title.add_theme_font_size_override("font_size", ThemeConstants.FONT_HEADING)
 	title.add_theme_color_override("font_color", ThemeConstants.PRIMARY_COLOR)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD
 	vbox.add_child(title)
 
 	# Aciklama
@@ -136,6 +137,7 @@ func _show_step() -> void:
 	text.add_theme_color_override("font_color", ThemeConstants.TEXT_PRIMARY)
 	text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	text.autowrap_mode = TextServer.AUTOWRAP_WORD
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vbox.add_child(text)
 
 	# Butonlar
@@ -159,6 +161,7 @@ func _show_step() -> void:
 	# Tab'a gecis
 	ScreenManager.switch_screen(step.get("tab", "home"))
 
+	_fit_and_center_tooltip()
 	step_shown.emit(_current_step)
 
 	# Fade in
@@ -172,6 +175,20 @@ func _show_step() -> void:
 	tween.tween_property(_tooltip, "modulate:a", 1.0, 0.2)
 	tween.tween_property(_tooltip, "scale", Vector2(1.0, 1.0), 0.2)\
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+
+
+func _fit_and_center_tooltip() -> void:
+	var view_size: Vector2 = get_viewport().get_visible_rect().size
+	var margin := float(ThemeConstants.SCREEN_MARGIN)
+	var target_width := clampf(view_size.x - (margin * 2.0), TOOLTIP_MIN_WIDTH, TOOLTIP_MAX_WIDTH)
+
+	_tooltip.custom_minimum_size = Vector2(target_width, 0.0)
+	var min_size := _tooltip.get_combined_minimum_size()
+	_tooltip.size = Vector2(target_width, min_size.y)
+	_tooltip.position.x = floorf((view_size.x - target_width) * 0.5)
+
+	var desired_top := (view_size.y * 0.55) - (_tooltip.size.y * 0.5)
+	_tooltip.position.y = clampf(desired_top, margin, view_size.y - _tooltip.size.y - margin)
 
 
 func _next_step() -> void:
