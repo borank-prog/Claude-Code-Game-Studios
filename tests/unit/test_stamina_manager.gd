@@ -7,6 +7,7 @@ var sm: Node  # StaminaManager referansi
 func before_each() -> void:
 	sm = StaminaManager
 	GameData.initialize_new_player("stam_test", "StamTester")
+	UnitManager.hired_units.clear()
 	sm.recalculate_max()
 	sm.current = sm.max_stamina
 	sm.last_regen_time = Time.get_unix_time_from_system()
@@ -112,6 +113,11 @@ func test_regen_partial_interval_no_gain() -> void:
 	sm.last_regen_time = Time.get_unix_time_from_system() - (StaminaManager.REGEN_INTERVAL * 0.5)
 	sm._update_regen()
 	assert_eq(sm.current, sm.max_stamina - 5, "yarim interval'de regen olmamali")
+
+
+func test_regen_interval_reduced_by_chemist() -> void:
+	UnitManager.hired_units = {"chemist": 1}
+	assert_eq(sm._get_regen_interval(), StaminaManager.REGEN_INTERVAL * 0.6)
 
 
 # === REGEN TIMER ===

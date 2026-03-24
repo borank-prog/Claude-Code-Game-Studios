@@ -100,6 +100,7 @@ func _build_save_data() -> Dictionary:
 		"player": player_data,
 		"stamina": stamina_data,
 		"inventory": InventoryManager.serialize(),
+		"units": UnitManager.serialize(),
 		"gang": GangManager.serialize(),
 		"territory": TerritoryManager.serialize(),
 		"gang_war": GangWarManager.serialize(),
@@ -320,6 +321,7 @@ func _apply_loaded_data(data: Dictionary) -> void:
 		StaminaManager.deserialize(data["stamina"])
 	if data.has("inventory"):
 		InventoryManager.deserialize(data["inventory"])
+	UnitManager.deserialize(data.get("units", {}))
 	if data.has("gang"):
 		GangManager.deserialize(data["gang"])
 	if data.has("territory"):

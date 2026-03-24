@@ -21,6 +21,8 @@ const MIN_ATTACKERS: int = 1  # Solo dev icin 1 (prod'da 3)
 const RAID_COOLDOWN_HOURS: float = 24.0
 const RAID_DECLARE_COST: int = 15
 const RAID_JOIN_COST: int = 10
+const MIN_DEFENSE_MULTIPLIER: float = 0.50
+const MAX_DEFENSE_MULTIPLIER: float = 1.0
 
 # NPC savunma gucu — tier bazli, solo oyuncunun ilerleme hizina uygun
 # Tier 1: Rank 0-3 oyuncu solo alabilir (power ~40-60)
@@ -213,6 +215,10 @@ func _resolve_raid(raid: Dictionary) -> void:
 	var npc_defense: int = NPC_DEFENSE_BY_TIER.get(tier, 150)
 	defense_power += npc_defense
 
+	var defense_multiplier := _get_raid_enemy_defense_multiplier()
+	defense_power = int(defense_power * defense_multiplier)
+	raid["enemy_defense_multiplier"] = defense_multiplier
+
 	# RNG
 	if defense_power <= 0:
 		defense_power = 1
@@ -265,6 +271,14 @@ func _resolve_raid(raid: Dictionary) -> void:
 	raid_resolved.emit(raid)
 	EventBus.raid_resolved.emit(raid["raid_id"], result)
 	raid_history.append(raid)
+
+
+func _get_raid_enemy_defense_multiplier() -> float:
+	var unit_mgr: Node = get_node_or_null("/root/UnitManager")
+	if unit_mgr and unit_mgr.has_method("get_effect_multiplier"):
+		var raw: float = unit_mgr.get_effect_multiplier("raid_enemy_defense_multiplier")
+		return clampf(raw, MIN_DEFENSE_MULTIPLIER, MAX_DEFENSE_MULTIPLIER)
+	return 1.0
 
 
 ## Cooldown kontrolu

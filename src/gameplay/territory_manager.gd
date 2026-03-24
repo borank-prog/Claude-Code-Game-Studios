@@ -138,8 +138,12 @@ func are_adjacent(territory_a: String, territory_b: String) -> bool:
 func get_defense_power(territory_id: String) -> int:
 	var t: Dictionary = get_territory(territory_id)
 	var building_defense := 0
+	var building_mgr: Node = get_node_or_null("/root/BuildingManager")
 	for b in t.get("buildings", []):
-		building_defense += b.get("defense_bonus", 0)
+		if b.has("defense_bonus"):
+			building_defense += int(b.get("defense_bonus", 0))
+		elif building_mgr and building_mgr.has_method("get_building_defense"):
+			building_defense += building_mgr.get_building_defense(b)
 	var entrenchment := int(t.get("control_strength", 0.0) * ENTRENCHMENT_BONUS)
 	return building_defense + entrenchment
 
@@ -149,7 +153,19 @@ func get_territory_income(territory_id: String) -> int:
 	var t: Dictionary = get_territory(territory_id)
 	var base: int = t.get("base_income", 0)
 	var control: float = t.get("control_strength", 0.0)
-	return int(base * control)
+	var territory_income := int(base * control)
+
+	var building_income := 0
+	var building_mgr: Node = get_node_or_null("/root/BuildingManager")
+	var controlling_gang_id: String = t.get("controlling_gang_id", "")
+	var apply_player_bonus: bool = controlling_gang_id == GameData.gang_id and not GameData.gang_id.is_empty()
+	for b in t.get("buildings", []):
+		if building_mgr and building_mgr.has_method("get_building_income") and b.has("type"):
+			building_income += building_mgr.get_building_income(b, apply_player_bonus)
+		else:
+			building_income += int(b.get("income_per_hour", 0))
+
+	return territory_income + building_income
 
 
 ## Gorev bonusu

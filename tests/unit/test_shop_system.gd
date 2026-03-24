@@ -11,6 +11,7 @@ func before_each() -> void:
 		"accessory_1": "", "accessory_2": "",
 	}
 	EconomyManager.transaction_log.clear()
+	UnitManager.hired_units.clear()
 
 
 # === BUY ===
@@ -27,6 +28,28 @@ func test_buy_deducts_cash() -> void:
 	var before := GameData.cash
 	ShopSystem.buy_item("wpn_knife")
 	assert_lt(GameData.cash, before, "cash azalmali")
+
+
+func test_buy_uses_effective_price_with_tax() -> void:
+	GameData.cash = 10000
+	var item_def: Dictionary = ItemDB.get_item("wpn_knife")
+	var expected_price := ShopSystem.get_effective_buy_price(item_def)
+	assert_eq(expected_price, 216, "varsayilan %8 vergi uygulanmali")
+	var before := GameData.cash
+	ShopSystem.buy_item("wpn_knife")
+	assert_eq(GameData.cash, before - expected_price, "shop harcamasi efektif fiyat kadar olmali")
+
+
+func test_buy_with_crypto_and_customs_applies_discount_and_zero_tax() -> void:
+	GameData.cash = 10000
+	GameData.rank = 20
+	UnitManager.hired_units = {
+		"crypto_launderer": 1,
+		"corrupt_customs": 1,
+	}
+	var item_def: Dictionary = ItemDB.get_item("wpn_knife")
+	var effective := ShopSystem.get_effective_buy_price(item_def)
+	assert_eq(effective, 160, "black market indirimi + sifir vergi beklenir")
 
 
 func test_buy_insufficient_cash_fails() -> void:
@@ -59,6 +82,21 @@ func test_buy_inventory_full_refunds() -> void:
 	assert_eq(GameData.cash, before, "para iade edilmeli")
 
 
+func test_buy_unit_success() -> void:
+	GameData.cash = 100000
+	GameData.rank = 20
+	var result := ShopSystem.buy_item("drone_operator")
+	assert_true(result, "unit satin alimi basarili olmali")
+	assert_true(UnitManager.has_unit("drone_operator"), "unit envanteri yerine UnitManager'a eklenmeli")
+
+
+func test_buy_unit_twice_fails() -> void:
+	GameData.cash = 100000
+	GameData.rank = 20
+	assert_true(ShopSystem.buy_item("chemist"))
+	assert_false(ShopSystem.buy_item("chemist"), "tekil unit ikinci kez alinmamali")
+
+
 # === SELL ===
 
 func test_sell_item_success() -> void:
@@ -81,6 +119,14 @@ func test_can_buy_true() -> void:
 	GameData.rank = 20
 	var status := ShopSystem.can_buy("wpn_knife")
 	assert_true(status["can_buy"], "yeterli cash ve rank ile can_buy true")
+
+
+func test_can_buy_unit_rank_fail() -> void:
+	GameData.cash = 100000
+	GameData.rank = 0
+	var status := ShopSystem.can_buy("drone_operator")
+	assert_false(status["can_buy"])
+	assert_eq(status["reason"], "rank")
 
 
 func test_can_buy_rank_fail() -> void:

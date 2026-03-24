@@ -173,13 +173,17 @@ func demolish(territory_id: String, building_id: String) -> bool:
 
 
 ## Bina geliri (saat basina)
-func get_building_income(building: Dictionary) -> int:
+func get_building_income(building: Dictionary, apply_unit_bonus: bool = true) -> int:
 	var bdef: Dictionary = BUILDING_DEFS.get(building.get("type", ""), {})
 	var level: int = building.get("level", 1) - 1  # 0-indexed
 	var incomes: Array = bdef.get("income_per_hour", [0])
+	var income := 0
 	if level < incomes.size():
-		return incomes[level]
-	return 0
+		income = incomes[level]
+
+	if apply_unit_bonus and income > 0:
+		income = int(income * _get_building_income_multiplier())
+	return income
 
 
 ## Bina savunma bonusu
@@ -190,6 +194,13 @@ func get_building_defense(building: Dictionary) -> int:
 	if level < defenses.size():
 		return defenses[level]
 	return 0
+
+
+func _get_building_income_multiplier() -> float:
+	var unit_mgr: Node = get_node_or_null("/root/UnitManager")
+	if unit_mgr and unit_mgr.has_method("get_effect_multiplier"):
+		return unit_mgr.get_effect_multiplier("building_income_multiplier")
+	return 1.0
 
 
 ## Aktif insalari kontrol et

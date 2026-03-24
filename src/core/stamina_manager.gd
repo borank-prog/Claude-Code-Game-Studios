@@ -29,12 +29,12 @@ func _update_regen() -> void:
 
 	var now := Time.get_unix_time_from_system()
 	var elapsed := now - last_regen_time
-	var regen_points := int(elapsed / REGEN_INTERVAL)
+	var regen_interval := _get_regen_interval()
+	var regen_points := int(elapsed / regen_interval)
 
 	if regen_points > 0:
-		var old := current
 		current = mini(current + regen_points, max_stamina)
-		last_regen_time += regen_points * REGEN_INTERVAL
+		last_regen_time += regen_points * regen_interval
 		EventBus.stamina_changed.emit(current, max_stamina)
 
 		if current >= max_stamina:
@@ -74,7 +74,7 @@ func get_regen_remaining() -> float:
 		return 0.0
 	var now := Time.get_unix_time_from_system()
 	var elapsed := now - last_regen_time
-	return maxf(0.0, REGEN_INTERVAL - elapsed)
+	return maxf(0.0, _get_regen_interval() - elapsed)
 
 
 ## Full regen suresi (tum stamina icin saniye)
@@ -83,7 +83,7 @@ func get_full_regen_remaining() -> float:
 		return 0.0
 	var deficit := max_stamina - current
 	var next_regen := get_regen_remaining()
-	return next_regen + (deficit - 1) * REGEN_INTERVAL
+	return next_regen + (deficit - 1) * _get_regen_interval()
 
 
 ## Serialize (Cloud Save icin)
@@ -100,3 +100,11 @@ func deserialize(data: Dictionary) -> void:
 	max_stamina = data.get("max_stamina", BASE_STAMINA)
 	last_regen_time = data.get("last_regen_time", Time.get_unix_time_from_system())
 	_update_regen()
+
+
+func _get_regen_interval() -> float:
+	var unit_mgr: Node = get_node_or_null("/root/UnitManager")
+	var multiplier := 1.0
+	if unit_mgr and unit_mgr.has_method("get_effect_multiplier"):
+		multiplier = maxf(0.1, unit_mgr.get_effect_multiplier("stamina_regen_interval_multiplier"))
+	return REGEN_INTERVAL * multiplier

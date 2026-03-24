@@ -4,6 +4,7 @@ extends GutTest
 
 func before_each() -> void:
 	GameData.initialize_new_player("terr_test", "TerrTester")
+	UnitManager.hired_units.clear()
 	# Tum bolgeleri tarafsiza don
 	for tid in TerritoryManager.territories:
 		var t: Dictionary = TerritoryManager.territories[tid]
@@ -131,6 +132,27 @@ func test_territory_income_partial_control() -> void:
 func test_territory_income_no_control() -> void:
 	var income := TerritoryManager.get_territory_income("suburbs")
 	assert_eq(income, 0, "kontrol yok = gelir yok")
+
+
+func test_territory_income_includes_buildings() -> void:
+	GameData.gang_id = "gang_01"
+	TerritoryManager.capture_territory("suburbs", "gang_01")
+	var t := TerritoryManager.get_territory("suburbs")
+	t["control_strength"] = 1.0
+	t["buildings"] = [{"type": "stash_house", "level": 1}]
+	var income := TerritoryManager.get_territory_income("suburbs")
+	assert_eq(income, t["base_income"] + 20, "base income + bina geliri hesaplanmali")
+
+
+func test_territory_income_buildings_scaled_by_influencer() -> void:
+	GameData.gang_id = "gang_01"
+	UnitManager.hired_units = {"dark_web_influencer": 1}
+	TerritoryManager.capture_territory("suburbs", "gang_01")
+	var t := TerritoryManager.get_territory("suburbs")
+	t["control_strength"] = 1.0
+	t["buildings"] = [{"type": "stash_house", "level": 1}]
+	var income := TerritoryManager.get_territory_income("suburbs")
+	assert_eq(income, t["base_income"] + 28, "influencer ile bina geliri carpilmali")
 
 
 # === DEFENSE ===

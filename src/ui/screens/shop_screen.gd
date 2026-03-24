@@ -16,12 +16,13 @@ var current_category: String = "WEAPON"
 var selected_item: Dictionary = {}
 var category_buttons: Dictionary = {}
 
-const CATEGORIES: PackedStringArray = ["WEAPON", "ARMOR", "CLOTHING", "CONSUMABLE"]
+const CATEGORIES: PackedStringArray = ["WEAPON", "ARMOR", "CLOTHING", "CONSUMABLE", "OPERATIVE"]
 const CATEGORY_NAMES: Dictionary = {
 	"WEAPON": "Silahlar",
 	"ARMOR": "Zirh",
 	"CLOTHING": "Kiyafet",
 	"CONSUMABLE": "Sarf",
+	"OPERATIVE": "Operatif",
 }
 
 
@@ -99,8 +100,9 @@ func _refresh_items() -> void:
 func _create_item_card(item: Dictionary) -> PanelContainer:
 	var card := PanelContainer.new()
 	card.custom_minimum_size = Vector2(0, 75)
+	var is_unit: bool = item.get("is_unit", false)
 
-	var rarity: String = item.get("rarity", "COMMON")
+	var rarity: String = item.get("rarity", "COMMON" if not is_unit else "RARE")
 	var rarity_color := ThemeConstants.get_rarity_color(rarity)
 
 	var style := StyleBoxFlat.new()
@@ -131,12 +133,18 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 	name_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_BODY)
 	info.add_child(name_label)
 
-	var stat_text := "Power +%d" % item.get("power_bonus", 0)
-	var bonuses: Dictionary = item.get("stat_bonuses", {})
-	for stat in bonuses:
-		stat_text += " | %s +%d" % [stat.capitalize(), bonuses[stat]]
+	var stat_text: String
+	if is_unit:
+		stat_text = item.get("shop_line", item.get("description", ""))
+	else:
+		stat_text = "Power +%d" % item.get("power_bonus", 0)
+		var bonuses: Dictionary = item.get("stat_bonuses", {})
+		for stat in bonuses:
+			stat_text += " | %s +%d" % [stat.capitalize(), bonuses[stat]]
 	var stat_label := Label.new()
 	stat_label.text = stat_text
+	if is_unit:
+		stat_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	stat_label.add_theme_font_size_override("font_size", ThemeConstants.FONT_CAPTION)
 	stat_label.add_theme_color_override("font_color", ThemeConstants.TEXT_SECONDARY)
 	info.add_child(stat_label)
@@ -158,8 +166,8 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 		card.modulate = Color(0.4, 0.4, 0.4, 0.6)
 		stat_label.text += " | Rank %d gerekli" % item["required_rank"]
 
-	# Envanterde var mi
-	if InventoryManager.has_item(item.get("item_id", "")):
+	# Sahiplik kontrolu
+	if ShopSystem.is_owned(item.get("item_id", "")):
 		name_label.text += " [SAHIP]"
 
 	# Dokunma
@@ -174,19 +182,27 @@ func _create_item_card(item: Dictionary) -> PanelContainer:
 
 func _on_item_tapped(item: Dictionary) -> void:
 	selected_item = item
+	var is_unit: bool = item.get("is_unit", false)
 	buy_item_name.text = item.get("name", "???")
 	buy_item_name.add_theme_color_override("font_color", ThemeConstants.get_rarity_color(item.get("rarity", "COMMON")))
 
-	var stat_text := "Power +%d" % item.get("power_bonus", 0)
-	var bonuses: Dictionary = item.get("stat_bonuses", {})
-	for stat in bonuses:
-		stat_text += "\n%s +%d" % [stat.capitalize(), bonuses[stat]]
+	var stat_text: String
+	if is_unit:
+		stat_text = item.get("description", "")
+	else:
+		stat_text = "Power +%d" % item.get("power_bonus", 0)
+		var bonuses: Dictionary = item.get("stat_bonuses", {})
+		for stat in bonuses:
+			stat_text += "\n%s +%d" % [stat.capitalize(), bonuses[stat]]
 	buy_item_stats.text = stat_text
 	buy_price.text = "$%s" % ThemeConstants.format_number(item.get("buy_price", 0))
 
 	var can_info: Dictionary = ShopSystem.can_buy(item.get("item_id", ""))
 	buy_button.disabled = not can_info["can_buy"]
-	buy_button.text = "SATIN AL" if can_info["can_buy"] else can_info.get("reason", "").to_upper()
+	if can_info["can_buy"]:
+		buy_button.text = "KIRALA" if is_unit else "SATIN AL"
+	else:
+		buy_button.text = _format_buy_fail_reason(can_info.get("reason", ""))
 
 	buy_panel.visible = true
 
@@ -204,3 +220,19 @@ func _on_purchase_completed(_item_id: String) -> void:
 
 func _on_purchase_failed(reason: String) -> void:
 	buy_button.text = reason
+
+
+func _format_buy_fail_reason(reason: String) -> String:
+	match reason:
+		"rank":
+			return "RANK YETERSIZ"
+		"cash":
+			return "BAKIYE YETERSIZ"
+		"inventory_full":
+			return "ENVANTER DOLU"
+		"already_owned":
+			return "ZATEN SENDE"
+		"not_found":
+			return "KAYIT YOK"
+		_:
+			return reason.to_upper()

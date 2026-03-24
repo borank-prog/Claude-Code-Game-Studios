@@ -9,6 +9,7 @@ func before_each() -> void:
 	MissionSystem.cooldowns.clear()
 	MissionSystem._is_running = false
 	MissionSystem._current_mission = {}
+	UnitManager.hired_units.clear()
 
 
 # === BASARI ORANI ===
@@ -49,6 +50,22 @@ func test_territory_cash_multiplier_from_controlled_territory() -> void:
 	TerritoryManager.capture_territory("suburbs", "gang_01")
 	var bonus := MissionSystem._get_territory_cash_multiplier()
 	assert_gt(bonus, 1.0, "kontrol edilen bolgeden mission bonusu alinmali")
+
+
+func test_unit_mission_cash_multiplier_default() -> void:
+	assert_eq(MissionSystem._get_unit_mission_cash_multiplier(), 1.0)
+
+
+func test_unit_mission_cash_multiplier_crypto() -> void:
+	UnitManager.hired_units = {"crypto_launderer": 1}
+	assert_eq(MissionSystem._get_unit_mission_cash_multiplier(), 1.15)
+
+
+func test_vip_success_bonus_from_cleaner() -> void:
+	UnitManager.hired_units = {"the_cleaner": 1}
+	var mission := _test_mission({"difficulty": "EXTREME", "base_success_rate": 0.2})
+	var rate := MissionSystem.calculate_success_rate(mission)
+	assert_gt(rate, 0.2, "golge VIP mission basari sansini artirmali")
 
 
 # === GOREV BASLAMA ===

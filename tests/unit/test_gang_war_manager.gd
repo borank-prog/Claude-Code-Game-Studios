@@ -12,6 +12,7 @@ func before_each() -> void:
 	StaminaManager.current = StaminaManager.max_stamina
 	GangWarManager.active_raids.clear()
 	GangWarManager.raid_history.clear()
+	UnitManager.hired_units.clear()
 	GangManager.is_in_gang = true
 	GangManager.current_gang = {
 		"gang_id": "attacker_gang", "name": "Attackers",
@@ -110,6 +111,15 @@ func test_join_raid_twice_fails() -> void:
 func test_join_nonexistent_raid_fails() -> void:
 	var result := GangWarManager.join_raid("nonexistent_raid")
 	assert_false(result)
+
+
+func test_raid_enemy_defense_multiplier_default() -> void:
+	assert_eq(GangWarManager._get_raid_enemy_defense_multiplier(), 1.0)
+
+
+func test_raid_enemy_defense_multiplier_with_drone_operator() -> void:
+	UnitManager.hired_units = {"drone_operator": 1}
+	assert_eq(GangWarManager._get_raid_enemy_defense_multiplier(), 0.9)
 
 
 # === COOLDOWN ===

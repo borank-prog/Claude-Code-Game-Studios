@@ -21,6 +21,7 @@ const MIN_SUCCESS_RATE: float = 0.05
 const MAX_SUCCESS_RATE: float = 0.95
 const TERRITORY_BONUS: float = 1.20
 const FAILURE_RESPECT_RATIO: float = 0.2  # Basarisizlikta %20 respect
+const VIP_DIFFICULTIES: PackedStringArray = ["HARD", "EXTREME"]
 
 
 func _ready() -> void:
@@ -123,6 +124,7 @@ func _resolve() -> void:
 		var cash_earned: int = randi_range(cash_min, cash_max)
 		cash_earned = int(cash_earned * EconomyManager.get_charisma_multiplier())
 		cash_earned = int(cash_earned * _get_territory_cash_multiplier())
+		cash_earned = int(cash_earned * _get_unit_mission_cash_multiplier())
 
 		# Respect odulu
 		var respect_earned: int = mission.get("respect_reward", 10)
@@ -177,6 +179,10 @@ func calculate_success_rate(mission: Dictionary) -> float:
 	var influences: Dictionary = mission.get("stat_influence", {})
 	for stat_name in influences:
 		rate += GameData.get_stat(stat_name) * influences[stat_name]
+
+	if _is_vip_mission(mission):
+		rate += _get_vip_success_bonus()
+
 	return clampf(rate, MIN_SUCCESS_RATE, MAX_SUCCESS_RATE)
 
 
@@ -201,6 +207,27 @@ func _get_territory_cash_multiplier() -> float:
 	for territory in controlled:
 		best_bonus = maxf(best_bonus, territory.get("mission_bonus", TERRITORY_BONUS))
 	return best_bonus
+
+
+func _get_unit_mission_cash_multiplier() -> float:
+	var unit_mgr: Node = get_node_or_null("/root/UnitManager")
+	if unit_mgr and unit_mgr.has_method("get_effect_multiplier"):
+		return unit_mgr.get_effect_multiplier("mission_cash_multiplier")
+	return 1.0
+
+
+func _get_vip_success_bonus() -> float:
+	var unit_mgr: Node = get_node_or_null("/root/UnitManager")
+	if unit_mgr and unit_mgr.has_method("get_effect_additive"):
+		return unit_mgr.get_effect_additive("vip_success_add")
+	return 0.0
+
+
+func _is_vip_mission(mission: Dictionary) -> bool:
+	if mission.get("is_vip", false):
+		return true
+	var difficulty: String = mission.get("difficulty", "EASY")
+	return difficulty in VIP_DIFFICULTIES
 
 
 ## Cooldown kontrolu

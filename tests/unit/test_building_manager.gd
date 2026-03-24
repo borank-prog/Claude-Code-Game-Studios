@@ -9,6 +9,7 @@ func before_each() -> void:
 	GameData.gang_id = "test_gang"
 	GameData.gang_role = "LEADER"
 	BuildingManager.active_builds.clear()
+	UnitManager.hired_units.clear()
 
 	# Test bolgesi hazirla
 	if TerritoryManager.territories.has("suburbs"):
@@ -152,6 +153,13 @@ func test_building_income_level_3() -> void:
 	var building := {"type": "crack_house", "level": 3}
 	var income := BuildingManager.get_building_income(building)
 	assert_eq(income, BuildingManager.BUILDING_DEFS["crack_house"]["income_per_hour"][2])
+
+
+func test_building_income_with_influencer_bonus() -> void:
+	UnitManager.hired_units = {"dark_web_influencer": 1}
+	var building := {"type": "stash_house", "level": 1}
+	var income := BuildingManager.get_building_income(building)
+	assert_eq(income, 28, "20 * 1.4 influencer bonusu uygulanmali")
 
 
 func test_building_defense() -> void:
