@@ -28,6 +28,8 @@ signal item_acquired(item_id: String, quantity: int)
 signal item_removed(item_id: String, quantity: int)
 signal equipment_changed(slot: String, item_id: String)
 signal inventory_full()
+signal unit_hired(unit_id: String, amount: int)
+signal unit_hire_failed(unit_id: String, reason: String)
 
 # === GANG ===
 signal gang_created(gang_id: String)

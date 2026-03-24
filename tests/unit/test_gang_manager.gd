@@ -7,6 +7,8 @@ func before_each() -> void:
 	GameData.cash = 50000
 	GangManager.current_gang = {}
 	GangManager.is_in_gang = false
+	GangManager.hired_units.clear()
+	UnitManager.hired_units.clear()
 	EconomyManager.transaction_log.clear()
 
 
@@ -163,6 +165,34 @@ func test_add_gang_xp() -> void:
 	GangManager.create_gang("XPGang", "XP")
 	GangManager.add_gang_xp(100)
 	assert_eq(GangManager.current_gang["gang_xp"], 100)
+
+
+func test_hire_unit_success() -> void:
+	GameData.rank = 20
+	var before := GameData.cash
+	var ok := GangManager.hire_unit("chemist")
+	assert_true(ok, "gang manager uzerinden birim kiralanabilmeli")
+	assert_true(UnitManager.has_unit("chemist"), "kaynak veri UnitManager'a yazilmali")
+	assert_lt(GameData.cash, before, "kiralama maliyeti dusturulmeli")
+
+
+func test_hire_unit_invalid_fails() -> void:
+	var ok := GangManager.hire_unit("invalid_unit")
+	assert_false(ok, "gecersiz birim kiralanamaz")
+
+
+func test_get_total_bonus_crypto_multiplier() -> void:
+	UnitManager.hired_units = {"crypto_launderer": 1}
+	GangManager.hired_units = UnitManager.hired_units.duplicate(true)
+	var bonus := GangManager.get_total_bonus("mission_cash_multiplier")
+	assert_eq(bonus, 0.15, "1 adet crypto bonusu additive formatta %15 donmeli")
+
+
+func test_get_total_bonus_raid_enemy_nerf_compat() -> void:
+	UnitManager.hired_units = {"drone_operator": 1}
+	GangManager.hired_units = UnitManager.hired_units.duplicate(true)
+	var bonus := GangManager.get_total_bonus("raid_enemy_nerf")
+	assert_eq(bonus, 0.1, "compat map ile %10 raid nerf donmeli")
 
 
 func test_gang_level_up() -> void:

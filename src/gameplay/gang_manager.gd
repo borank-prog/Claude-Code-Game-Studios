@@ -7,9 +7,12 @@ signal gang_left()
 signal gang_updated()
 signal member_joined(player_id: String)
 signal member_left(player_id: String)
+signal unit_hired(unit_id: String, amount: int)
+signal unit_hire_failed(unit_id: String, reason: String)
 
 var current_gang: Dictionary = {}
 var is_in_gang: bool = false
+var hired_units: Dictionary = {}  # Backward compatibility cache (source of truth: UnitManager)
 
 const GANG_CREATION_COST: int = 5000
 const GANG_BASE_MEMBERS: int = 10
@@ -22,7 +25,11 @@ const LEADER_INACTIVITY_DAYS: int = 7
 
 
 func _ready() -> void:
-	pass
+	_sync_hired_units_cache()
+	if UnitManager and UnitManager.has_signal("unit_hired"):
+		UnitManager.unit_hired.connect(_on_unit_hired)
+	if UnitManager and UnitManager.has_signal("unit_hire_failed"):
+		UnitManager.unit_hire_failed.connect(_on_unit_hire_failed)
 
 
 ## Cete olustur
@@ -193,6 +200,62 @@ func get_member_count() -> int:
 func get_total_power() -> int:
 	# Solo dev'de sadece mevcut oyuncunun gucu — multiplayer'da tum uyeler
 	return GameData.get_total_power()
+
+
+## Birimi ise alma (compatibility API)
+func hire_unit(unit_id: String, amount: int = 1) -> bool:
+	if amount <= 0:
+		_emit_unit_hire_failed(unit_id, "Gecersiz miktar")
+		return false
+
+	var unit_data: Dictionary = UnitDB.get_unit_data(unit_id)
+	if unit_data.is_empty():
+		_emit_unit_hire_failed(unit_id, "Gecersiz birim")
+		return false
+
+	var can_hire := _can_hire_multiple(unit_id, amount)
+	if not can_hire.get("ok", false):
+		_emit_unit_hire_failed(unit_id, can_hire.get("reason", "Kiralama basarisiz"))
+		return false
+
+	for _i in amount:
+		var result: Dictionary = UnitManager.hire_unit(unit_id)
+		if not result.get("success", false):
+			_emit_unit_hire_failed(unit_id, result.get("reason", "Kiralama basarisiz"))
+			return false
+
+	_sync_hired_units_cache()
+	unit_hired.emit(unit_id, amount)
+	EventBus.unit_hired.emit(unit_id, amount)
+	_trigger_unit_save()
+	return true
+
+
+## Toplam bonusu additive formatta doner (0.15 => %15)
+func get_total_bonus(bonus_type: String) -> float:
+	var mapped_type := _map_bonus_type_compat(bonus_type)
+	if mapped_type.is_empty():
+		return 0.0
+
+	var total_bonus := 0.0
+	for unit_id in UnitManager.hired_units.keys():
+		var count: int = int(UnitManager.hired_units[unit_id])
+		if count <= 0:
+			continue
+
+		var data: Dictionary = UnitDB.get_unit_data(unit_id)
+		for bonus in data.get("bonuses", []):
+			if bonus.get("bonus_type", "") != mapped_type:
+				continue
+
+			var mode: String = bonus.get("bonus_mode", "additive")
+			var value: float = bonus.get("bonus_value", 0.0)
+			if mode == "multiplier":
+				total_bonus += _multiplier_to_additive(mapped_type, value) * count
+			else:
+				total_bonus += value * count
+
+	return total_bonus
 
 
 ## Level icin gereken XP
@@ -420,3 +483,64 @@ func serialize() -> Dictionary:
 func deserialize(data: Dictionary) -> void:
 	current_gang = data.get("current_gang", {})
 	is_in_gang = data.get("is_in_gang", false)
+	_sync_hired_units_cache()
+
+
+func _can_hire_multiple(unit_id: String, amount: int) -> Dictionary:
+	var unit_data: Dictionary = UnitDB.get_unit_data(unit_id)
+	if unit_data.is_empty():
+		return {"ok": false, "reason": "Birim bulunamadi"}
+
+	if GameData.rank < unit_data.get("required_rank", 0):
+		return {"ok": false, "reason": "Rank yetersiz"}
+
+	var owned: int = UnitManager.get_unit_count(unit_id)
+	var max_count: int = unit_data.get("max_count", 1)
+	if owned + amount > max_count:
+		return {"ok": false, "reason": "Bu birim zaten sende"}
+
+	var total_cost: int = unit_data.get("hire_cost", 0) * amount
+	if not EconomyManager.can_afford(total_cost):
+		return {"ok": false, "reason": "Yeterli nakit yok"}
+
+	return {"ok": true, "reason": ""}
+
+
+func _map_bonus_type_compat(bonus_type: String) -> String:
+	match bonus_type:
+		"raid_enemy_nerf": return "raid_enemy_defense_multiplier"
+		"mission_success_rate": return "vip_success_add"
+		"stamina_regen_boost": return "stamina_regen_interval_multiplier"
+		"jail_evasion": return "jail_time_multiplier"
+		_: return bonus_type
+
+
+func _multiplier_to_additive(bonus_type: String, multiplier_value: float) -> float:
+	match bonus_type:
+		"raid_enemy_defense_multiplier", "shop_tax_multiplier", "jail_time_multiplier", "heat_gain_multiplier", "stamina_regen_interval_multiplier":
+			return 1.0 - multiplier_value
+		_:
+			return multiplier_value - 1.0
+
+
+func _sync_hired_units_cache() -> void:
+	hired_units = UnitManager.hired_units.duplicate(true)
+
+
+func _emit_unit_hire_failed(unit_id: String, reason: String) -> void:
+	unit_hire_failed.emit(unit_id, reason)
+	EventBus.unit_hire_failed.emit(unit_id, reason)
+
+
+func _trigger_unit_save() -> void:
+	var cloud_save: Node = get_node_or_null("/root/CloudSave")
+	if cloud_save and cloud_save.has_method("save_to_cloud"):
+		cloud_save.save_to_cloud()
+
+
+func _on_unit_hired(_unit_id: String) -> void:
+	_sync_hired_units_cache()
+
+
+func _on_unit_hire_failed(_unit_id: String, _reason: String) -> void:
+	_sync_hired_units_cache()
