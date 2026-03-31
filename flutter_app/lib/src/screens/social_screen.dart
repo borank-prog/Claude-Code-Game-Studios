@@ -150,15 +150,6 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
-  int _metric(GameState state, String key) =>
-      state.balanceMetricsSnapshot[key] ?? 0;
-
-  String _rate(int success, int attempts) {
-    if (attempts <= 0) return '0%';
-    final pct = ((success * 100) / attempts).toStringAsFixed(1);
-    return '$pct%';
-  }
-
   int _leaderboardScore(Map<String, dynamic> row) {
     final power = (row['power'] as num?)?.toInt() ?? 0;
     final cash = (row['cash'] as num?)?.toInt() ?? 0;
@@ -188,52 +179,6 @@ class _SocialScreenState extends State<SocialScreen> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
           children: [
-            GlassPanel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    state.tt('DENGE TELEMETRİSİ', 'BALANCE TELEMETRY'),
-                    style: const TextStyle(
-                      color: Color(0xFFFBBF24),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    state.tt(
-                      'Görev: ${_metric(state, 'mission_success_total')}/${_metric(state, 'mission_attempts_total')} başarı (${_rate(_metric(state, 'mission_success_total'), _metric(state, 'mission_attempts_total'))})',
-                      'Missions: ${_metric(state, 'mission_success_total')}/${_metric(state, 'mission_attempts_total')} success (${_rate(_metric(state, 'mission_success_total'), _metric(state, 'mission_attempts_total'))})',
-                    ),
-                    style: const TextStyle(color: Color(0xFFD1D5DB)),
-                  ),
-                  Text(
-                    state.tt(
-                      'Kolay/Orta/Zor: ${_rate(_metric(state, 'mission_success_easy'), _metric(state, 'mission_attempts_easy'))} • ${_rate(_metric(state, 'mission_success_medium'), _metric(state, 'mission_attempts_medium'))} • ${_rate(_metric(state, 'mission_success_hard'), _metric(state, 'mission_attempts_hard'))}',
-                      'Easy/Medium/Hard: ${_rate(_metric(state, 'mission_success_easy'), _metric(state, 'mission_attempts_easy'))} • ${_rate(_metric(state, 'mission_success_medium'), _metric(state, 'mission_attempts_medium'))} • ${_rate(_metric(state, 'mission_success_hard'), _metric(state, 'mission_attempts_hard'))}',
-                    ),
-                    style: const TextStyle(color: Color(0xFF94A3B8)),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    state.tt(
-                      'Hapis: ${_metric(state, 'jail_entries_total')}  |  Hastane: ${_metric(state, 'hospital_entries_total')}',
-                      'Jail: ${_metric(state, 'jail_entries_total')}  |  Hospital: ${_metric(state, 'hospital_entries_total')}',
-                    ),
-                    style: const TextStyle(color: Color(0xFFD1D5DB)),
-                  ),
-                  Text(
-                    state.tt(
-                      'Altın Skip (Hapis/Hastane): ${_metric(state, 'jail_skip_gold_spent_total')} / ${_metric(state, 'hospital_skip_gold_spent_total')}',
-                      'Gold Skip (Jail/Hospital): ${_metric(state, 'jail_skip_gold_spent_total')} / ${_metric(state, 'hospital_skip_gold_spent_total')}',
-                    ),
-                    style: const TextStyle(color: Color(0xFF94A3B8)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
             // Quick action buttons
             Row(
               children: [

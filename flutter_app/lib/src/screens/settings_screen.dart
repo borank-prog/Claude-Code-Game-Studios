@@ -753,6 +753,8 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SizedBox(height: 10),
+                _TelemetryPanel(),
               ],
             ),
           ),
@@ -760,6 +762,74 @@ class SettingsScreen extends StatelessWidget {
       },
     );
   }
+}
+
+class _TelemetryPanel extends StatelessWidget {
+  String _rate(int success, int attempts) {
+    if (attempts <= 0) return '0%';
+    return '${((success * 100) / attempts).toStringAsFixed(1)}%';
+  }
+
+  int _m(Map<String, int> m, String key) => m[key] ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<GameState>();
+    final m = state.balanceMetricsSnapshot;
+    return GlassPanel(
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(top: 6, bottom: 4),
+          title: Text(
+            state.tt('Oturum İstatistikleri', 'Session Stats'),
+            style: const TextStyle(
+              color: Color(0xFF94A3B8),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          iconColor: const Color(0xFF94A3B8),
+          collapsedIconColor: const Color(0xFF94A3B8),
+          children: [
+            _row(
+              state.tt(
+                'Görev: ${_m(m, 'mission_success_total')}/${_m(m, 'mission_attempts_total')} başarı (${_rate(_m(m, 'mission_success_total'), _m(m, 'mission_attempts_total'))})',
+                'Missions: ${_m(m, 'mission_success_total')}/${_m(m, 'mission_attempts_total')} success (${_rate(_m(m, 'mission_success_total'), _m(m, 'mission_attempts_total'))})',
+              ),
+            ),
+            _row(
+              state.tt(
+                'Kolay/Orta/Zor: ${_rate(_m(m, 'mission_success_easy'), _m(m, 'mission_attempts_easy'))} • ${_rate(_m(m, 'mission_success_medium'), _m(m, 'mission_attempts_medium'))} • ${_rate(_m(m, 'mission_success_hard'), _m(m, 'mission_attempts_hard'))}',
+                'Easy/Med/Hard: ${_rate(_m(m, 'mission_success_easy'), _m(m, 'mission_attempts_easy'))} • ${_rate(_m(m, 'mission_success_medium'), _m(m, 'mission_attempts_medium'))} • ${_rate(_m(m, 'mission_success_hard'), _m(m, 'mission_attempts_hard'))}',
+              ),
+            ),
+            _row(
+              state.tt(
+                'Hapis: ${_m(m, 'jail_entries_total')}  |  Hastane: ${_m(m, 'hospital_entries_total')}',
+                'Jail: ${_m(m, 'jail_entries_total')}  |  Hospital: ${_m(m, 'hospital_entries_total')}',
+              ),
+            ),
+            _row(
+              state.tt(
+                'Altın Skip (Hapis/Hastane): ${_m(m, 'jail_skip_gold_spent_total')} / ${_m(m, 'hospital_skip_gold_spent_total')}',
+                'Gold Skip (Jail/Hospital): ${_m(m, 'jail_skip_gold_spent_total')} / ${_m(m, 'hospital_skip_gold_spent_total')}',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _row(String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Text(
+          text,
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+        ),
+      );
 }
 
 class _LegalSection {
