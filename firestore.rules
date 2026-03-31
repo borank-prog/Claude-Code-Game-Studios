@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // ── User profiles (all game data, leaderboard, social, FCM) ──
+    match /users/{uid} {
+      allow read: if isLoggedIn();
+      allow create: if isOwner(uid);
+      // Owner: full update. Other logged-in users: PvP field updates only.
+      allow update: if isLoggedIn() && (
+        isOwner(uid) ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['cash', 'status', 'statusUntil', 'xp'])
+      );
+
+      // Friends sub-collection
+      match /friends/{friendId} {
+        allow read: if isOwner(uid);
+        allow write: if isLoggedIn() && (isOwner(uid) || isOwner(friendId));
+      }
+
+      // Event queue sub-collection
+      match /event_queue/{eventId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ── Cloud saves ──
+    match /user_saves/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ── Friend requests ──
+    match /friend_requests/{requestId} {
+      allow read: if isLoggedIn() &&
+        (resource.data.fromId == request.auth.uid ||
+         resource.data.toId == request.auth.uid);
+      allow create: if isLoggedIn() &&
+        request.resource.data.fromId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isLoggedIn() &&
+        (resource.data.toId == request.auth.uid ||
+         resource.data.fromId == request.auth.uid);
+    }
+
+    // ── Attacks ──
+    match /attacks/{attackId} {
+      allow read: if isLoggedIn() &&
+        (resource.data.attackerId == request.auth.uid ||
+         resource.data.targetId  == request.auth.uid);
+      allow create: if false;
+      allow update, delete: if false;
+    }
+
+    // ── Attack cooldowns ──
+    match /attack_cooldowns/{docId} {
+      allow read: if isLoggedIn();
+      allow write: if false;
+    }
+
+    // ── Gangs ──
+    match /gangs/{gangId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn() &&
+        request.resource.data.ownerId == request.auth.uid;
+      // Only gang owner can update gang fields, or limited fields for others
+      allow update: if isLoggedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['totalPower', 'memberCount', 'vault', 'respectPoints'])
+      );
+
+      // Gang members
+      match /members/{memberId} {
+        allow read: if isLoggedIn();
+        allow create: if isLoggedIn() &&
+          (isOwner(memberId) || resource == null);
+        allow update: if isLoggedIn() &&
+          (isOwner(memberId) || resource.data.uid == request.auth.uid);
+        allow delete: if isLoggedIn() && isOwner(memberId);
+      }
+
+      // Contribution logs
+      match /contributions/{contribId} {
+        allow read: if isLoggedIn();
+        allow create: if isLoggedIn() &&
+          request.resource.data.uid == request.auth.uid;
+      }
+    }
+
+    // ── Gang raids ──
+    match /gang_raids/{raidId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn() &&
+        request.resource.data.leaderId == request.auth.uid;
+      allow update: if isLoggedIn() && (
+        resource.data.leaderId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+      );
+      allow delete: if false;
+    }
+
+    // ── Gang chat messages ──
+    match /gang_chats/{gangId}/messages/{msgId} {
+      allow read: if isLoggedIn();
+      allow create: if isLoggedIn() &&
+        request.resource.data.senderId == request.auth.uid;
+    }
+
+    // ── Trade offers ──
+    match /trade_offers/{offerId} {
+      allow read: if isLoggedIn() &&
+        (resource.data.fromId == request.auth.uid ||
+         resource.data.toId == request.auth.uid);
+      allow create: if isLoggedIn() &&
+        request.resource.data.fromId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isLoggedIn() &&
+        (resource.data.toId == request.auth.uid ||
+         resource.data.fromId == request.auth.uid) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status']);
+      allow delete: if false;
+    }
+
+    // ── Gang leaderboard (read-only, written by Cloud Functions) ──
+    match /gang_leaderboard/{gangId} {
+      allow read: if isLoggedIn();
+      allow write: if false;
+    }
+  }
+}

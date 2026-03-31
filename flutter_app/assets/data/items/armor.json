@@ -1,0 +1,68 @@
+[
+  {
+    "item_id": "arm_leather",
+    "name": "Deri Ceket",
+    "description": "Hafif koruma, sokak stili.",
+    "category": "ARMOR",
+    "rarity": "COMMON",
+    "buy_price": 500,
+    "power_bonus": 5,
+    "stat_bonuses": {"endurance": 3},
+    "required_rank": 0,
+    "is_tradeable": true,
+    "is_stackable": false
+  },
+  {
+    "item_id": "arm_vest",
+    "name": "Çelik Yelek",
+    "description": "Hayat kurtarir. Ciddi islere cikmadan giyilmeli.",
+    "category": "ARMOR",
+    "rarity": "COMMON",
+    "buy_price": 1500,
+    "power_bonus": 10,
+    "stat_bonuses": {"endurance": 8},
+    "required_rank": 1,
+    "is_tradeable": true,
+    "is_stackable": false
+  },
+  {
+    "item_id": "arm_kevlar",
+    "name": "Kevlar Zırh",
+    "description": "Askeri standart koruma. Savas alani icin.",
+    "category": "ARMOR",
+    "rarity": "UNCOMMON",
+    "buy_price": 4000,
+    "power_bonus": 25,
+    "stat_bonuses": {"endurance": 15},
+    "required_rank": 6,
+    "is_tradeable": true,
+    "is_stackable": false
+  },
+  {
+    "item_id": "arm_heavy",
+    "name": "Ağır Zırh",
+    "description": "Tam vucut korumasi. Yavas ama yenilmez.",
+    "category": "ARMOR",
+    "rarity": "RARE",
+    "buy_price": 10000,
+    "power_bonus": 50,
+    "stat_bonuses": {"endurance": 25},
+    "required_rank": 10,
+    "is_tradeable": false,
+    "is_stackable": false
+  },
+  {
+    "item_id": "arm_elite",
+    "name": "Elit Taktik Zırh",
+    "description": "En ust duzey koruma. Sadece kartel patronlari icin.",
+    "category": "ARMOR",
+    "rarity": "EPIC",
+    "buy_price": 25000,
+    "power_bonus": 80,
+    "stat_bonuses": {"endurance": 35, "strength": 5},
+    "required_rank": 14,
+    "is_tradeable": false,
+    "is_stackable": false
+  }
+]
+

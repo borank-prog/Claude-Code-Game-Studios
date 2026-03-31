@@ -1,0 +1,106 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:provider/provider.dart';
+
+import 'src/config/firebase_bootstrap.dart';
+import 'src/screens/attack_history_screen.dart';
+import 'src/screens/home_shell.dart';
+import 'src/screens/login_screen.dart';
+import 'src/screens/onboarding_screen.dart';
+import 'src/state/game_state.dart';
+import 'src/services/notification_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Firebase ve background handler'ı paralel başlat
+  final firebaseFuture = _initializeFirebase();
+  final gameState = GameState();
+  // UI'ı hemen göster, Firebase arka planda tamamlansın
+  runApp(CartelHoodFlutterApp(gameState: gameState));
+  await firebaseFuture;
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await gameState.initialize();
+}
+
+Future<void> _initializeFirebase() async {
+  try {
+    await Firebase.initializeApp();
+    debugPrint('Firebase basariyla kuruldu.');
+  } catch (e) {
+    try {
+      await Firebase.initializeApp(options: FirebaseBootstrap.currentOptions);
+      debugPrint('Firebase basariyla kuruldu (fallback options).');
+    } on StateError catch (cfg) {
+      debugPrint('Firebase web config eksik: $cfg');
+    } catch (fallbackError) {
+      debugPrint('Firebase baslatilamadi: $fallbackError');
+      debugPrint('Ilk hata: $e');
+    }
+  }
+}
+
+class CartelHoodFlutterApp extends StatelessWidget {
+  const CartelHoodFlutterApp({super.key, required this.gameState});
+
+  final GameState gameState;
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider.value(
+      value: gameState,
+      child: MaterialApp(
+        navigatorKey: NotificationService.navigatorKey,
+        debugShowCheckedModeBanner: false,
+        title: 'CartelHood Flutter',
+        theme: ThemeData(
+          brightness: Brightness.dark,
+          scaffoldBackgroundColor: const Color(0xFF081428),
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: const Color(0xFFFBBF24),
+            brightness: Brightness.dark,
+          ),
+          inputDecorationTheme: InputDecorationTheme(
+            filled: true,
+            fillColor: const Color(0x66101B31),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0x557F8EA8)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0x557F8EA8)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Color(0xFFFBBF24)),
+            ),
+            labelStyle: const TextStyle(color: Color(0xFFD1D5DB)),
+          ),
+        ),
+        onGenerateRoute: (settings) {
+          if (settings.name == '/attack_detail') {
+            return MaterialPageRoute(
+              builder: (ctx) {
+                final gs = ctx.read<GameState>();
+                return AttackHistoryScreen(
+                  uid: gs.userId,
+                  playerName: gs.playerName,
+                  playerPower: gs.totalPower,
+                );
+              },
+            );
+          }
+          return null;
+        },
+        home: Consumer<GameState>(
+          builder: (context, state, child) {
+            if (!state.loggedIn) return const LoginScreen();
+            if (state.needsOnboarding) return const OnboardingScreen();
+            return const HomeShell();
+          },
+        ),
+      ),
+    );
+  }
+}
