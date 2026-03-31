@@ -1307,7 +1307,16 @@ class OnlineService {
         .orderBy('power', descending: true)
         .get()
         .timeout(_firestoreOpTimeout);
-    return snap.docs.map((d) => d.data()).toList(growable: false);
+    // Aynı UID'ye sahip birden fazla doküman varsa ilkini al (dedupe)
+    final seen = <String>{};
+    final result = <Map<String, dynamic>>[];
+    for (final d in snap.docs) {
+      final uid = d.id;
+      if (seen.add(uid)) {
+        result.add(d.data());
+      }
+    }
+    return result;
   }
 
   Future<void> seedBotData() async {
