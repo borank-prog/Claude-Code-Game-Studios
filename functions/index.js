@@ -143,7 +143,7 @@ exports.weeklyLeaderboardReset = onSchedule('0 0 * * 1', async () => {
   console.log(`Haftalık sıfırlama tamamlandı: ${users.size} oyuncu`);
 });
 
-exports.executePvpAttack = onCall(async (request) => {
+exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
   const attackerId = request.auth?.uid;
   if (!attackerId) {
     throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor');
@@ -450,7 +450,7 @@ exports.executePvpAttack = onCall(async (request) => {
 // ══════════════════════════════════════════════════════════════════
 // Gang Raid — Server-authoritative gang vs gang combat
 // ══════════════════════════════════════════════════════════════════
-exports.executeGangRaid = onCall(async (request) => {
+exports.executeGangRaid = onCall({ invoker: 'public' }, async (request) => {
   const leaderId = request.auth?.uid;
   if (!leaderId) {
     throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor');
@@ -648,7 +648,7 @@ exports.executeGangRaid = onCall(async (request) => {
 // ══════════════════════════════════════════════════════════════════
 // Trade — Server-authoritative item/cash trading
 // ══════════════════════════════════════════════════════════════════
-exports.executeTrade = onCall(async (request) => {
+exports.executeTrade = onCall({ invoker: 'public' }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
     throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor');
@@ -1158,7 +1158,7 @@ const BOT_PLAYERS = [
   { id: 'bot_kizil_umut',   name: 'Kizil_Umut',   gangId: 'bot_gang_kizil', power: 630,  cash: 25000, level: 8  },
 ];
 
-exports.seedBotData = onCall(async (request) => {
+exports.seedBotData = onCall({ invoker: 'public' }, async (request) => {
   const batch = db.batch();
   const now = admin.firestore.Timestamp.now();
   const nowEpoch = Math.floor(Date.now() / 1000);
