@@ -80,32 +80,7 @@ class TradeService {
   }
 
   Future<List<Map<String, dynamic>>> fetchGangLeaderboard() async {
-    // Önce gang_leaderboard koleksiyonunu dene
-    try {
-      final snap = await _db
-          .collection('gang_leaderboard')
-          .orderBy('totalPower', descending: true)
-          .limit(20)
-          .get()
-          .timeout(const Duration(seconds: 6));
-      if (snap.docs.isNotEmpty) {
-        return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-      }
-    } catch (_) {}
-    // Yoksa doğrudan gangs koleksiyonundan oku
-    try {
-      final snap = await _db
-          .collection('gangs')
-          .orderBy('totalPower', descending: true)
-          .limit(20)
-          .get()
-          .timeout(const Duration(seconds: 6));
-      if (snap.docs.isNotEmpty) {
-        return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-      }
-    } catch (_) {}
-    // Firestore'da çete yoksa seed fallback
-    return [
+    final seedGangs = <Map<String, dynamic>>[
       {
         'id': 'seed_gang_01',
         'name': 'Kuzey Kurtları',
@@ -143,5 +118,49 @@ class TradeService {
         'acceptJoinRequests': false,
       },
     ];
+
+    List<Map<String, dynamic>> realGangs = [];
+
+    // Önce gang_leaderboard koleksiyonunu dene
+    try {
+      final snap = await _db
+          .collection('gang_leaderboard')
+          .orderBy('totalPower', descending: true)
+          .limit(20)
+          .get()
+          .timeout(const Duration(seconds: 6));
+      if (snap.docs.isNotEmpty) {
+        realGangs = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      }
+    } catch (_) {}
+
+    // Yoksa doğrudan gangs koleksiyonundan oku (sıralama olmadan — index gerekmez)
+    if (realGangs.isEmpty) {
+      try {
+        final snap = await _db
+            .collection('gangs')
+            .limit(50)
+            .get()
+            .timeout(const Duration(seconds: 6));
+        realGangs = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      } catch (_) {}
+    }
+
+    // Gerçek çeteler varsa seed'lerle merge et (seed ID'lerini override et)
+    if (realGangs.isNotEmpty) {
+      final realIds = realGangs.map((g) => g['id'] as String).toSet();
+      final merged = [
+        ...realGangs,
+        ...seedGangs.where((s) => !realIds.contains(s['id'])),
+      ];
+      // totalPower'a göre sırala
+      merged.sort(
+        (a, b) => ((b['totalPower'] as num?) ?? 0)
+            .compareTo((a['totalPower'] as num?) ?? 0),
+      );
+      return merged;
+    }
+
+    return seedGangs;
   }
 }
