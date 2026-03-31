@@ -161,12 +161,12 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     color: filled
-                        ? const Color(0xFFfbbf24).withOpacity(0.08)
-                        : Colors.white.withOpacity(0.03),
+                        ? const Color(0xFFfbbf24).withValues(alpha: 0.08)
+                        : Colors.white.withValues(alpha: 0.03),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: filled
-                          ? const Color(0xFFfbbf24).withOpacity(0.3)
+                          ? const Color(0xFFfbbf24).withValues(alpha: 0.3)
                           : Colors.white12,
                     ),
                   ),
@@ -191,7 +191,7 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                           padding:
                               const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFfbbf24).withOpacity(0.15),
+                            color: const Color(0xFFfbbf24).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
@@ -218,7 +218,7 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.05),
+                    color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: Colors.white12),
                   ),

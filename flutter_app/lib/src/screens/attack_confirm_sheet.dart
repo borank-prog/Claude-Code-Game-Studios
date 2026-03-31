@@ -268,8 +268,8 @@ class _TypeTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFFfbbf24).withOpacity(0.15)
-              : Colors.white.withOpacity(0.05),
+              ? const Color(0xFFfbbf24).withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected ? const Color(0xFFfbbf24) : Colors.white12,

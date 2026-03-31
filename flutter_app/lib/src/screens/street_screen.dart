@@ -453,7 +453,7 @@ class _StreetScreenState extends State<StreetScreen> {
                       boxShadow: isToday
                           ? [
                               BoxShadow(
-                                color: const Color(0xFFFBBF24).withOpacity(0.4),
+                                color: const Color(0xFFFBBF24).withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),
@@ -529,7 +529,7 @@ class _StreetScreenState extends State<StreetScreen> {
             height: 36,
             decoration: BoxDecoration(
               color: claimed
-                  ? const Color(0xFF34D399).withOpacity(0.15)
+                  ? const Color(0xFF34D399).withValues(alpha: 0.15)
                   : const Color(0xFF0A1630),
               borderRadius: BorderRadius.circular(8),
             ),
@@ -689,11 +689,11 @@ class _MissionResultSheet extends StatelessWidget {
                 height: 78,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: accentColor.withOpacity(0.12),
+                  color: accentColor.withValues(alpha: 0.12),
                   border: Border.all(color: accentColor, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: accentColor.withOpacity(0.3),
+                      color: accentColor.withValues(alpha: 0.3),
                       blurRadius: 22,
                       spreadRadius: 2,
                     ),

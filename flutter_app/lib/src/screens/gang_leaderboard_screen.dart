@@ -94,7 +94,7 @@ class _GangLeaderboardScreenState extends State<GangLeaderboardScreen> {
                                   height: 40,
                                   decoration: BoxDecoration(
                                     color: i < 3
-                                        ? const Color(0xFFFBBF24).withOpacity(0.15)
+                                        ? const Color(0xFFFBBF24).withValues(alpha: 0.15)
                                         : const Color(0xFF0A1630),
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
@@ -138,7 +138,7 @@ class _GangLeaderboardScreenState extends State<GangLeaderboardScreen> {
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(
-                                                color: const Color(0xFFFBBF24).withOpacity(0.15),
+                                                color: const Color(0xFFFBBF24).withValues(alpha: 0.15),
                                                 borderRadius: BorderRadius.circular(4),
                                               ),
                                               child: Text(
@@ -365,7 +365,7 @@ class _GangDetailSheetState extends State<_GangDetailSheet> {
                             leading: CircleAvatar(
                               radius: 16,
                               backgroundColor: role == 'Lider'
-                                  ? const Color(0xFFFBBF24).withOpacity(0.2)
+                                  ? const Color(0xFFFBBF24).withValues(alpha: 0.2)
                                   : const Color(0xFF1E2D45),
                               child: Icon(
                                 role == 'Lider' ? Icons.star_rounded : Icons.person,
@@ -424,9 +424,9 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
     );

@@ -520,7 +520,7 @@ class MarketScreen extends StatelessWidget {
                     child: Image.asset(
                       item.iconAsset,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(
+                      errorBuilder: (_, _, _) => Icon(
                         Icons.inventory_2_outlined,
                         color: const Color(0xFF34D399),
                         size: 48,
@@ -533,7 +533,7 @@ class MarketScreen extends StatelessWidget {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: serviceIconColor.withOpacity(0.12),
+                    color: serviceIconColor.withValues(alpha: 0.12),
                     shape: BoxShape.circle,
                     border: Border.all(color: serviceIconColor, width: 1.5),
                   ),
@@ -558,7 +558,7 @@ class MarketScreen extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.04),
+                  color: Colors.white.withValues(alpha: 0.04),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(

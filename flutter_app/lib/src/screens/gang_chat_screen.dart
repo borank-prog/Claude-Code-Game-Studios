@@ -228,7 +228,7 @@ class _ChatBubble extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: isMe
-                        ? const Color(0xFFfbbf24).withOpacity(0.18)
+                        ? const Color(0xFFfbbf24).withValues(alpha: 0.18)
                         : const Color(0xFF1a2540),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(14),
@@ -238,7 +238,7 @@ class _ChatBubble extends StatelessWidget {
                     ),
                     border: Border.all(
                       color: isMe
-                          ? const Color(0xFFfbbf24).withOpacity(0.3)
+                          ? const Color(0xFFfbbf24).withValues(alpha: 0.3)
                           : Colors.white12,
                       width: 0.5,
                     ),
@@ -283,7 +283,7 @@ class _SystemBubble extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
+            color: Colors.white.withValues(alpha: 0.06),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
@@ -407,7 +407,7 @@ class _InputBar extends StatelessWidget {
                 hintText: 'Mesaj yaz...',
                 hintStyle: const TextStyle(color: Colors.white24),
                 filled: true,
-                fillColor: Colors.white.withOpacity(0.06),
+                fillColor: Colors.white.withValues(alpha: 0.06),
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(

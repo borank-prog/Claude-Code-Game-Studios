@@ -302,7 +302,7 @@ class _Podium extends StatelessWidget {
                     width: sizes[i],
                     height: sizes[i],
                     decoration: BoxDecoration(
-                      color: colors[i].withOpacity(0.15),
+                      color: colors[i].withValues(alpha: 0.15),
                       shape: BoxShape.circle,
                       border: Border.all(color: colors[i], width: 2),
                     ),
@@ -338,12 +338,12 @@ class _Podium extends StatelessWidget {
                   Container(
                     height: heights[i],
                     decoration: BoxDecoration(
-                      color: colors[i].withOpacity(0.12),
+                      color: colors[i].withValues(alpha: 0.12),
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(8),
                       ),
                       border: Border.all(
-                        color: colors[i].withOpacity(0.3),
+                        color: colors[i].withValues(alpha: 0.3),
                         width: 0.5,
                       ),
                     ),
@@ -395,10 +395,10 @@ class _MyRankBanner extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFFa78bfa).withOpacity(0.1),
+        color: const Color(0xFFa78bfa).withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: const Color(0xFFa78bfa).withOpacity(0.35),
+          color: const Color(0xFFa78bfa).withValues(alpha: 0.35),
           width: 0.5,
         ),
       ),
@@ -466,12 +466,12 @@ class _LeaderRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isMe
-              ? const Color(0xFFa78bfa).withOpacity(0.08)
+              ? const Color(0xFFa78bfa).withValues(alpha: 0.08)
               : const Color(0xFF111a2e),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isMe
-                ? const Color(0xFFa78bfa).withOpacity(0.35)
+                ? const Color(0xFFa78bfa).withValues(alpha: 0.35)
                 : Colors.white12,
             width: 0.5,
           ),
@@ -496,8 +496,8 @@ class _LeaderRow extends StatelessWidget {
               height: 32,
               decoration: BoxDecoration(
                 color: isMe
-                    ? const Color(0xFFa78bfa).withOpacity(0.15)
-                    : Colors.white.withOpacity(0.06),
+                    ? const Color(0xFFa78bfa).withValues(alpha: 0.15)
+                    : Colors.white.withValues(alpha: 0.06),
                 shape: BoxShape.circle,
               ),
               child: Center(
@@ -547,7 +547,7 @@ class _LeaderRow extends StatelessWidget {
                             vertical: 1,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFa78bfa).withOpacity(0.2),
+                            color: const Color(0xFFa78bfa).withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -636,7 +636,7 @@ class _PlayerProfileSheet extends StatelessWidget {
                 height: 72,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: const Color(0xFFfbbf24).withOpacity(0.15),
+                  color: const Color(0xFFfbbf24).withValues(alpha: 0.15),
                   border: Border.all(color: const Color(0xFFfbbf24), width: 2),
                 ),
                 child: Center(
@@ -703,7 +703,7 @@ class _PlayerProfileSheet extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white12),
               ),
@@ -802,9 +802,9 @@ class _StatBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [

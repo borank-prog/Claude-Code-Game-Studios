@@ -14,7 +14,7 @@ class GameBackground extends StatelessWidget {
           'assets/art/backgrounds/game_bg_custom.png',
           fit: BoxFit.cover,
           alignment: Alignment.center,
-          errorBuilder: (_, __, ___) => Container(
+          errorBuilder: (_, _, _) => Container(
             color: const Color(0xFF081428),
           ),
         ),

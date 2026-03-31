@@ -187,8 +187,8 @@ class AchievementsScreen extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               color: claimed
-                  ? const Color(0xFF34D399).withOpacity(0.15)
-                  : catColor.withOpacity(0.1),
+                  ? const Color(0xFF34D399).withValues(alpha: 0.15)
+                  : catColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: claimed ? const Color(0xFF34D399) : catColor,

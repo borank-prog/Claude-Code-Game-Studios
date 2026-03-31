@@ -60,10 +60,10 @@ class CityScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFF0B1A2E),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: color.withOpacity(0.6), width: 1),
+            border: Border.all(color: color.withValues(alpha: 0.6), width: 1),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.25),
+                color: color.withValues(alpha: 0.25),
                 blurRadius: 22,
                 spreadRadius: 2,
               ),
@@ -76,7 +76,7 @@ class CityScreen extends StatelessWidget {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                   border: Border.all(color: color, width: 2),
                 ),
@@ -450,11 +450,11 @@ class _CityMissionResultSheet extends StatelessWidget {
                 height: 78,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: accentColor.withOpacity(0.12),
+                  color: accentColor.withValues(alpha: 0.12),
                   border: Border.all(color: accentColor, width: 2),
                   boxShadow: [
                     BoxShadow(
-                      color: accentColor.withOpacity(0.3),
+                      color: accentColor.withValues(alpha: 0.3),
                       blurRadius: 22,
                       spreadRadius: 2,
                     ),

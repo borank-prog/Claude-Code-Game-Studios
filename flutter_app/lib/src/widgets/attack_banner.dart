@@ -93,12 +93,12 @@ class _AttackBannerWrapperState extends State<AttackBannerWrapper>
                         color: const Color(0xFF0B1A2E),
                         borderRadius: BorderRadius.circular(18),
                         border: Border.all(
-                          color: _bannerColor.withOpacity(0.6),
+                          color: _bannerColor.withValues(alpha: 0.6),
                           width: 1,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: _bannerColor.withOpacity(0.25),
+                            color: _bannerColor.withValues(alpha: 0.25),
                             blurRadius: 22,
                             spreadRadius: 2,
                           ),
@@ -111,7 +111,7 @@ class _AttackBannerWrapperState extends State<AttackBannerWrapper>
                             width: 72,
                             height: 72,
                             decoration: BoxDecoration(
-                              color: _bannerColor.withOpacity(0.12),
+                              color: _bannerColor.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: _bannerColor,

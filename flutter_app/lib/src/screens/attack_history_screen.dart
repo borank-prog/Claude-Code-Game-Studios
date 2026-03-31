@@ -215,9 +215,9 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withOpacity(0.2)),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
         child: Column(
           children: [
@@ -303,12 +303,12 @@ class _Tab extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: active
-                ? const Color(0xFFfbbf24).withOpacity(0.12)
-                : Colors.white.withOpacity(0.04),
+                ? const Color(0xFFfbbf24).withValues(alpha: 0.12)
+                : Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: active
-                  ? const Color(0xFFfbbf24).withOpacity(0.4)
+                  ? const Color(0xFFfbbf24).withValues(alpha: 0.4)
                   : Colors.white12,
             ),
           ),
@@ -383,7 +383,7 @@ class _AttackEntry extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF111a2e),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _outcomeColor.withOpacity(0.15)),
+        border: Border.all(color: _outcomeColor.withValues(alpha: 0.15)),
       ),
       child: Row(
         children: [
@@ -391,7 +391,7 @@ class _AttackEntry extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: _outcomeColor.withOpacity(0.12),
+              color: _outcomeColor.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(_outcomeIcon, color: _outcomeColor, size: 20),
@@ -425,10 +425,10 @@ class _AttackEntry extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFfbbf24).withOpacity(0.12),
+                          color: const Color(0xFFfbbf24).withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: const Color(0xFFfbbf24).withOpacity(0.35),
+                            color: const Color(0xFFfbbf24).withValues(alpha: 0.35),
                           ),
                         ),
                         child: const Text(

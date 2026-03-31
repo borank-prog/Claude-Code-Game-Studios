@@ -121,7 +121,7 @@ class _AttackResultSheetState extends State<AttackResultSheet>
                           width: 80,
                           height: 80,
                           decoration: BoxDecoration(
-                            color: _color.withOpacity(0.15),
+                            color: _color.withValues(alpha: 0.15),
                             shape: BoxShape.circle,
                             border: Border.all(color: _color, width: 2),
                           ),
@@ -277,7 +277,7 @@ class _AttackResultSheetState extends State<AttackResultSheet>
                     child: OutlinedButton(
                       onPressed: () => Navigator.pop(context, 'retry'),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: _color.withOpacity(0.5)),
+                        side: BorderSide(color: _color.withValues(alpha: 0.5)),
                         foregroundColor: _color,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -335,9 +335,9 @@ class _StatRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [

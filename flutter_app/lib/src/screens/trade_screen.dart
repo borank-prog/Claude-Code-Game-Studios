@@ -312,7 +312,7 @@ class _TradeScreenState extends State<TradeScreen> {
               const SizedBox(width: 8),
               Text(
                 isIncoming
-                    ? '${offer.fromName.isNotEmpty ? offer.fromName : offer.fromId.substring(0, 8)}'
+                    ? (offer.fromName.isNotEmpty ? offer.fromName : offer.fromId.substring(0, 8))
                     : state.tt('Hedef: ', 'To: ') + offer.toId.substring(0, 8),
                 style: const TextStyle(
                   color: Colors.white,
