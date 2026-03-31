@@ -8,6 +8,144 @@ import '../widgets/glass_panel.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
+  static const List<_LegalSection> _privacySections = [
+    _LegalSection(
+      titleTr: '1) Toplanan Veriler',
+      titleEn: '1) Data We Collect',
+      bodyTr:
+          'Hesap oluşturma ve oyun hizmeti için oyuncu kimliği (UID), e-posta (varsa), oyuncu adı, karakter seçimi, oyun ilerlemesi, ekipman/veri kayıtları, cihazın teknik bilgileri (uygulama sürümü, hata kayıtları) ve bildirim izni verildiğinde FCM bildirimi anahtarı işlenebilir.',
+      bodyEn:
+          'To provide account and gameplay services, we may process player ID (UID), email (if provided), player name, character selection, game progress, inventory/equipment records, technical device info (app version, crash logs), and FCM notification token when notifications are enabled.',
+    ),
+    _LegalSection(
+      titleTr: '2) Verilerin Kullanım Amaçları',
+      titleEn: '2) Why We Use Data',
+      bodyTr:
+          'Veriler; giriş doğrulama, bulut kayıt senkronizasyonu, oyun ekonomisi ve PvP hesaplamaları, hile/istismar tespiti, müşteri desteği ve hizmet güvenliğini sağlamak için kullanılır.',
+      bodyEn:
+          'Data is used for authentication, cloud-save sync, game economy and PvP calculations, abuse/fraud prevention, customer support, and service security.',
+    ),
+    _LegalSection(
+      titleTr: '3) Saklama Süresi',
+      titleEn: '3) Retention',
+      bodyTr:
+          'Hesap verileri hesabın aktif kaldığı süre boyunca saklanır. Yasal zorunluluk bulunmayan veriler, hesap silme talebinden sonra makul süre içinde silinir veya anonimleştirilir.',
+      bodyEn:
+          'Account data is retained while your account is active. Data not required by law is deleted or anonymized within a reasonable period after an account deletion request.',
+    ),
+    _LegalSection(
+      titleTr: '4) Üçüncü Taraf Hizmetler',
+      titleEn: '4) Third-Party Services',
+      bodyTr:
+          'Altyapıda Firebase/Google Cloud gibi hizmet sağlayıcılar kullanılabilir. Bu sağlayıcılar verileri yalnızca hizmet sunumu amacıyla ve kendi güvenlik standartları çerçevesinde işler.',
+      bodyEn:
+          'Infrastructure providers such as Firebase/Google Cloud may be used. These providers process data only for service delivery and under their own security standards.',
+    ),
+    _LegalSection(
+      titleTr: '5) Güvenlik',
+      titleEn: '5) Security',
+      bodyTr:
+          'Veri güvenliği için erişim kontrolleri, kimlik doğrulama ve kayıt denetimleri uygulanır. Buna rağmen internet üzerinden hiçbir iletim yönteminin yüzde 100 güvenli olduğu garanti edilemez.',
+      bodyEn:
+          'We apply access controls, authentication, and logging safeguards. However, no internet transmission method can be guaranteed as 100% secure.',
+    ),
+    _LegalSection(
+      titleTr: '6) Çocukların Gizliliği',
+      titleEn: "6) Children's Privacy",
+      bodyTr:
+          'Uygulama ebeveyn gözetimi olmadan küçük yaştaki çocuklara yönelik tasarlanmamıştır. Yerel mevzuata göre gerekli durumlarda ebeveyn/onay sorumluluğu kullanıcıdadır.',
+      bodyEn:
+          'The app is not designed for unsupervised young children. Where required by local law, parental consent/supervision is the responsibility of the user.',
+    ),
+    _LegalSection(
+      titleTr: '7) Haklarınız',
+      titleEn: '7) Your Rights',
+      bodyTr:
+          'Hesap verilerine erişim, düzeltme ve silme taleplerini uygulama içi hesap silme seçeneği veya destek kanalı üzerinden iletebilirsiniz.',
+      bodyEn:
+          'You may request access, correction, or deletion of your account data via in-app account deletion tools or the support channel.',
+    ),
+    _LegalSection(
+      titleTr: '8) İletişim',
+      titleEn: '8) Contact',
+      bodyTr: 'Gizlilikle ilgili talepler için: support@cartelhood.game',
+      bodyEn: 'For privacy-related requests: support@cartelhood.game',
+    ),
+  ];
+
+  static const List<_LegalSection> _termsSections = [
+    _LegalSection(
+      titleTr: '1) Kabul',
+      titleEn: '1) Acceptance',
+      bodyTr:
+          'Uygulamayı indirerek, kurarak veya kullanarak bu Kullanım Koşullarını kabul etmiş olursunuz. Koşulları kabul etmiyorsanız hizmeti kullanmamalısınız.',
+      bodyEn:
+          'By downloading, installing, or using the app, you accept these Terms of Use. If you do not accept them, you should not use the service.',
+    ),
+    _LegalSection(
+      titleTr: '2) Hesap Sorumluluğu',
+      titleEn: '2) Account Responsibility',
+      bodyTr:
+          'Hesabınızdan yapılan işlemlerden siz sorumlusunuz. Giriş bilgilerinizin güvenliğini korumalı, şüpheli erişimleri destek ekibine bildirmelisiniz.',
+      bodyEn:
+          'You are responsible for activity under your account. You must protect your credentials and report suspicious access to support.',
+    ),
+    _LegalSection(
+      titleTr: '3) Oyun İçi Para ve Eşyalar',
+      titleEn: '3) Virtual Currency & Items',
+      bodyTr:
+          'Altın, nakit ve dijital eşyalar yalnızca oyun içi kullanım lisansı sağlar; gerçek dünyada parasal değer taşımaz. Oyun dengesi kapsamında içerikler değiştirilebilir.',
+      bodyEn:
+          'Gold, cash, and virtual items grant an in-game usage license only and have no real-world monetary value. Content may be changed for game balance.',
+    ),
+    _LegalSection(
+      titleTr: '4) Yasaklı Davranışlar',
+      titleEn: '4) Prohibited Conduct',
+      bodyTr:
+          'Hile, bot kullanımı, açık istismarı, yetkisiz yazılım, nefret söylemi, tehdit veya diğer oyuncuları rahatsız eden davranışlar yasaktır.',
+      bodyEn:
+          'Cheating, bots, exploit abuse, unauthorized software, hate speech, threats, or player harassment are prohibited.',
+    ),
+    _LegalSection(
+      titleTr: '5) Yaptırımlar',
+      titleEn: '5) Enforcement',
+      bodyTr:
+          'Kural ihlallerinde uyarı, geçici kısıtlama, veri geri alma, eşleşme engeli veya kalıcı hesap kapatma uygulanabilir.',
+      bodyEn:
+          'Violations may result in warnings, temporary restrictions, rollbacks, matchmaking blocks, or permanent account termination.',
+    ),
+    _LegalSection(
+      titleTr: '6) Hizmet Değişikliği',
+      titleEn: '6) Service Changes',
+      bodyTr:
+          'Hizmet, bakım veya teknik gereksinimler nedeniyle geçici olarak kesilebilir. Özellikler, görevler, ekonomi ve denge ayarları güncellemelerle değiştirilebilir.',
+      bodyEn:
+          'Service may be temporarily interrupted for maintenance or technical reasons. Features, missions, economy, and balance may change via updates.',
+    ),
+    _LegalSection(
+      titleTr: '7) Fikri Mülkiyet',
+      titleEn: '7) Intellectual Property',
+      bodyTr:
+          'Uygulama içindeki marka, görsel, metin, kod ve tasarımlar hak sahiplerine aittir. İzinsiz kopyalama, dağıtım veya tersine mühendislik yapılamaz.',
+      bodyEn:
+          'All trademarks, visuals, text, code, and designs in the app belong to their respective owners. Unauthorized copying, distribution, or reverse engineering is prohibited.',
+    ),
+    _LegalSection(
+      titleTr: '8) Sorumluluk Sınırı',
+      titleEn: '8) Limitation of Liability',
+      bodyTr:
+          'Uygulama mevcut haliyle sunulur. Hukukun izin verdiği ölçüde, dolaylı zararlar ve veri kaybı dahil olmak üzere sonuçlardan geliştirici sorumlu tutulamaz.',
+      bodyEn:
+          'The app is provided "as is." To the extent permitted by law, the developer is not liable for indirect damages, including data loss.',
+    ),
+    _LegalSection(
+      titleTr: '9) İletişim',
+      titleEn: '9) Contact',
+      bodyTr: 'Kullanım koşulları hakkında: support@cartelhood.game',
+      bodyEn: 'For terms-related questions: support@cartelhood.game',
+    ),
+  ];
+
   Widget _metalLanguageSwitch(GameState state) {
     Widget langBtn(String code, String label) {
       final active = state.languageCode == code;
@@ -170,8 +308,120 @@ class SettingsScreen extends StatelessWidget {
     }
   }
 
-  void _showLink(BuildContext context, String link) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(link)));
+  Future<void> _showLegalDoc(
+    BuildContext context,
+    GameState state, {
+    required bool privacy,
+  }) async {
+    final title = privacy
+        ? state.tt('Gizlilik Politikası', 'Privacy Policy')
+        : state.tt('Kullanım Koşulları', 'Terms of Use');
+    final sections = privacy ? _privacySections : _termsSections;
+    final updatedAt = state.tt(
+      'Son Güncelleme: 31 Mart 2026',
+      'Last Updated: March 31, 2026',
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: const Color(0xFF0F1E35),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.84,
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 10, 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close, color: Color(0xFFD1D5DB)),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: Color(0x223B82F6)),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        updatedAt,
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ...sections.map((s) {
+                        final sectionTitle = state.tt(s.titleTr, s.titleEn);
+                        final sectionBody = state.tt(s.bodyTr, s.bodyEn);
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                sectionTitle,
+                                style: const TextStyle(
+                                  color: Color(0xFFE5E7EB),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                sectionBody,
+                                style: const TextStyle(
+                                  color: Color(0xFFCBD5E1),
+                                  height: 1.35,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFFBBF24),
+                      foregroundColor: const Color(0xFF0B1220),
+                    ),
+                    child: Text(state.tt('Kapat', 'Close')),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -193,237 +443,243 @@ class SettingsScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
               children: [
-              GlassPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      state.tt('HESAP YÖNETİMİ', 'ACCOUNT'),
-                      style: const TextStyle(
-                        color: Color(0xFFFBBF24),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.link, color: Color(0xFFD1D5DB)),
-                      title: Text(state.tt('Profili Bağla', 'Link Profile')),
-                      subtitle: Text(
-                        state.tt(
-                          'Misafir ilerlemesini Google/E-posta hesabına bağla.',
-                          'Link guest progress to Google/Email.',
-                        ),
-                      ),
-                      onTap: () async {
-                        await state.logout();
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.badge_outlined,
-                        color: Color(0xFFD1D5DB),
-                      ),
-                      title: Text(state.tt('İsim Değiştir', 'Rename')),
-                      subtitle: Text(renameCostText),
-                      onTap: () => _renameDialog(context, state),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.logout,
-                        color: Color(0xFFD1D5DB),
-                      ),
-                      title: Text(state.tt('Çıkış Yap', 'Log Out')),
-                      onTap: () async {
-                        await state.logout();
-                        if (!context.mounted) return;
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.delete_forever,
-                        color: Color(0xFFEF4444),
-                      ),
-                      title: Text(
-                        state.tt('Hesabı Sil', 'Delete Account'),
-                        style: const TextStyle(color: Color(0xFFEF4444)),
-                      ),
-                      subtitle: Text(
-                        canDelete
-                            ? state.tt(
-                                'Mağaza gereği hesap silme butonu.',
-                                'Required account deletion control.',
-                              )
-                            : state.tt(
-                                'Sadece bağlı hesaplarda aktif.',
-                                'Only available for linked accounts.',
-                              ),
-                      ),
-                      onTap: canDelete
-                          ? () => _confirmDeleteAccount(context, state)
-                          : null,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              GlassPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      state.tt('SES VE MÜZİK', 'AUDIO'),
-                      style: const TextStyle(
-                        color: Color(0xFFFBBF24),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SwitchListTile(
-                      value: state.musicEnabled,
-                      title: Text(
-                        state.tt('Arka Plan Müziği', 'Background Music'),
-                      ),
-                      onChanged: (v) => state.setMusicEnabled(v),
-                    ),
-                    SwitchListTile(
-                      value: state.sfxEnabled,
-                      title: Text(
-                        state.tt('Ses Efektleri (SFX)', 'Sound Effects (SFX)'),
-                      ),
-                      onChanged: (v) => state.setSfxEnabled(v),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              GlassPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      state.tt('BİLDİRİMLER', 'NOTIFICATIONS'),
-                      style: const TextStyle(
-                        color: Color(0xFFFBBF24),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SwitchListTile(
-                      value: state.notifyEnergyFull,
-                      title: Text(
-                        state.tt(
-                          'Enerji dolduğunda bildir',
-                          'Notify when energy is full',
-                        ),
-                      ),
-                      onChanged: (v) => state.setNotifyEnergyFull(v),
-                    ),
-                    SwitchListTile(
-                      value: state.notifyHospitalReady,
-                      title: Text(
-                        state.tt(
-                          'Hastaneden çıkınca bildir',
-                          'Notify when hospital timer ends',
-                        ),
-                      ),
-                      onChanged: (v) => state.setNotifyHospitalReady(v),
-                    ),
-                    SwitchListTile(
-                      value: state.notifyUnderAttack,
-                      title: Text(
-                        state.tt(
-                          'Saldırı aldığımda bildir',
-                          'Notify when attacked',
-                        ),
-                      ),
-                      onChanged: (v) => state.setNotifyUnderAttack(v),
-                    ),
-                    SwitchListTile(
-                      value: state.notifyGangMessages,
-                      title: Text(
-                        state.tt(
-                          'Çete mesajlarını bildir',
-                          'Notify gang messages',
-                        ),
-                      ),
-                      onChanged: (v) => state.setNotifyGangMessages(v),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              GlassPanel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      state.tt('DİĞER', 'OTHER'),
-                      style: const TextStyle(
-                        color: Color(0xFFFBBF24),
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.language,
-                        color: Color(0xFFD1D5DB),
-                      ),
-                      title: Text(state.tt('Dil Seçimi', 'Language')),
-                      subtitle: Text(state.isEnglish ? 'English' : 'Türkçe'),
-                      trailing: _metalLanguageSwitch(state),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.privacy_tip_outlined,
-                        color: Color(0xFFD1D5DB),
-                      ),
-                      title: Text(
-                        state.tt('Gizlilik Politikası', 'Privacy Policy'),
-                      ),
-                      onTap: () =>
-                          _showLink(context, 'https://example.com/privacy'),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.description_outlined,
-                        color: Color(0xFFD1D5DB),
-                      ),
-                      title: Text(
-                        state.tt('Kullanım Koşulları', 'Terms of Use'),
-                      ),
-                      onTap: () =>
-                          _showLink(context, 'https://example.com/terms'),
-                    ),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(
-                        Icons.support_agent,
-                        color: Color(0xFFD1D5DB),
-                      ),
-                      title: Text(state.tt('Müşteri Hizmetleri', 'Support')),
-                      subtitle: const Text('support@cartelhood.game'),
-                    ),
-                    const SizedBox(height: 6),
-                    Center(
-                      child: Text(
-                        state.tt('Sürüm: v1.0.0', 'Version: v1.0.0'),
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.tt('HESAP YÖNETİMİ', 'ACCOUNT'),
                         style: const TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 12,
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.link,
+                          color: Color(0xFFD1D5DB),
+                        ),
+                        title: Text(state.tt('Profili Bağla', 'Link Profile')),
+                        subtitle: Text(
+                          state.tt(
+                            'İlerlemeni Google/E-posta hesabına bağla.',
+                            'Link your progress to Google/Email.',
+                          ),
+                        ),
+                        onTap: () async {
+                          await state.logout();
+                          if (!context.mounted) return;
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.badge_outlined,
+                          color: Color(0xFFD1D5DB),
+                        ),
+                        title: Text(state.tt('İsim Değiştir', 'Rename')),
+                        subtitle: Text(renameCostText),
+                        onTap: () => _renameDialog(context, state),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.logout,
+                          color: Color(0xFFD1D5DB),
+                        ),
+                        title: Text(state.tt('Çıkış Yap', 'Log Out')),
+                        onTap: () async {
+                          await state.logout();
+                          if (!context.mounted) return;
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.delete_forever,
+                          color: Color(0xFFEF4444),
+                        ),
+                        title: Text(
+                          state.tt('Hesabı Sil', 'Delete Account'),
+                          style: const TextStyle(color: Color(0xFFEF4444)),
+                        ),
+                        subtitle: Text(
+                          canDelete
+                              ? state.tt(
+                                  'Mağaza gereği hesap silme butonu.',
+                                  'Required account deletion control.',
+                                )
+                              : state.tt(
+                                  'Sadece bağlı hesaplarda aktif.',
+                                  'Only available for linked accounts.',
+                                ),
+                        ),
+                        onTap: canDelete
+                            ? () => _confirmDeleteAccount(context, state)
+                            : null,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 10),
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.tt('SES VE MÜZİK', 'AUDIO'),
+                        style: const TextStyle(
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SwitchListTile(
+                        value: state.musicEnabled,
+                        title: Text(
+                          state.tt('Arka Plan Müziği', 'Background Music'),
+                        ),
+                        onChanged: (v) => state.setMusicEnabled(v),
+                      ),
+                      SwitchListTile(
+                        value: state.sfxEnabled,
+                        title: Text(
+                          state.tt(
+                            'Ses Efektleri (SFX)',
+                            'Sound Effects (SFX)',
+                          ),
+                        ),
+                        onChanged: (v) => state.setSfxEnabled(v),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.tt('BİLDİRİMLER', 'NOTIFICATIONS'),
+                        style: const TextStyle(
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SwitchListTile(
+                        value: state.notifyEnergyFull,
+                        title: Text(
+                          state.tt(
+                            'Enerji dolduğunda bildir',
+                            'Notify when energy is full',
+                          ),
+                        ),
+                        onChanged: (v) => state.setNotifyEnergyFull(v),
+                      ),
+                      SwitchListTile(
+                        value: state.notifyHospitalReady,
+                        title: Text(
+                          state.tt(
+                            'Hastaneden çıkınca bildir',
+                            'Notify when hospital timer ends',
+                          ),
+                        ),
+                        onChanged: (v) => state.setNotifyHospitalReady(v),
+                      ),
+                      SwitchListTile(
+                        value: state.notifyUnderAttack,
+                        title: Text(
+                          state.tt(
+                            'Saldırı aldığımda bildir',
+                            'Notify when attacked',
+                          ),
+                        ),
+                        onChanged: (v) => state.setNotifyUnderAttack(v),
+                      ),
+                      SwitchListTile(
+                        value: state.notifyGangMessages,
+                        title: Text(
+                          state.tt(
+                            'Çete mesajlarını bildir',
+                            'Notify gang messages',
+                          ),
+                        ),
+                        onChanged: (v) => state.setNotifyGangMessages(v),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                GlassPanel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.tt('DİĞER', 'OTHER'),
+                        style: const TextStyle(
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.language,
+                          color: Color(0xFFD1D5DB),
+                        ),
+                        title: Text(state.tt('Dil Seçimi', 'Language')),
+                        subtitle: Text(state.isEnglish ? 'English' : 'Türkçe'),
+                        trailing: _metalLanguageSwitch(state),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.privacy_tip_outlined,
+                          color: Color(0xFFD1D5DB),
+                        ),
+                        title: Text(
+                          state.tt('Gizlilik Politikası', 'Privacy Policy'),
+                        ),
+                        onTap: () =>
+                            _showLegalDoc(context, state, privacy: true),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.description_outlined,
+                          color: Color(0xFFD1D5DB),
+                        ),
+                        title: Text(
+                          state.tt('Kullanım Koşulları', 'Terms of Use'),
+                        ),
+                        onTap: () =>
+                            _showLegalDoc(context, state, privacy: false),
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(
+                          Icons.support_agent,
+                          color: Color(0xFFD1D5DB),
+                        ),
+                        title: Text(state.tt('Müşteri Hizmetleri', 'Support')),
+                        subtitle: const Text('support@cartelhood.game'),
+                      ),
+                      const SizedBox(height: 6),
+                      Center(
+                        child: Text(
+                          state.tt('Sürüm: v1.0.0', 'Version: v1.0.0'),
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -431,4 +687,18 @@ class SettingsScreen extends StatelessWidget {
       },
     );
   }
+}
+
+class _LegalSection {
+  const _LegalSection({
+    required this.titleTr,
+    required this.titleEn,
+    required this.bodyTr,
+    required this.bodyEn,
+  });
+
+  final String titleTr;
+  final String titleEn;
+  final String bodyTr;
+  final String bodyEn;
 }

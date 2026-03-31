@@ -18,6 +18,7 @@ class _SocialScreenState extends State<SocialScreen> {
   final friendCtrl = TextEditingController();
   final gangNameCtrl = TextEditingController();
   final gangIdCtrl = TextEditingController();
+  final gangInviteUidCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -33,6 +34,7 @@ class _SocialScreenState extends State<SocialScreen> {
     friendCtrl.dispose();
     gangNameCtrl.dispose();
     gangIdCtrl.dispose();
+    gangInviteUidCtrl.dispose();
     super.dispose();
   }
 
@@ -428,6 +430,92 @@ class _SocialScreenState extends State<SocialScreen> {
                       ),
                     ),
                   if (state.gangId.isEmpty) ...[
+                    if (state.incomingGangInvites.isNotEmpty) ...[
+                      Text(
+                        state.tt(
+                          'GELEN ÇETE DAVETLERİ',
+                          'INCOMING GANG INVITES',
+                        ),
+                        style: const TextStyle(
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      ...state.incomingGangInvites.map((invite) {
+                        final inviteId = (invite['id']?.toString() ?? '')
+                            .trim();
+                        final gangName =
+                            (invite['gangName']?.toString() ?? '')
+                                .trim()
+                                .isEmpty
+                            ? state.tt('İsimsiz Çete', 'Unnamed Gang')
+                            : invite['gangName'].toString().trim();
+                        final leaderName =
+                            (invite['leaderName']?.toString() ?? '')
+                                .trim()
+                                .isEmpty
+                            ? state.tt('Lider', 'Leader')
+                            : invite['leaderName'].toString().trim();
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.03),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF334155)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                gangName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${state.tt('Davet eden', 'Invited by')}: $leaderName',
+                                style: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: inviteId.isEmpty
+                                          ? null
+                                          : () => state.acceptGangInvite(
+                                              inviteId,
+                                            ),
+                                      child: Text(
+                                        state.tt('Kabul Et', 'Accept'),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: inviteId.isEmpty
+                                          ? null
+                                          : () => state.rejectGangInvite(
+                                              inviteId,
+                                            ),
+                                      child: Text(state.tt('Reddet', 'Reject')),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 8),
+                    ],
                     TextField(
                       controller: gangNameCtrl,
                       decoration: InputDecoration(
@@ -470,7 +558,10 @@ class _SocialScreenState extends State<SocialScreen> {
                             final ok = await state.joinGang(gangIdCtrl.text);
                             _snack(
                               ok
-                                  ? state.tt('Çeteye katıldın.', 'Joined gang.')
+                                  ? state.tt(
+                                      'Katılım isteği lidere gönderildi.',
+                                      'Join request sent to leader.',
+                                    )
                                   : state.tt(
                                       'Katılım başarısız.',
                                       'Join failed.',
@@ -508,6 +599,8 @@ class _SocialScreenState extends State<SocialScreen> {
                       final power = (g['totalPower'] as num?)?.toInt() ?? 0;
                       final respect =
                           (g['respectPoints'] as num?)?.toInt() ?? 0;
+                      final inviteOnly = g['inviteOnly'] == true;
+                      final acceptRequests = g['acceptJoinRequests'] != false;
                       final canJoin = gId.isNotEmpty;
                       return Container(
                         margin: const EdgeInsets.only(top: 8),
@@ -546,18 +639,46 @@ class _SocialScreenState extends State<SocialScreen> {
                               '${state.tt('Üye', 'Members')}: $members   •   ${state.tt('Güç', 'Power')}: $power   •   ${state.tt('Saygınlık', 'Respect')}: $respect',
                               style: const TextStyle(color: Color(0xFF94A3B8)),
                             ),
+                            const SizedBox(height: 3),
+                            Text(
+                              inviteOnly || !acceptRequests
+                                  ? state.tt(
+                                      'Katılım: Sadece davet',
+                                      'Join mode: Invite only',
+                                    )
+                                  : state.tt(
+                                      'Katılım: İstek ile',
+                                      'Join mode: Request based',
+                                    ),
+                              style: TextStyle(
+                                color: inviteOnly || !acceptRequests
+                                    ? const Color(0xFFFCA5A5)
+                                    : const Color(0xFF34D399),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             const SizedBox(height: 6),
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(
                                 onPressed: canJoin
                                     ? () async {
+                                        if (inviteOnly || !acceptRequests) {
+                                          _snack(
+                                            state.tt(
+                                              'Bu çete sadece davet ile katılım kabul ediyor.',
+                                              'This gang accepts members by invite only.',
+                                            ),
+                                          );
+                                          return;
+                                        }
                                         final ok = await state.joinGang(gId);
                                         _snack(
                                           ok
                                               ? state.tt(
-                                                  '$gName çetesine katıldın.',
-                                                  'Joined $gName.',
+                                                  '$gName için katılım isteği gönderildi.',
+                                                  'Join request sent for $gName.',
                                                 )
                                               : (state.lastAuthError.isNotEmpty
                                                     ? state.lastAuthError
@@ -569,7 +690,10 @@ class _SocialScreenState extends State<SocialScreen> {
                                       }
                                     : null,
                                 child: Text(
-                                  state.tt('Bu Çeteye Katıl', 'Join This Gang'),
+                                  state.tt(
+                                    'Katılım İsteği Gönder',
+                                    'Send Join Request',
+                                  ),
                                 ),
                               ),
                             ),
@@ -591,6 +715,167 @@ class _SocialScreenState extends State<SocialScreen> {
                       '${state.tt('Rütbe', 'Rank')}: ${state.gangRank}  •  ${state.tt('Saygınlık', 'Respect')}: ${state.gangRespectPoints}',
                       style: const TextStyle(color: Color(0xFF34D399)),
                     ),
+                    if (state.isGangLeader) ...[
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          state.tt(
+                            'Sadece davet ile katılım',
+                            'Invite-only membership',
+                          ),
+                        ),
+                        subtitle: Text(
+                          state.tt(
+                            'Açıkken yeni üyeler sadece lider davetiyle katılır.',
+                            'When enabled, new members can join only via leader invite.',
+                          ),
+                        ),
+                        value:
+                            state.gangInviteOnly ||
+                            !state.gangAcceptJoinRequests,
+                        onChanged: (v) async {
+                          final ok = await state.setGangInviteOnly(v);
+                          if (!mounted) return;
+                          if (!ok && state.lastAuthError.isNotEmpty) {
+                            _snack(state.lastAuthError);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: gangInviteUidCtrl,
+                              decoration: InputDecoration(
+                                labelText: state.tt(
+                                  'Davet edilecek Oyuncu UID',
+                                  'Player UID to invite',
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () async {
+                              final ok = await state.sendGangInvite(
+                                gangInviteUidCtrl.text,
+                              );
+                              _snack(
+                                ok
+                                    ? state.tt(
+                                        'Çete daveti gönderildi.',
+                                        'Gang invite sent.',
+                                      )
+                                    : (state.lastAuthError.isNotEmpty
+                                          ? state.lastAuthError
+                                          : state.tt(
+                                              'Davet gönderilemedi.',
+                                              'Invite failed.',
+                                            )),
+                              );
+                              if (ok) gangInviteUidCtrl.clear();
+                            },
+                            child: Text(state.tt('Davet Et', 'Invite')),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        state.tt('KATILIM İSTEKLERİ', 'JOIN REQUESTS'),
+                        style: const TextStyle(
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (state.gangJoinRequests.isEmpty)
+                        Text(
+                          state.tt(
+                            'Bekleyen istek yok.',
+                            'No pending requests.',
+                          ),
+                          style: const TextStyle(color: Color(0xFF94A3B8)),
+                        ),
+                      ...state.gangJoinRequests.map((req) {
+                        final requestId = (req['id']?.toString() ?? '').trim();
+                        final fromName =
+                            (req['fromName']?.toString() ?? '').trim().isEmpty
+                            ? state.tt('Bilinmeyen Oyuncu', 'Unknown Player')
+                            : req['fromName'].toString().trim();
+                        final fromPower =
+                            (req['fromPower'] as num?)?.toInt() ?? 0;
+                        final message = (req['message']?.toString() ?? '')
+                            .trim();
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.03),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFF334155)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                fromName,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${state.tt('Güç', 'Power')}: $fromPower',
+                                style: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                ),
+                              ),
+                              if (message.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  message,
+                                  style: const TextStyle(
+                                    color: Color(0xFFD1D5DB),
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: requestId.isEmpty
+                                          ? null
+                                          : () => state.acceptGangJoinRequest(
+                                              requestId,
+                                            ),
+                                      child: Text(
+                                        state.tt('Onayla', 'Approve'),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: requestId.isEmpty
+                                          ? null
+                                          : () => state.rejectGangJoinRequest(
+                                              requestId,
+                                            ),
+                                      child: Text(state.tt('Reddet', 'Reject')),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 6),
+                    ],
                     const SizedBox(height: 6),
                     FilledButton(
                       onPressed: state.leaveGang,

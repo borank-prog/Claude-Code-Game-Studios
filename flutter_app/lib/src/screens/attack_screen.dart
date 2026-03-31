@@ -6,6 +6,9 @@ import 'package:provider/provider.dart';
 
 import '../state/game_state.dart';
 import '../services/weapon_matchup_service.dart';
+import '../services/attack_history_service.dart';
+import '../models/attack_result.dart';
+import '../models/attack_type.dart';
 import '../widgets/game_background.dart';
 import 'attack_confirm_sheet.dart';
 
@@ -23,6 +26,7 @@ class _AttackScreenState extends State<AttackScreen>
 
   final Map<String, _RivalVm> _rivalsById = <String, _RivalVm>{};
   final Random _simRandom = Random();
+  final _historySvc = AttackHistoryService();
   String _battleReport = '';
   bool _busy = false;
   Timer? _botArenaTimer;
@@ -582,6 +586,19 @@ class _AttackScreenState extends State<AttackScreen>
           report: _battleReport,
           attackCost: 0,
         );
+        // Firestore'a kaydet
+        if (state.userId.isNotEmpty) {
+          _historySvc.saveAttack(
+            attackerId: state.userId,
+            attackerName: state.displayPlayerName,
+            targetId: current.id,
+            targetName: current.name,
+            outcome: AttackOutcome.win,
+            type: AttackType.quick,
+            stolenCash: loot,
+            xpGained: 14,
+          );
+        }
       } else {
         _triggerFlash(const Color(0xFFEF4444), target.id);
         _battleReport = state.tt(
@@ -618,6 +635,19 @@ class _AttackScreenState extends State<AttackScreen>
           loadoutTotalPct: attackerMatchup.totalPct,
           happenedAt: DateTime.now(),
         );
+        // Firestore'a kaydet
+        if (state.userId.isNotEmpty) {
+          _historySvc.saveAttack(
+            attackerId: state.userId,
+            attackerName: state.displayPlayerName,
+            targetId: current.id,
+            targetName: current.name,
+            outcome: AttackOutcome.lose,
+            type: AttackType.quick,
+            stolenCash: 0,
+            xpGained: 0,
+          );
+        }
       }
 
       setState(() => _busy = false);

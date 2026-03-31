@@ -254,7 +254,7 @@ class StaticData {
     ),
     ItemDef(
       id: 'klasik_araba_sv1',
-      name: 'Klasik Araba - Sv.1',
+      name: 'Klasik Araba',
       type: 'vehicle',
       powerBonus: 140,
       costCash: 97500,

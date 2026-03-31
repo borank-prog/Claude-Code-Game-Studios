@@ -92,30 +92,18 @@ mixin _GameStateSocial on _GameStateBase {
     if (gangId.isNotEmpty) return false;
     try {
       final normalizedGangId = targetGangId.trim();
-      await _onlineService.joinGang(
-        uid: userId,
-        displayName: playerName,
+      await _onlineService.sendGangJoinRequest(
         gangId: normalizedGangId,
-        power: totalPower,
+        fromUid: userId,
+        fromName: playerName,
+        fromPower: totalPower,
       );
-      final joinedGang = await _onlineService.fetchGang(normalizedGangId);
-      currentGang = {
-        'id': normalizedGangId,
-        'name': (joinedGang?['name']?.toString() ?? '').trim().isEmpty
-            ? normalizedGangId
-            : joinedGang!['name'],
-        'role': 'Üye',
-      };
-      gangRank = 1;
-      gangRespectPoints = 0;
-      gangVault = 0;
-      await ensureOnlineProfile();
       await refreshSocialData();
       _addNews(
         tt('Çete', 'Gang'),
         tt(
-          '${currentGang?['name'] ?? normalizedGangId} çetesine katıldın.',
-          'You joined gang ${currentGang?['name'] ?? normalizedGangId}.',
+          '$normalizedGangId çetesine katılım isteği gönderdin.',
+          'You sent a join request to $normalizedGangId.',
         ),
       );
       await _save();
@@ -125,6 +113,139 @@ mixin _GameStateSocial on _GameStateBase {
       lastAuthError = _sanitizeError(e);
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<bool> setGangInviteOnly(bool inviteOnly) async {
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
+      return false;
+    if (!hasGang || !isGangLeader) return false;
+    try {
+      await _onlineService.setGangJoinPolicy(
+        gangId: gangId,
+        leaderUid: userId,
+        inviteOnly: inviteOnly,
+      );
+      await refreshSocialData();
+      _addNews(
+        tt('Çete Ayarı', 'Gang Settings'),
+        inviteOnly
+            ? tt(
+                'Katılım istekleri kapatıldı. Artık sadece davet ile giriş var.',
+                'Join requests closed. New members can join only by invite.',
+              )
+            : tt('Katılım istekleri açıldı.', 'Join requests enabled.'),
+      );
+      await _save();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> sendGangInvite(String targetUid) async {
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
+      return false;
+    if (!hasGang || !isGangLeader) return false;
+    final cleanTargetUid = targetUid.trim();
+    if (cleanTargetUid.isEmpty) return false;
+    try {
+      await _onlineService.sendGangInvite(
+        gangId: gangId,
+        leaderUid: userId,
+        leaderName: playerName,
+        toUid: cleanTargetUid,
+      );
+      _addNews(
+        tt('Çete Daveti', 'Gang Invite'),
+        tt(
+          '$cleanTargetUid oyuncusuna davet gönderildi.',
+          'Invite sent to $cleanTargetUid.',
+        ),
+      );
+      await refreshSocialData();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> acceptGangJoinRequest(String requestId) async {
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
+    if (!hasGang || !isGangLeader) return;
+    try {
+      await _onlineService.respondGangJoinRequest(
+        leaderUid: userId,
+        requestId: requestId.trim(),
+        accept: true,
+      );
+      await refreshSocialData();
+      notifyListeners();
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+    }
+  }
+
+  Future<void> rejectGangJoinRequest(String requestId) async {
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
+    if (!hasGang || !isGangLeader) return;
+    try {
+      await _onlineService.respondGangJoinRequest(
+        leaderUid: userId,
+        requestId: requestId.trim(),
+        accept: false,
+      );
+      await refreshSocialData();
+      notifyListeners();
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+    }
+  }
+
+  Future<void> acceptGangInvite(String inviteId) async {
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
+    if (gangId.isNotEmpty) return;
+    try {
+      await _onlineService.acceptGangInvite(
+        uid: userId,
+        inviteId: inviteId.trim(),
+      );
+      await refreshSocialData();
+      _addNews(
+        tt('Çete Daveti', 'Gang Invite'),
+        tt(
+          'Davet kabul edildi, çeteye katıldın.',
+          'Invite accepted, you joined the gang.',
+        ),
+      );
+      await _save();
+      notifyListeners();
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+    }
+  }
+
+  Future<void> rejectGangInvite(String inviteId) async {
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
+    try {
+      await _onlineService.rejectGangInvite(
+        uid: userId,
+        inviteId: inviteId.trim(),
+      );
+      await refreshSocialData();
+      notifyListeners();
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
     }
   }
 
@@ -142,6 +263,7 @@ mixin _GameStateSocial on _GameStateBase {
       );
       currentGang = null;
       gangMembers.clear();
+      gangJoinRequests.clear();
       gangRank = 1;
       gangRespectPoints = 0;
       gangVault = 0;

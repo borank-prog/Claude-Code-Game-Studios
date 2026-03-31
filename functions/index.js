@@ -806,7 +806,7 @@ const VEHICLE_ARCHETYPE_BY_ID = {
 };
 
 const VEHICLE_LABEL_TR = {
-  klasik_araba_sv1: 'Klasik Araba - Sv.1',
+  klasik_araba_sv1: 'Klasik Araba',
 };
 
 const ARCHETYPE_SPEED = {

@@ -507,24 +507,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              SizedBox(
-                                width: double.infinity,
-                                child: TextButton(
-                                  onPressed: busy
-                                      ? null
-                                      : () => _run(() => state.loginGuest()),
-                                  child: Text(
-                                    state.tt(
-                                      'Misafir Olarak Devam Et',
-                                      'Continue as Guest',
-                                    ),
-                                    style: const TextStyle(
-                                      color: Color(0xFFE5E7EB),
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
                               if (state.lastAuthError.isNotEmpty) ...[
                                 const SizedBox(height: 4),
                                 Text(

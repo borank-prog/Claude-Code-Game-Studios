@@ -64,7 +64,7 @@ class OnlineService {
             lower.contains('no firebase app') ||
             lower.contains('no-app')) {
           initError =
-              'Firebase yapılandırması eksik. Misafir girişi ile devam edebilirsin.';
+              'Firebase yapılandırması eksik. Lütfen Firebase ayarlarını tamamla.';
         } else {
           final first = raw.split('\n').first.trim();
           initError = first.length > 140
@@ -555,6 +555,8 @@ class OnlineService {
       'name': gangName,
       'ownerId': ownerUid,
       'ownerName': ownerName,
+      'inviteOnly': false,
+      'acceptJoinRequests': true,
       'gangRank': 1,
       'respectPoints': 0,
       'vault': 0,
@@ -579,6 +581,423 @@ class OnlineService {
     await batch.commit();
 
     return {'id': gangRef.id, 'name': gangName, 'role': 'Lider'};
+  }
+
+  Future<void> setGangJoinPolicy({
+    required String gangId,
+    required String leaderUid,
+    required bool inviteOnly,
+  }) async {
+    final cleanGangId = gangId.trim();
+    if (cleanGangId.isEmpty) return;
+    final gangRef = FirebaseFirestore.instance
+        .collection('gangs')
+        .doc(cleanGangId);
+    final gangSnap = await gangRef.get().timeout(_firestoreOpTimeout);
+    if (!gangSnap.exists) {
+      throw Exception('Çete bulunamadı.');
+    }
+    final ownerId = (gangSnap.data()?['ownerId'] as String? ?? '').trim();
+    if (ownerId != leaderUid.trim()) {
+      throw Exception('Sadece çete lideri bu ayarı değiştirebilir.');
+    }
+    await gangRef
+        .update({
+          'inviteOnly': inviteOnly,
+          'acceptJoinRequests': !inviteOnly,
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(_firestoreOpTimeout);
+  }
+
+  Future<void> sendGangJoinRequest({
+    required String gangId,
+    required String fromUid,
+    required String fromName,
+    required int fromPower,
+  }) async {
+    final cleanGangId = gangId.trim();
+    final cleanFromUid = fromUid.trim();
+    if (cleanGangId.isEmpty || cleanFromUid.isEmpty) return;
+
+    final gangRef = FirebaseFirestore.instance
+        .collection('gangs')
+        .doc(cleanGangId);
+    final gangSnap = await gangRef.get().timeout(_firestoreOpTimeout);
+    if (!gangSnap.exists) {
+      throw Exception('Çete bulunamadı.');
+    }
+    final gang = gangSnap.data()!;
+    final ownerId = (gang['ownerId'] as String? ?? '').trim();
+    if (ownerId.isEmpty) {
+      throw Exception('Çete lideri bulunamadı.');
+    }
+    if (ownerId == cleanFromUid) {
+      throw Exception('Kendi çetene katılım isteği gönderemezsin.');
+    }
+    final inviteOnly = gang['inviteOnly'] == true;
+    final acceptJoinRequests = gang['acceptJoinRequests'] != false;
+    if (inviteOnly || !acceptJoinRequests) {
+      throw Exception('Bu çete sadece davet ile katılım kabul ediyor.');
+    }
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(cleanFromUid);
+    final userSnap = await userRef.get().timeout(_firestoreOpTimeout);
+    final existingGang = (userSnap.data()?['gangId'] as String? ?? '').trim();
+    if (existingGang.isNotEmpty) {
+      throw Exception('Zaten bir çetedesin.');
+    }
+
+    final reqId = '${cleanGangId}_$cleanFromUid';
+    final requestRef = FirebaseFirestore.instance
+        .collection('gang_join_requests')
+        .doc(reqId);
+    final gangName = (gang['name'] as String? ?? 'Çete').trim();
+    final ownerName = (gang['ownerName'] as String? ?? 'Lider').trim();
+    await requestRef
+        .set({
+          'gangId': cleanGangId,
+          'gangName': gangName.isEmpty ? 'Çete' : gangName,
+          'leaderId': ownerId,
+          'leaderName': ownerName.isEmpty ? 'Lider' : ownerName,
+          'fromId': cleanFromUid,
+          'fromName': fromName.trim().isEmpty ? 'Oyuncu' : fromName.trim(),
+          'fromPower': fromPower,
+          'status': 'pending',
+          'message':
+              '${fromName.trim().isEmpty ? 'Bir oyuncu' : fromName.trim()} çeteye katılmak istiyor.',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true))
+        .timeout(_firestoreOpTimeout);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchGangJoinRequestsForLeader(
+    String leaderUid,
+  ) async {
+    final cleanLeaderUid = leaderUid.trim();
+    if (cleanLeaderUid.isEmpty) return [];
+    final snap = await FirebaseFirestore.instance
+        .collection('gang_join_requests')
+        .where('leaderId', isEqualTo: cleanLeaderUid)
+        .where('status', isEqualTo: 'pending')
+        .get()
+        .timeout(_firestoreOpTimeout);
+    final rows = snap.docs
+        .map((d) => {'id': d.id, ...d.data()})
+        .toList(growable: false);
+    rows.sort((a, b) {
+      final aTs = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+      final bTs = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+      return bTs.compareTo(aTs);
+    });
+    return rows;
+  }
+
+  Future<void> respondGangJoinRequest({
+    required String leaderUid,
+    required String requestId,
+    required bool accept,
+  }) async {
+    final cleanRequestId = requestId.trim();
+    final cleanLeaderUid = leaderUid.trim();
+    if (cleanRequestId.isEmpty || cleanLeaderUid.isEmpty) return;
+    final reqRef = FirebaseFirestore.instance
+        .collection('gang_join_requests')
+        .doc(cleanRequestId);
+
+    await FirebaseFirestore.instance
+        .runTransaction((tx) async {
+          final reqSnap = await tx.get(reqRef);
+          if (!reqSnap.exists) {
+            throw Exception('Katılım isteği bulunamadı.');
+          }
+          final req = reqSnap.data()!;
+          if ((req['leaderId'] as String? ?? '').trim() != cleanLeaderUid) {
+            throw Exception('Bu isteği sadece lider yönetebilir.');
+          }
+          if ((req['status'] as String? ?? '') != 'pending') {
+            throw Exception('Bu istek zaten işlenmiş.');
+          }
+
+          if (!accept) {
+            tx.update(reqRef, {
+              'status': 'rejected',
+              'respondedAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            return;
+          }
+
+          final gangId = (req['gangId'] as String? ?? '').trim();
+          final memberUid = (req['fromId'] as String? ?? '').trim();
+          if (gangId.isEmpty || memberUid.isEmpty) {
+            throw Exception('İstek verisi eksik.');
+          }
+
+          final gangRef = FirebaseFirestore.instance
+              .collection('gangs')
+              .doc(gangId);
+          final memberRef = gangRef.collection('members').doc(memberUid);
+          final userRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(memberUid);
+
+          final gangSnap = await tx.get(gangRef);
+          if (!gangSnap.exists) {
+            throw Exception('Çete bulunamadı.');
+          }
+          final gang = gangSnap.data()!;
+          if ((gang['ownerId'] as String? ?? '').trim() != cleanLeaderUid) {
+            throw Exception('Lider bilgisi geçersiz.');
+          }
+
+          final userSnap = await tx.get(userRef);
+          final userData = userSnap.data();
+          final existingGang = (userData?['gangId'] as String? ?? '').trim();
+          if (existingGang.isNotEmpty && existingGang != gangId) {
+            throw Exception('Oyuncu başka bir çetede.');
+          }
+
+          final memberSnap = await tx.get(memberRef);
+          final alreadyMember = memberSnap.exists;
+          final displayName =
+              (userData?['displayName'] as String?)?.trim().isNotEmpty == true
+              ? (userData!['displayName'] as String).trim()
+              : ((req['fromName'] as String?)?.trim().isNotEmpty == true
+                    ? (req['fromName'] as String).trim()
+                    : 'Oyuncu');
+          final power =
+              (userData?['power'] as num?)?.toInt() ??
+              (req['fromPower'] as num?)?.toInt() ??
+              0;
+
+          if (!alreadyMember) {
+            tx.set(memberRef, {
+              'uid': memberUid,
+              'displayName': displayName,
+              'role': 'Üye',
+              'power': power,
+              'joinedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            tx.update(gangRef, {
+              'memberCount': FieldValue.increment(1),
+              'totalPower': FieldValue.increment(power),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+
+          tx.set(userRef, {
+            'gangId': gangId,
+            'gangName': (gang['name'] as String? ?? 'Çete'),
+            'gangRole': 'Üye',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          tx.update(reqRef, {
+            'status': 'accepted',
+            'respondedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        })
+        .timeout(const Duration(seconds: 10));
+  }
+
+  Future<void> sendGangInvite({
+    required String gangId,
+    required String leaderUid,
+    required String leaderName,
+    required String toUid,
+  }) async {
+    final cleanGangId = gangId.trim();
+    final cleanLeaderUid = leaderUid.trim();
+    final cleanToUid = toUid.trim();
+    if (cleanGangId.isEmpty || cleanLeaderUid.isEmpty || cleanToUid.isEmpty) {
+      return;
+    }
+    if (cleanLeaderUid == cleanToUid) {
+      throw Exception('Kendine davet gönderemezsin.');
+    }
+
+    final gangRef = FirebaseFirestore.instance
+        .collection('gangs')
+        .doc(cleanGangId);
+    final gangSnap = await gangRef.get().timeout(_firestoreOpTimeout);
+    if (!gangSnap.exists) {
+      throw Exception('Çete bulunamadı.');
+    }
+    final gang = gangSnap.data()!;
+    if ((gang['ownerId'] as String? ?? '').trim() != cleanLeaderUid) {
+      throw Exception('Sadece lider davet gönderebilir.');
+    }
+
+    final targetRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(cleanToUid);
+    final targetSnap = await targetRef.get().timeout(_firestoreOpTimeout);
+    if (!targetSnap.exists) {
+      throw Exception('Davet edilecek oyuncu bulunamadı.');
+    }
+    final targetGang = (targetSnap.data()?['gangId'] as String? ?? '').trim();
+    if (targetGang.isNotEmpty) {
+      throw Exception('Bu oyuncu zaten bir çetede.');
+    }
+
+    final inviteId = '${cleanGangId}_$cleanToUid';
+    final inviteRef = FirebaseFirestore.instance
+        .collection('gang_invites')
+        .doc(inviteId);
+    final gangName = (gang['name'] as String? ?? 'Çete').trim();
+    await inviteRef
+        .set({
+          'gangId': cleanGangId,
+          'gangName': gangName.isEmpty ? 'Çete' : gangName,
+          'leaderId': cleanLeaderUid,
+          'leaderName': leaderName.trim().isEmpty ? 'Lider' : leaderName.trim(),
+          'toUid': cleanToUid,
+          'status': 'pending',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true))
+        .timeout(_firestoreOpTimeout);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchIncomingGangInvites(
+    String uid,
+  ) async {
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return [];
+    final snap = await FirebaseFirestore.instance
+        .collection('gang_invites')
+        .where('toUid', isEqualTo: cleanUid)
+        .where('status', isEqualTo: 'pending')
+        .get()
+        .timeout(_firestoreOpTimeout);
+    final rows = snap.docs
+        .map((d) => {'id': d.id, ...d.data()})
+        .toList(growable: false);
+    rows.sort((a, b) {
+      final aTs = (a['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+      final bTs = (b['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0;
+      return bTs.compareTo(aTs);
+    });
+    return rows;
+  }
+
+  Future<void> acceptGangInvite({
+    required String uid,
+    required String inviteId,
+  }) async {
+    final cleanUid = uid.trim();
+    final cleanInviteId = inviteId.trim();
+    if (cleanUid.isEmpty || cleanInviteId.isEmpty) return;
+
+    final inviteRef = FirebaseFirestore.instance
+        .collection('gang_invites')
+        .doc(cleanInviteId);
+
+    await FirebaseFirestore.instance
+        .runTransaction((tx) async {
+          final inviteSnap = await tx.get(inviteRef);
+          if (!inviteSnap.exists) {
+            throw Exception('Davet bulunamadı.');
+          }
+          final invite = inviteSnap.data()!;
+          if ((invite['toUid'] as String? ?? '').trim() != cleanUid) {
+            throw Exception('Bu davet sana ait değil.');
+          }
+          if ((invite['status'] as String? ?? '') != 'pending') {
+            throw Exception('Bu davet zaten işlenmiş.');
+          }
+
+          final gangId = (invite['gangId'] as String? ?? '').trim();
+          if (gangId.isEmpty) {
+            throw Exception('Çete bilgisi eksik.');
+          }
+
+          final gangRef = FirebaseFirestore.instance
+              .collection('gangs')
+              .doc(gangId);
+          final userRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(cleanUid);
+          final memberRef = gangRef.collection('members').doc(cleanUid);
+
+          final gangSnap = await tx.get(gangRef);
+          if (!gangSnap.exists) {
+            throw Exception('Çete bulunamadı.');
+          }
+          final gang = gangSnap.data()!;
+
+          final userSnap = await tx.get(userRef);
+          final userData = userSnap.data();
+          final existingGang = (userData?['gangId'] as String? ?? '').trim();
+          if (existingGang.isNotEmpty && existingGang != gangId) {
+            throw Exception('Zaten başka bir çetedesin.');
+          }
+
+          final memberSnap = await tx.get(memberRef);
+          final alreadyMember = memberSnap.exists;
+          final displayName =
+              (userData?['displayName'] as String?)?.trim().isNotEmpty == true
+              ? (userData!['displayName'] as String).trim()
+              : 'Oyuncu';
+          final power = (userData?['power'] as num?)?.toInt() ?? 0;
+
+          if (!alreadyMember) {
+            tx.set(memberRef, {
+              'uid': cleanUid,
+              'displayName': displayName,
+              'role': 'Üye',
+              'power': power,
+              'joinedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            tx.update(gangRef, {
+              'memberCount': FieldValue.increment(1),
+              'totalPower': FieldValue.increment(power),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+
+          tx.set(userRef, {
+            'gangId': gangId,
+            'gangName': (gang['name'] as String? ?? 'Çete'),
+            'gangRole': 'Üye',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          tx.update(inviteRef, {
+            'status': 'accepted',
+            'respondedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        })
+        .timeout(const Duration(seconds: 10));
+  }
+
+  Future<void> rejectGangInvite({
+    required String uid,
+    required String inviteId,
+  }) async {
+    final cleanUid = uid.trim();
+    final cleanInviteId = inviteId.trim();
+    if (cleanUid.isEmpty || cleanInviteId.isEmpty) return;
+    final inviteRef = FirebaseFirestore.instance
+        .collection('gang_invites')
+        .doc(cleanInviteId);
+    final inviteSnap = await inviteRef.get().timeout(_firestoreOpTimeout);
+    if (!inviteSnap.exists) return;
+    final invite = inviteSnap.data()!;
+    if ((invite['toUid'] as String? ?? '').trim() != cleanUid) {
+      throw Exception('Bu davet sana ait değil.');
+    }
+    await inviteRef
+        .update({
+          'status': 'rejected',
+          'respondedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(_firestoreOpTimeout);
   }
 
   Future<void> donateToGang({
@@ -614,38 +1033,78 @@ class OnlineService {
     required String gangId,
     required int power,
   }) async {
-    final gangRef = FirebaseFirestore.instance.collection('gangs').doc(gangId);
-    final gangSnap = await gangRef.get();
-    if (!gangSnap.exists) {
-      throw Exception('Çete bulunamadı.');
+    final cleanUid = uid.trim();
+    final cleanGangId = gangId.trim();
+    if (cleanUid.isEmpty || cleanGangId.isEmpty) {
+      throw Exception('Eksik oyuncu veya çete bilgisi.');
     }
 
-    final gangData = gangSnap.data()!;
-    final gangName = gangData['name'] as String? ?? 'Çete';
+    final gangRef = FirebaseFirestore.instance
+        .collection('gangs')
+        .doc(cleanGangId);
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(cleanUid);
+    final memberRef = gangRef.collection('members').doc(cleanUid);
+    final inviteRef = FirebaseFirestore.instance
+        .collection('gang_invites')
+        .doc('${cleanGangId}_$cleanUid');
 
-    final memberRef = gangRef.collection('members').doc(uid);
-    final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+    await FirebaseFirestore.instance
+        .runTransaction((tx) async {
+          final gangSnap = await tx.get(gangRef);
+          if (!gangSnap.exists) {
+            throw Exception('Çete bulunamadı.');
+          }
+          final gangData = gangSnap.data()!;
+          final gangName = gangData['name'] as String? ?? 'Çete';
+          final inviteOnly = gangData['inviteOnly'] == true;
+          final acceptJoinRequests = gangData['acceptJoinRequests'] != false;
 
-    final batch = FirebaseFirestore.instance.batch();
-    batch.set(memberRef, {
-      'uid': uid,
-      'displayName': displayName,
-      'role': 'Üye',
-      'power': power,
-      'joinedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    batch.update(gangRef, {
-      'memberCount': FieldValue.increment(1),
-      'totalPower': FieldValue.increment(power),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    batch.set(userRef, {
-      'gangId': gangId,
-      'gangName': gangName,
-      'gangRole': 'Üye',
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    await batch.commit();
+          if (inviteOnly || !acceptJoinRequests) {
+            final inviteSnap = await tx.get(inviteRef);
+            if (!inviteSnap.exists) {
+              throw Exception('Bu çeteye sadece davet ile katılabilirsin.');
+            }
+            final invite = inviteSnap.data()!;
+            final status = (invite['status'] as String? ?? '').trim();
+            if (status != 'pending' && status != 'accepted') {
+              throw Exception('Davet geçersiz veya süresi dolmuş.');
+            }
+          }
+
+          final userSnap = await tx.get(userRef);
+          final userGangId = (userSnap.data()?['gangId'] as String? ?? '')
+              .trim();
+          if (userGangId.isNotEmpty && userGangId != cleanGangId) {
+            throw Exception('Önce mevcut çetenden ayrılman gerekiyor.');
+          }
+
+          final memberSnap = await tx.get(memberRef);
+          final alreadyMember = memberSnap.exists;
+          if (!alreadyMember) {
+            tx.set(memberRef, {
+              'uid': cleanUid,
+              'displayName': displayName,
+              'role': 'Üye',
+              'power': power,
+              'joinedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            tx.update(gangRef, {
+              'memberCount': FieldValue.increment(1),
+              'totalPower': FieldValue.increment(power),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+
+          tx.set(userRef, {
+            'gangId': cleanGangId,
+            'gangName': gangName,
+            'gangRole': 'Üye',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        })
+        .timeout(const Duration(seconds: 10));
   }
 
   Future<void> leaveGang({

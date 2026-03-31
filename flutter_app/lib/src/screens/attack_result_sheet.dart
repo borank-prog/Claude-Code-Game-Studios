@@ -84,15 +84,17 @@ class _AttackResultSheetState extends State<AttackResultSheet>
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF111a2e),
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
+      constraints: BoxConstraints(maxHeight: mq.size.height * 0.88),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const SizedBox(height: 16),
           Container(
             width: 40,
             height: 4,
@@ -101,199 +103,211 @@ class _AttackResultSheetState extends State<AttackResultSheet>
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 28),
-          AnimatedBuilder(
-            animation: _iconCtrl,
-            builder: (context, _) => Opacity(
-              opacity: _iconOpacity.value,
-              child: Transform.scale(
-                scale: _iconScale.value,
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: _color.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _color, width: 2),
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedBuilder(
+                    animation: _iconCtrl,
+                    builder: (context, _) => Opacity(
+                      opacity: _iconOpacity.value,
+                      child: Transform.scale(
+                        scale: _iconScale.value,
+                        child: Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: _color.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _color, width: 2),
+                          ),
+                          child: Icon(_icon, color: _color, size: 40),
+                        ),
+                      ),
+                    ),
                   ),
-                  child: Icon(_icon, color: _color, size: 40),
-                ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _title,
+                    style: TextStyle(
+                      color: _color,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.result.message,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  AnimatedBuilder(
+                    animation: _statsCtrl,
+                    builder: (_, child) => Opacity(
+                      opacity: _statsOpacity.value,
+                      child: Transform.translate(
+                        offset: Offset(0, _statsSlide.value),
+                        child: child,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        if (widget.result.stolenCash > 0)
+                          _StatRow(
+                            icon: Icons.attach_money,
+                            label: 'Çalınan nakit',
+                            value: '+${widget.result.stolenCash} \$',
+                            color: const Color(0xFF34d399),
+                          ),
+                        if (widget.result.xpGained > 0)
+                          _StatRow(
+                            icon: Icons.bolt,
+                            label: 'Kazanılan XP',
+                            value: '+${widget.result.xpGained}',
+                            color: const Color(0xFFfbbf24),
+                          ),
+                        if ((widget.result.weaponTotalPct ?? 0) != 0)
+                          _StatRow(
+                            icon: Icons.tune_rounded,
+                            label: 'Silah Üstünlüğü',
+                            value: '%${_fmtSigned(widget.result.weaponTotalPct!)}',
+                            color: (widget.result.weaponTotalPct ?? 0) >= 0
+                                ? const Color(0xFF34d399)
+                                : const Color(0xFFf87171),
+                          ),
+                        if ((widget.result.weaponPowerPct ?? 0) != 0 ||
+                            (widget.result.weaponSpeedPct ?? 0) != 0)
+                          _StatRow(
+                            icon: Icons.compare_arrows_rounded,
+                            label: 'Güç / Hız Etkisi',
+                            value:
+                                '%${_fmtSigned(widget.result.weaponPowerPct ?? 0)} / %${_fmtSigned(widget.result.weaponSpeedPct ?? 0)}',
+                            color: const Color(0xFFa78bfa),
+                          ),
+                        if ((widget.result.knifePct ?? 0) != 0)
+                          _StatRow(
+                            icon: Icons.front_hand_rounded,
+                            label: 'Yakın Dövüş Etkisi',
+                            value: '%${_fmtSigned(widget.result.knifePct!)}',
+                            color: (widget.result.knifePct ?? 0) >= 0
+                                ? const Color(0xFF34d399)
+                                : const Color(0xFFf87171),
+                          ),
+                        if ((widget.result.armorPct ?? 0) != 0)
+                          _StatRow(
+                            icon: Icons.shield_rounded,
+                            label: 'Zırh Etkisi',
+                            value: '%${_fmtSigned(widget.result.armorPct!)}',
+                            color: (widget.result.armorPct ?? 0) >= 0
+                                ? const Color(0xFF34d399)
+                                : const Color(0xFFf87171),
+                          ),
+                        if ((widget.result.vehiclePct ?? 0) != 0)
+                          _StatRow(
+                            icon: Icons.directions_car_rounded,
+                            label: 'Araç Etkisi',
+                            value: '%${_fmtSigned(widget.result.vehiclePct!)}',
+                            color: (widget.result.vehiclePct ?? 0) >= 0
+                                ? const Color(0xFF34d399)
+                                : const Color(0xFFf87171),
+                          ),
+                        if ((widget.result.loadoutTotalPct ?? 0) != 0)
+                          _StatRow(
+                            icon: Icons.auto_graph_rounded,
+                            label: 'Toplam Ekipman Etkisi',
+                            value: '%${_fmtSigned(widget.result.loadoutTotalPct!)}',
+                            color: (widget.result.loadoutTotalPct ?? 0) >= 0
+                                ? const Color(0xFF34d399)
+                                : const Color(0xFFf87171),
+                          ),
+                        if ((widget.result.attackerWeaponName ?? '').isNotEmpty &&
+                            (widget.result.targetWeaponName ?? '').isNotEmpty)
+                          _StatRow(
+                            icon: Icons.gavel_rounded,
+                            label: 'Eşleşme',
+                            value:
+                                '${widget.result.attackerWeaponName} vs ${widget.result.targetWeaponName}',
+                            color: const Color(0xFF60a5fa),
+                          ),
+                        if ((widget.result.attackerArmorName ?? '').isNotEmpty &&
+                            (widget.result.targetArmorName ?? '').isNotEmpty)
+                          _StatRow(
+                            icon: Icons.security_rounded,
+                            label: 'Zırh vs Zırh',
+                            value:
+                                '${widget.result.attackerArmorName} vs ${widget.result.targetArmorName}',
+                            color: const Color(0xFF60a5fa),
+                          ),
+                        if ((widget.result.attackerVehicleName ?? '').isNotEmpty &&
+                            (widget.result.targetVehicleName ?? '').isNotEmpty)
+                          _StatRow(
+                            icon: Icons.route_rounded,
+                            label: 'Araç vs Araç',
+                            value:
+                                '${widget.result.attackerVehicleName} vs ${widget.result.targetVehicleName}',
+                            color: const Color(0xFF60a5fa),
+                          ),
+                        if (widget.result.outcome == AttackOutcome.lose)
+                          _StatRow(
+                            icon: Icons.timer,
+                            label: 'Hastane süresi',
+                            value: '45 dakika',
+                            color: const Color(0xFFf87171),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            _title,
-            style: TextStyle(
-              color: _color,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            widget.result.message,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          AnimatedBuilder(
-            animation: _statsCtrl,
-            builder: (_, child) => Opacity(
-              opacity: _statsOpacity.value,
-              child: Transform.translate(
-                offset: Offset(0, _statsSlide.value),
-                child: child,
-              ),
-            ),
-            child: Column(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+            child: Row(
               children: [
-                if (widget.result.stolenCash > 0)
-                  _StatRow(
-                    icon: Icons.attach_money,
-                    label: 'Çalınan nakit',
-                    value: '+${widget.result.stolenCash} \$',
-                    color: const Color(0xFF34d399),
+                if (widget.result.outcome == AttackOutcome.win) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, 'retry'),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: _color.withOpacity(0.5)),
+                        foregroundColor: _color,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Tekrar'),
+                    ),
                   ),
-                if (widget.result.xpGained > 0)
-                  _StatRow(
-                    icon: Icons.bolt,
-                    label: 'Kazanılan XP',
-                    value: '+${widget.result.xpGained}',
-                    color: const Color(0xFFfbbf24),
-                  ),
-                if ((widget.result.weaponTotalPct ?? 0) != 0)
-                  _StatRow(
-                    icon: Icons.tune_rounded,
-                    label: 'Silah Üstünlüğü',
-                    value: '%${_fmtSigned(widget.result.weaponTotalPct!)}',
-                    color: (widget.result.weaponTotalPct ?? 0) >= 0
-                        ? const Color(0xFF34d399)
-                        : const Color(0xFFf87171),
-                  ),
-                if ((widget.result.weaponPowerPct ?? 0) != 0 ||
-                    (widget.result.weaponSpeedPct ?? 0) != 0)
-                  _StatRow(
-                    icon: Icons.compare_arrows_rounded,
-                    label: 'Güç / Hız Etkisi',
-                    value:
-                        '%${_fmtSigned(widget.result.weaponPowerPct ?? 0)} / %${_fmtSigned(widget.result.weaponSpeedPct ?? 0)}',
-                    color: const Color(0xFFa78bfa),
-                  ),
-                if ((widget.result.knifePct ?? 0) != 0)
-                  _StatRow(
-                    icon: Icons.front_hand_rounded,
-                    label: 'Yakın Dövüş Etkisi',
-                    value: '%${_fmtSigned(widget.result.knifePct!)}',
-                    color: (widget.result.knifePct ?? 0) >= 0
-                        ? const Color(0xFF34d399)
-                        : const Color(0xFFf87171),
-                  ),
-                if ((widget.result.armorPct ?? 0) != 0)
-                  _StatRow(
-                    icon: Icons.shield_rounded,
-                    label: 'Zırh Etkisi',
-                    value: '%${_fmtSigned(widget.result.armorPct!)}',
-                    color: (widget.result.armorPct ?? 0) >= 0
-                        ? const Color(0xFF34d399)
-                        : const Color(0xFFf87171),
-                  ),
-                if ((widget.result.vehiclePct ?? 0) != 0)
-                  _StatRow(
-                    icon: Icons.directions_car_rounded,
-                    label: 'Araç Etkisi',
-                    value: '%${_fmtSigned(widget.result.vehiclePct!)}',
-                    color: (widget.result.vehiclePct ?? 0) >= 0
-                        ? const Color(0xFF34d399)
-                        : const Color(0xFFf87171),
-                  ),
-                if ((widget.result.loadoutTotalPct ?? 0) != 0)
-                  _StatRow(
-                    icon: Icons.auto_graph_rounded,
-                    label: 'Toplam Ekipman Etkisi',
-                    value: '%${_fmtSigned(widget.result.loadoutTotalPct!)}',
-                    color: (widget.result.loadoutTotalPct ?? 0) >= 0
-                        ? const Color(0xFF34d399)
-                        : const Color(0xFFf87171),
-                  ),
-                if ((widget.result.attackerWeaponName ?? '').isNotEmpty &&
-                    (widget.result.targetWeaponName ?? '').isNotEmpty)
-                  _StatRow(
-                    icon: Icons.gavel_rounded,
-                    label: 'Eşleşme',
-                    value:
-                        '${widget.result.attackerWeaponName} vs ${widget.result.targetWeaponName}',
-                    color: const Color(0xFF60a5fa),
-                  ),
-                if ((widget.result.attackerArmorName ?? '').isNotEmpty &&
-                    (widget.result.targetArmorName ?? '').isNotEmpty)
-                  _StatRow(
-                    icon: Icons.security_rounded,
-                    label: 'Zırh vs Zırh',
-                    value:
-                        '${widget.result.attackerArmorName} vs ${widget.result.targetArmorName}',
-                    color: const Color(0xFF60a5fa),
-                  ),
-                if ((widget.result.attackerVehicleName ?? '').isNotEmpty &&
-                    (widget.result.targetVehicleName ?? '').isNotEmpty)
-                  _StatRow(
-                    icon: Icons.route_rounded,
-                    label: 'Araç vs Araç',
-                    value:
-                        '${widget.result.attackerVehicleName} vs ${widget.result.targetVehicleName}',
-                    color: const Color(0xFF60a5fa),
-                  ),
-                if (widget.result.outcome == AttackOutcome.lose)
-                  _StatRow(
-                    icon: Icons.timer,
-                    label: 'Hastane süresi',
-                    value: '45 dakika',
-                    color: const Color(0xFFf87171),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
-          Row(
-            children: [
-              if (widget.result.outcome == AttackOutcome.win) ...[
+                  const SizedBox(width: 12),
+                ],
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, 'retry'),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: _color.withOpacity(0.5)),
-                      foregroundColor: _color,
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _color,
+                      foregroundColor: Colors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Tekrar'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _color,
-                    foregroundColor: Colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    child: Text(
+                      widget.result.outcome == AttackOutcome.lose
+                          ? '80 Altın ile Çık'
+                          : 'Kapat',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
-                  child: Text(
-                    widget.result.outcome == AttackOutcome.lose
-                        ? '80 Altın ile Çık'
-                        : 'Kapat',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

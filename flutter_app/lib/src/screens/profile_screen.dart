@@ -74,85 +74,108 @@ class ProfileScreen extends StatelessWidget {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF0F1B33),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (ctx) {
-        return SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
+        final mq = MediaQuery.of(ctx);
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: mq.size.height * 0.75,
+          ),
+          child: SafeArea(
+            top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '${state.slotName(slot)} ${state.tt('Seç', 'Select')}',
-                  style: const TextStyle(
-                    color: Color(0xFFFBBF24),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                  child: Text(
+                    '${state.slotName(slot)} ${state.tt('Seç', 'Select')}',
+                    style: const TextStyle(
+                      color: Color(0xFFFBBF24),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (candidates.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      state.tt(
-                        'Bu slot için envanterinde eşya yok.',
-                        'No inventory item for this slot.',
-                      ),
-                      style: const TextStyle(color: Color(0xFF94A3B8)),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        if (candidates.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              state.tt(
+                                'Bu slot için envanterinde eşya yok.',
+                                'No inventory item for this slot.',
+                              ),
+                              style: const TextStyle(color: Color(0xFF94A3B8)),
+                            ),
+                          ),
+                        ...candidates.map((item) {
+                          final current =
+                              (state.equipped[slot] ?? '') == item.id;
+                          return ListTile(
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.asset(
+                                item.iconAsset,
+                                width: 36,
+                                height: 36,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            title: Text(
+                              state.itemName(item),
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              '+${item.powerBonus} ${state.tt('Güç', 'Power')}',
+                              style: const TextStyle(
+                                color: Color(0xFF34D399),
+                              ),
+                            ),
+                            trailing: current
+                                ? Text(
+                                    state.tt('Kuşanılı', 'Equipped'),
+                                    style: const TextStyle(
+                                      color: Color(0xFFFBBF24),
+                                    ),
+                                  )
+                                : FilledButton(
+                                    onPressed: () async {
+                                      await state.equipOwnedItem(
+                                        item.id,
+                                        preferredSlot: slot,
+                                      );
+                                      if (!context.mounted) return;
+                                      Navigator.of(ctx).pop();
+                                    },
+                                    child: Text(state.tt('Kuşan', 'Equip')),
+                                  ),
+                          );
+                        }),
+                        const SizedBox(height: 6),
+                        TextButton.icon(
+                          onPressed: () async {
+                            await state.unequipSlot(slot);
+                            if (!context.mounted) return;
+                            Navigator.of(ctx).pop();
+                          },
+                          icon: const Icon(Icons.remove_circle_outline),
+                          label: Text(state.tt('Slotu Boşalt', 'Clear Slot')),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                     ),
                   ),
-                ...candidates.map((item) {
-                  final current = (state.equipped[slot] ?? '') == item.id;
-                  return ListTile(
-                    leading: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.asset(
-                        item.iconAsset,
-                        width: 36,
-                        height: 36,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    title: Text(
-                      state.itemName(item),
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    subtitle: Text(
-                      '+${item.powerBonus} ${state.tt('Güç', 'Power')}',
-                      style: const TextStyle(color: Color(0xFF34D399)),
-                    ),
-                    trailing: current
-                        ? Text(
-                            state.tt('Kuşanılı', 'Equipped'),
-                            style: const TextStyle(color: Color(0xFFFBBF24)),
-                          )
-                        : FilledButton(
-                            onPressed: () async {
-                              await state.equipOwnedItem(
-                                item.id,
-                                preferredSlot: slot,
-                              );
-                              if (!context.mounted) return;
-                              Navigator.of(ctx).pop();
-                            },
-                            child: Text(state.tt('Kuşan', 'Equip')),
-                          ),
-                  );
-                }),
-                const SizedBox(height: 6),
-                TextButton.icon(
-                  onPressed: () async {
-                    await state.unequipSlot(slot);
-                    if (!context.mounted) return;
-                    Navigator.of(ctx).pop();
-                  },
-                  icon: const Icon(Icons.remove_circle_outline),
-                  label: Text(state.tt('Slotu Boşalt', 'Clear Slot')),
                 ),
               ],
             ),

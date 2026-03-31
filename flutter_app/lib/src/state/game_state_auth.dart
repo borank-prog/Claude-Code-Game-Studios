@@ -181,8 +181,8 @@ mixin _GameStateAuth on _GameStateBase {
       lastAuthError = firebaseStatus.isNotEmpty
           ? firebaseStatus
           : tt(
-              'Firebase bağlantısı hazır değil. Misafir girişi kullan.',
-              'Firebase is not ready. Use guest login.',
+              'Firebase bağlantısı hazır değil. Lütfen daha sonra tekrar dene.',
+              'Firebase is not ready. Please try again later.',
             );
       notifyListeners();
       return false;
@@ -239,7 +239,10 @@ mixin _GameStateAuth on _GameStateBase {
     userId = '';
     friends.clear();
     incomingRequests.clear();
+    incomingGangInvites.clear();
+    gangJoinRequests.clear();
     leaderboardRows.clear();
+    discoverableGangs.clear();
     gangMembers.clear();
     currentGang = null;
     gangRank = 1;

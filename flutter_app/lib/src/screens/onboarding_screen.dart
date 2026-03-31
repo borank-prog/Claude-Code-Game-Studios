@@ -59,11 +59,130 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => _saving = false);
   }
 
+  _AvatarBalanceInfo _avatarBalanceInfo(GameState state, String avatarId) {
+    final avatar = StaticData.avatarClasses.firstWhere(
+      (a) => a.id == avatarId,
+      orElse: () => StaticData.avatarClasses.first,
+    );
+
+    final powerDelta = ((avatar.powerMult - 1) * 100).round();
+    final successDelta = (avatar.missionSuccessBonus * 100).round();
+    final cashDelta = ((avatar.missionCashMult - 1) * 100).round();
+
+    final pros = <String>[];
+    final cons = <String>[];
+
+    if (powerDelta > 0) {
+      pros.add(
+        state.tt('Savaş gücü +%$powerDelta', 'Combat power +$powerDelta%'),
+      );
+    } else if (powerDelta < 0) {
+      cons.add(
+        state.tt('Savaş gücü %$powerDelta', 'Combat power $powerDelta%'),
+      );
+    }
+
+    if (successDelta > 0) {
+      pros.add(
+        state.tt(
+          'Görev başarı şansı +%$successDelta',
+          'Mission success chance +$successDelta%',
+        ),
+      );
+    } else if (successDelta < 0) {
+      cons.add(
+        state.tt(
+          'Görev başarı şansı %$successDelta',
+          'Mission success chance $successDelta%',
+        ),
+      );
+    }
+
+    if (cashDelta > 0) {
+      pros.add(
+        state.tt(
+          'Görev gelirleri +%$cashDelta',
+          'Mission cash rewards +$cashDelta%',
+        ),
+      );
+    } else if (cashDelta < 0) {
+      cons.add(
+        state.tt(
+          'Görev gelirleri %$cashDelta',
+          'Mission cash rewards $cashDelta%',
+        ),
+      );
+    }
+
+    if (avatar.id == 'silahsor') {
+      pros
+        ..clear()
+        ..add(
+          state.tt(
+            'Dengeli başlangıç: tüm alanlarda cezasız.',
+            'Balanced start: no penalties across core stats.',
+          ),
+        );
+      cons
+        ..clear()
+        ..add(state.tt('Özel pasif bonusu yok.', 'No special passive bonus.'));
+    }
+
+    if (pros.isEmpty) {
+      pros.add(
+        state.tt('Belirgin bir güçlü yönü yok.', 'No standout strength.'),
+      );
+    }
+    if (cons.isEmpty) {
+      cons.add(
+        state.tt('Belirgin bir zayıf yönü yok.', 'No standout weakness.'),
+      );
+    }
+
+    return _AvatarBalanceInfo(pros: pros, cons: cons);
+  }
+
+  Widget _lineItem({
+    required IconData icon,
+    required Color color,
+    required String text,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: Color(0xFFD1D5DB),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<GameState>(
       builder: (context, state, _) {
         final canChangeAvatar = state.needsOnboarding || state.canChangeAvatar;
+        final selectedAvatar = StaticData.avatarClasses.firstWhere(
+          (a) => a.id == _selectedAvatarId,
+          orElse: () => StaticData.avatarClasses.first,
+        );
+        final balanceInfo = _avatarBalanceInfo(state, selectedAvatar.id);
         return Scaffold(
           backgroundColor: const Color(0xFF050A16),
           body: SafeArea(
@@ -244,6 +363,66 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             );
                           },
                         ),
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xBF0D1A2F),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0x447F8EA8)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                state.tt(
+                                  '${state.avatarName(selectedAvatar)} Özeti',
+                                  '${state.avatarName(selectedAvatar)} Summary',
+                                ),
+                                style: const TextStyle(
+                                  color: Color(0xFFFBBF24),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 7),
+                              Text(
+                                state.tt('Avantajlar', 'Pros'),
+                                style: const TextStyle(
+                                  color: Color(0xFF34D399),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...balanceInfo.pros.map(
+                                (line) => _lineItem(
+                                  icon: Icons.add_circle_outline,
+                                  color: const Color(0xFF34D399),
+                                  text: line,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                state.tt('Dezavantajlar', 'Cons'),
+                                style: const TextStyle(
+                                  color: Color(0xFFF87171),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...balanceInfo.cons.map(
+                                (line) => _lineItem(
+                                  icon: Icons.remove_circle_outline,
+                                  color: const Color(0xFFF87171),
+                                  text: line,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 14),
                         SizedBox(
                           width: double.infinity,
@@ -268,4 +447,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       },
     );
   }
+}
+
+class _AvatarBalanceInfo {
+  const _AvatarBalanceInfo({required this.pros, required this.cons});
+
+  final List<String> pros;
+  final List<String> cons;
 }

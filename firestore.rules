@@ -8,6 +8,21 @@ service cloud.firestore {
     function isOwner(uid) {
       return request.auth.uid == uid;
     }
+    function gangOwnerId(gangId) {
+      return get(/databases/$(database)/documents/gangs/$(gangId)).data.ownerId;
+    }
+    function gangAcceptsOpenJoin(gangId) {
+      let gang = get(/databases/$(database)/documents/gangs/$(gangId)).data;
+      return gang.inviteOnly != true && gang.acceptJoinRequests != false;
+    }
+    function hasGangInvite(gangId, uid) {
+      let inviteId = gangId + "_" + uid;
+      return exists(/databases/$(database)/documents/gang_invites/$(inviteId)) &&
+        get(/databases/$(database)/documents/gang_invites/$(inviteId)).data.toUid == uid &&
+        get(/databases/$(database)/documents/gang_invites/$(inviteId)).data.gangId == gangId &&
+        (get(/databases/$(database)/documents/gang_invites/$(inviteId)).data.status == 'pending' ||
+         get(/databases/$(database)/documents/gang_invites/$(inviteId)).data.status == 'accepted');
+    }
 
     // ── User profiles (all game data, leaderboard, social, FCM) ──
     match /users/{uid} {
@@ -80,11 +95,22 @@ service cloud.firestore {
       // Gang members
       match /members/{memberId} {
         allow read: if isLoggedIn();
-        allow create: if isLoggedIn() &&
-          (isOwner(memberId) || resource == null);
-        allow update: if isLoggedIn() &&
-          (isOwner(memberId) || resource.data.uid == request.auth.uid);
-        allow delete: if isLoggedIn() && isOwner(memberId);
+        allow create: if isLoggedIn() && (
+          // Leader can add members (approve request/invite flow)
+          gangOwnerId(gangId) == request.auth.uid ||
+          // Player can only add self when gang is open OR has a valid invite
+          (
+            request.auth.uid == memberId &&
+            request.resource.data.uid == memberId &&
+            request.resource.data.role == 'Üye' &&
+            (gangAcceptsOpenJoin(gangId) || hasGangInvite(gangId, memberId))
+          )
+        );
+        // Member docs are controlled by leader to prevent role tampering.
+        allow update: if isLoggedIn() && gangOwnerId(gangId) == request.auth.uid;
+        // Leader can remove anyone; member can leave own gang.
+        allow delete: if isLoggedIn() &&
+          (gangOwnerId(gangId) == request.auth.uid || request.auth.uid == memberId);
       }
 
       // Contribution logs
@@ -104,6 +130,38 @@ service cloud.firestore {
         resource.data.leaderId == request.auth.uid ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
       );
+      allow delete: if false;
+    }
+
+    // ── Gang join requests (player -> leader) ──
+    match /gang_join_requests/{requestId} {
+      allow read: if isLoggedIn() &&
+        (resource.data.fromId == request.auth.uid ||
+         resource.data.leaderId == request.auth.uid);
+      allow create: if isLoggedIn() &&
+        request.resource.data.fromId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isLoggedIn() && (
+        // Leader approves/rejects
+        resource.data.leaderId == request.auth.uid ||
+        // Sender can cancel own pending request
+        (resource.data.fromId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
+      );
+      allow delete: if false;
+    }
+
+    // ── Gang invites (leader -> player) ──
+    match /gang_invites/{inviteId} {
+      allow read: if isLoggedIn() &&
+        (resource.data.toUid == request.auth.uid ||
+         resource.data.leaderId == request.auth.uid);
+      allow create: if isLoggedIn() &&
+        request.resource.data.leaderId == request.auth.uid &&
+        request.resource.data.status == 'pending';
+      allow update: if isLoggedIn() &&
+        (resource.data.toUid == request.auth.uid ||
+         resource.data.leaderId == request.auth.uid);
       allow delete: if false;
     }
 

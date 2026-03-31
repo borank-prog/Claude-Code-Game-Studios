@@ -150,6 +150,8 @@ class _GameStateBase extends ChangeNotifier {
 
   final List<Map<String, dynamic>> friends = [];
   final List<Map<String, dynamic>> incomingRequests = [];
+  final List<Map<String, dynamic>> incomingGangInvites = [];
+  final List<Map<String, dynamic>> gangJoinRequests = [];
   final List<Map<String, dynamic>> leaderboardRows = [];
   final List<Map<String, dynamic>> discoverableGangs = [];
   final List<Map<String, dynamic>> gangMembers = [];
@@ -289,6 +291,17 @@ class _GameStateBase extends ChangeNotifier {
 
   String get gangId => currentGang?['id']?.toString() ?? '';
   bool get hasGang => gangId.isNotEmpty;
+  bool get isGangLeader {
+    if (!hasGang || userId.trim().isEmpty) return false;
+    final ownerId = (currentGang?['ownerId']?.toString() ?? '').trim();
+    final role = (currentGang?['role']?.toString() ?? '').trim().toLowerCase();
+    if (ownerId.isNotEmpty) return ownerId == userId.trim();
+    return role == 'lider' || role == 'leader';
+  }
+
+  bool get gangInviteOnly => currentGang?['inviteOnly'] == true;
+  bool get gangAcceptJoinRequests =>
+      currentGang?['acceptJoinRequests'] != false;
   bool get hasOfflineReports => _sessionOfflineReports.isNotEmpty;
   bool get needsOnboarding =>
       loggedIn && (!onboardingCompleted || !nicknameChosen);
@@ -427,7 +440,7 @@ class _GameStateBase extends ChangeNotifier {
       case 'juggernaut':
         return tt('Ağır Juggernaut Zırhı', 'Heavy Juggernaut Armor');
       case 'klasik_araba_sv1':
-        return tt('Klasik Araba - Sv.1', 'Classic Car - Lv.1');
+        return tt('Klasik Araba', 'Classic Car');
       default:
         return item.name;
     }
@@ -1191,8 +1204,8 @@ class _GameStateBase extends ChangeNotifier {
         lower.contains('status code: 10') ||
         lower.contains('api: 10'))
       return tt(
-        'Google giriş ayarı eksik. E-posta ya da misafir girişiyle devam et.',
-        'Google sign-in is not configured. Continue with email or guest login.',
+        'Google giriş ayarı eksik. E-posta girişiyle devam et.',
+        'Google sign-in is not configured. Continue with email login.',
       );
     if (lower.contains('missing initial state') ||
         lower.contains('sessionstorage') ||
@@ -1233,6 +1246,9 @@ class _GameStateBase extends ChangeNotifier {
       incomingRequests
         ..clear()
         ..addAll(await _onlineService.fetchIncomingRequests(userId));
+      incomingGangInvites
+        ..clear()
+        ..addAll(await _onlineService.fetchIncomingGangInvites(userId));
       leaderboardRows
         ..clear()
         ..addAll(await _onlineService.fetchLeaderboard(limit: 20));
@@ -1274,11 +1290,22 @@ class _GameStateBase extends ChangeNotifier {
           gangMembers
             ..clear()
             ..addAll(await _onlineService.fetchGangMembers(gId));
+          if (isGangLeader) {
+            gangJoinRequests
+              ..clear()
+              ..addAll(
+                await _onlineService.fetchGangJoinRequestsForLeader(userId),
+              );
+          } else {
+            gangJoinRequests.clear();
+          }
         } else {
           gangMembers.clear();
+          gangJoinRequests.clear();
         }
       } else {
         gangMembers.clear();
+        gangJoinRequests.clear();
       }
     } catch (e) {
       lastAuthError = _sanitizeError(e);
@@ -1546,6 +1573,12 @@ class _GameStateBase extends ChangeNotifier {
     buildingLastCollectEpoch.clear();
     pendingQueue.clear();
     news.clear();
+    friends.clear();
+    incomingRequests.clear();
+    incomingGangInvites.clear();
+    gangJoinRequests.clear();
+    discoverableGangs.clear();
+    leaderboardRows.clear();
     currentGang = null;
     gangMembers.clear();
     gangRank = 1;

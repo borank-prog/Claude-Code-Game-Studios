@@ -1,9 +1,38 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/attack_log.dart';
+import '../models/attack_result.dart';
+import '../models/attack_type.dart';
 
 class AttackHistoryService {
   final _db = FirebaseFirestore.instance;
+
+  Future<void> saveAttack({
+    required String attackerId,
+    required String attackerName,
+    required String targetId,
+    required String targetName,
+    required AttackOutcome outcome,
+    required AttackType type,
+    required int stolenCash,
+    required int xpGained,
+  }) async {
+    try {
+      await _db.collection('attacks').add({
+        'attackerId': attackerId,
+        'attackerName': attackerName,
+        'targetId': targetId,
+        'targetName': targetName,
+        'outcome': outcome.name,
+        'type': type.name,
+        'stolenCash': stolenCash,
+        'xpGained': xpGained,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Kayıt başarısız olsa bile oyun devam eder
+    }
+  }
 
   Future<List<AttackLog>> fetchHistory(String uid) async {
     final asAttacker = await _db
