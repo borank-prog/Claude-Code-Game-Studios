@@ -199,15 +199,18 @@ class _SocialScreenState extends State<SocialScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const GangLeaderboardScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.leaderboard, size: 18),
-                    label: Text(state.tt('Cete Sira', 'Gang Rank')),
+                    onPressed: state.userId.isEmpty
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    InboxScreen(uid: state.userId),
+                              ),
+                            );
+                          },
+                    icon: const Icon(Icons.mail_outline_rounded, size: 18),
+                    label: Text(state.tt('Mesaj Kutusu', 'Inbox')),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -217,17 +220,15 @@ class _SocialScreenState extends State<SocialScreen> {
             ),
             const SizedBox(height: 8),
             FilledButton.icon(
-              onPressed: state.userId.isEmpty
-                  ? null
-                  : () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => InboxScreen(uid: state.userId),
-                        ),
-                      );
-                    },
-              icon: const Icon(Icons.mail_outline_rounded, size: 18),
-              label: Text(state.tt('Mesaj Kutusu', 'Inbox')),
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const GangLeaderboardScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.leaderboard, size: 18),
+              label: Text(state.tt('Çete Sıralaması', 'Gang Ranking')),
               style: FilledButton.styleFrom(
                 minimumSize: const Size(double.infinity, 44),
               ),
