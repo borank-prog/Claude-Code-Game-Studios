@@ -42,11 +42,47 @@ class _HomeShellState extends State<HomeShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showOfflineReportsIfAny();
       _maybeShowPenaltyPopup();
+      context.read<GameState>().addListener(_onGameStateChanged);
     });
+  }
+
+  void _onGameStateChanged() {
+    if (!mounted) return;
+    final state = context.read<GameState>();
+    if (state.pendingItemBrokenNotices.isEmpty) return;
+    final notices = List<String>.from(state.pendingItemBrokenNotices);
+    state.pendingItemBrokenNotices.clear();
+    for (final name in notices) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: const Color(0xFF7F1D1D),
+          behavior: SnackBarBehavior.floating,
+          content: Row(
+            children: [
+              const Icon(Icons.delete_forever, color: Color(0xFFFCA5A5), size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  state.tt(
+                    '$name tamamen eskidi ve çöpe atıldı!',
+                    '$name wore out and was discarded!',
+                  ),
+                  style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   @override
   void dispose() {
+    if (mounted) {
+      try { context.read<GameState>().removeListener(_onGameStateChanged); } catch (_) {}
+    }
     _ticker?.cancel();
     super.dispose();
   }

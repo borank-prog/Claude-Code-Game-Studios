@@ -153,6 +153,7 @@ class _GameStateBase extends ChangeNotifier {
   final Map<String, int> ownedItems = {};
   final Map<String, int> itemLevels = {};
   final Map<String, int> itemDurabilityMap = {};
+  final List<String> pendingItemBrokenNotices = [];
   final Map<String, String> equipped = {
     for (final slot in _equipmentSlots) slot: '',
   };
@@ -1207,11 +1208,13 @@ class _GameStateBase extends ChangeNotifier {
     }
     _queueEvent('item_broken', {'itemId': itemId, 'reason': reason});
     final item = _getItem(itemId);
+    final displayName = item == null ? itemId : itemName(item);
+    pendingItemBrokenNotices.add(displayName);
     _addNews(
       tt('Eşya Bozuldu', 'Item Broken'),
       tt(
-        '${item == null ? itemId : itemName(item)} tamamen eskidi ve çöpe atıldı.',
-        '${item == null ? itemId : itemName(item)} wore out and was discarded.',
+        '$displayName tamamen eskidi ve çöpe atıldı.',
+        '$displayName wore out and was discarded.',
       ),
     );
   }
