@@ -80,6 +80,7 @@ class TradeService {
   }
 
   Future<List<Map<String, dynamic>>> fetchGangLeaderboard() async {
+    // Önce gang_leaderboard koleksiyonunu dene
     try {
       final snap = await _db
           .collection('gang_leaderboard')
@@ -91,21 +92,18 @@ class TradeService {
         return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
       }
     } catch (_) {}
-    return [
-      {
-        'id': 'seed_kuzey_kurtlari',
-        'name': 'Kuzey Kurtları',
-        'memberCount': 10,
-        'respectPoints': 1300,
-        'totalPower': 8600,
-      },
-      {
-        'id': 'seed_gece_baronlari',
-        'name': 'Gece Baronları',
-        'memberCount': 10,
-        'respectPoints': 1270,
-        'totalPower': 8450,
-      },
-    ];
+    // Yoksa doğrudan gangs koleksiyonundan oku
+    try {
+      final snap = await _db
+          .collection('gangs')
+          .orderBy('totalPower', descending: true)
+          .limit(20)
+          .get()
+          .timeout(const Duration(seconds: 6));
+      if (snap.docs.isNotEmpty) {
+        return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      }
+    } catch (_) {}
+    return [];
   }
 }
