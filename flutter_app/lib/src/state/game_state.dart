@@ -58,14 +58,16 @@ class _GameStateBase extends ChangeNotifier {
     'knife',
     'vehicle',
   ];
+  // Görevde sadece silah/bıçak yıpranır; zırh ve araç yıpranmaz
   static const Map<String, int> _missionWearBySlot = {
-    'weapon': 2,
-    'armor': 1,
+    'weapon': 1,
+    'armor': 0,
     'knife': 1,
-    'vehicle': 1,
+    'vehicle': 0,
   };
+  // Saldırıda tüm slotlar yıpranır; silah 50 saldırıda bozulur
   static const Map<String, int> _attackWearBySlot = {
-    'weapon': 4,
+    'weapon': 2,
     'armor': 2,
     'knife': 2,
     'vehicle': 1,
