@@ -252,7 +252,7 @@ mixin _GameStateSocial on _GameStateBase {
     }
   }
 
-  Future<bool> sendGangInvite(String targetUid) async {
+  Future<bool> sendGangInvite(String targetUidOrName) async {
     if (isActionLocked) {
       lastAuthError = actionLockMessage;
       notifyListeners();
@@ -261,20 +261,35 @@ mixin _GameStateSocial on _GameStateBase {
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
       return false;
     if (!hasGang || !isGangLeader) return false;
-    final cleanTargetUid = targetUid.trim();
-    if (cleanTargetUid.isEmpty) return false;
+    final raw = targetUidOrName.trim();
+    if (raw.isEmpty) return false;
     try {
+      // UID gibi görünmüyorsa (kısa veya boşluk içeriyorsa) isimle ara
+      String resolvedUid = raw;
+      final looksLikeUid = raw.length >= 20 && !raw.contains(' ');
+      if (!looksLikeUid) {
+        final found = await _onlineService.findUidByName(raw);
+        if (found == null) {
+          lastAuthError = tt(
+            '"$raw" adında oyuncu bulunamadı.',
+            'No player found with name "$raw".',
+          );
+          notifyListeners();
+          return false;
+        }
+        resolvedUid = found;
+      }
       await _onlineService.sendGangInvite(
         gangId: gangId,
         leaderUid: userId,
         leaderName: playerName,
-        toUid: cleanTargetUid,
+        toUid: resolvedUid,
       );
       _addNews(
         tt('Çete Daveti', 'Gang Invite'),
         tt(
-          '$cleanTargetUid oyuncusuna davet gönderildi.',
-          'Invite sent to $cleanTargetUid.',
+          '$raw oyuncusuna davet gönderildi.',
+          'Invite sent to $raw.',
         ),
       );
       await refreshSocialData();

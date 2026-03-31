@@ -735,8 +735,8 @@ class _SocialScreenState extends State<SocialScreen> {
                               controller: gangInviteUidCtrl,
                               decoration: InputDecoration(
                                 labelText: state.tt(
-                                  'Davet edilecek Oyuncu UID',
-                                  'Player UID to invite',
+                                  'Oyuncu adı veya UID',
+                                  'Player name or UID',
                                 ),
                               ),
                             ),

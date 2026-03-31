@@ -923,6 +923,28 @@ class OnlineService {
         .timeout(const Duration(seconds: 10));
   }
 
+  /// İsimle kullanıcı arar, UID döner. Bulunamazsa null.
+  Future<String?> findUidByName(String displayName) async {
+    final trimmed = displayName.trim();
+    if (trimmed.isEmpty) return null;
+    final snap = await FirebaseFirestore.instance
+        .collection('users')
+        .where('name', isEqualTo: trimmed)
+        .limit(1)
+        .get()
+        .timeout(_firestoreOpTimeout);
+    if (snap.docs.isNotEmpty) return snap.docs.first.id;
+    // displayName alanına da bak
+    final snap2 = await FirebaseFirestore.instance
+        .collection('users')
+        .where('displayName', isEqualTo: trimmed)
+        .limit(1)
+        .get()
+        .timeout(_firestoreOpTimeout);
+    if (snap2.docs.isNotEmpty) return snap2.docs.first.id;
+    return null;
+  }
+
   Future<void> sendGangInvite({
     required String gangId,
     required String leaderUid,
