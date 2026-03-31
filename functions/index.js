@@ -1091,16 +1091,30 @@ const BOT_GANGS = [
 ];
 
 const BOT_PLAYERS = [
+  // Kuzey Kurtları (5 üye)
   { id: 'bot_reis_tuna',    name: 'Reis_Tuna',    gangId: 'bot_gang_kuzey', power: 1170, cash: 85000, level: 18 },
   { id: 'bot_serseri_cenk', name: 'Serseri_Cenk', gangId: 'bot_gang_kuzey', power: 1115, cash: 72000, level: 16 },
+  { id: 'bot_tilki_tekin',  name: 'Tilki_Tekin',  gangId: 'bot_gang_kuzey', power: 780,  cash: 37000, level: 10 },
+  { id: 'bot_kuzey_mert',   name: 'Kuzey_Mert',   gangId: 'bot_gang_kuzey', power: 720,  cash: 31000, level: 9  },
+  { id: 'bot_kuzey_emre',   name: 'Kuzey_Emre',   gangId: 'bot_gang_kuzey', power: 660,  cash: 27000, level: 8  },
+  // Gece Baronları (5 üye)
   { id: 'bot_baba_rasim',   name: 'Baba_Rasim',   gangId: 'bot_gang_gece',  power: 1060, cash: 68000, level: 15 },
   { id: 'bot_bela_burak',   name: 'Bela_Burak',   gangId: 'bot_gang_gece',  power: 1005, cash: 61000, level: 14 },
+  { id: 'bot_kaplan_kaan',  name: 'Kaplan_Kaan',  gangId: 'bot_gang_gece',  power: 820,  cash: 38000, level: 11 },
+  { id: 'bot_gece_selim',   name: 'Gece_Selim',   gangId: 'bot_gang_gece',  power: 750,  cash: 33000, level: 10 },
+  { id: 'bot_gece_hakan',   name: 'Gece_Hakan',   gangId: 'bot_gang_gece',  power: 680,  cash: 28000, level: 9  },
+  // Demir Yumruk (5 üye)
   { id: 'bot_kara_kemal',   name: 'Kara_Kemal',   gangId: 'bot_gang_demir', power: 950,  cash: 55000, level: 13 },
-  { id: 'bot_cete_ali',     name: 'Çete_Ali',     gangId: 'bot_gang_kizil', power: 890,  cash: 48000, level: 12 },
+  { id: 'bot_yilan_yusuf',  name: 'Yilan_Yusuf',  gangId: 'bot_gang_demir', power: 880,  cash: 47000, level: 12 },
+  { id: 'bot_demir_orhan',  name: 'Demir_Orhan',  gangId: 'bot_gang_demir', power: 810,  cash: 40000, level: 11 },
+  { id: 'bot_demir_tayfun', name: 'Demir_Tayfun', gangId: 'bot_gang_demir', power: 740,  cash: 34000, level: 10 },
+  { id: 'bot_demir_volkan', name: 'Demir_Volkan', gangId: 'bot_gang_demir', power: 670,  cash: 28000, level: 9  },
+  // Kızıl Kartal (5 üye)
+  { id: 'bot_cete_ali',     name: 'Cete_Ali',     gangId: 'bot_gang_kizil', power: 890,  cash: 48000, level: 12 },
   { id: 'bot_sokak_serkan', name: 'Sokak_Serkan', gangId: 'bot_gang_kizil', power: 830,  cash: 42000, level: 11 },
-  { id: 'bot_tilki_tekin',  name: 'Tilki_Tekin',  gangId: 'bot_gang_kuzey', power: 780,  cash: 37000, level: 10 },
-  { id: 'bot_kaplan_kaan',  name: 'Kaplan_Kaan',  gangId: 'bot_gang_gece',  power: 720,  cash: 32000, level: 9 },
-  { id: 'bot_yilan_yusuf',  name: 'Yılan_Yusuf',  gangId: 'bot_gang_demir', power: 660,  cash: 27000, level: 8 },
+  { id: 'bot_kizil_cem',    name: 'Kizil_Cem',    gangId: 'bot_gang_kizil', power: 770,  cash: 36000, level: 10 },
+  { id: 'bot_kizil_firat',  name: 'Kizil_Firat',  gangId: 'bot_gang_kizil', power: 700,  cash: 30000, level: 9  },
+  { id: 'bot_kizil_umut',   name: 'Kizil_Umut',   gangId: 'bot_gang_kizil', power: 630,  cash: 25000, level: 8  },
 ];
 
 exports.seedBotData = onCall(async (request) => {

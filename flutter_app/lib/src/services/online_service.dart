@@ -636,6 +636,10 @@ class OnlineService {
     if (ownerId == cleanFromUid) {
       throw Exception('Kendi çetene katılım isteği gönderemezsin.');
     }
+    final currentCount = (gang['memberCount'] as num?)?.toInt() ?? 0;
+    if (currentCount >= 5) {
+      throw Exception('Bu çete dolu. Maksimum 5 üye olabilir.');
+    }
     final inviteOnly = gang['inviteOnly'] == true;
     final acceptJoinRequests = gang['acceptJoinRequests'] != false;
     if (inviteOnly || !acceptJoinRequests) {
@@ -753,6 +757,10 @@ class OnlineService {
           final gang = gangSnap.data()!;
           if ((gang['ownerId'] as String? ?? '').trim() != cleanLeaderUid) {
             throw Exception('Lider bilgisi geçersiz.');
+          }
+          final currentMemberCount = (gang['memberCount'] as num?)?.toInt() ?? 0;
+          if (currentMemberCount >= 5) {
+            throw Exception('Çete dolu. Maksimum 5 üye olabilir.');
           }
 
           final userSnap = await tx.get(userRef);
