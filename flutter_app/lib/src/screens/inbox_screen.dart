@@ -32,7 +32,7 @@ class InboxScreen extends StatelessWidget {
         .doc(uid)
         .collection('inbox')
         .orderBy('createdAt', descending: true)
-        .limit(100);
+        .limit(200);
 
     return Scaffold(
       appBar: AppBar(
