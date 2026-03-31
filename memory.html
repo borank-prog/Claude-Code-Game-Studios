@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CartelHood - Proje Hafiza</title>
+  <style>
+    :root {
+      --bg: #091426;
+      --panel: #0f1d35;
+      --muted: #8ea1bf;
+      --text: #e8eef9;
+      --accent: #f4be3a;
+      --ok: #34d399;
+      --warn: #fb7185;
+      --line: #1f3557;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      background: linear-gradient(180deg, #081123 0%, #0a1730 100%);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .hero {
+      background: rgba(15, 29, 53, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 8px; color: var(--accent); font-size: 28px; }
+    h2 {
+      margin: 0 0 10px;
+      color: var(--accent);
+      font-size: 18px;
+      letter-spacing: .2px;
+    }
+    .meta { color: var(--muted); font-size: 14px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: rgba(15, 29, 53, 0.9);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+    }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 4px 0; }
+    .ok { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .mono {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 13px;
+      color: #d7e4ff;
+      background: rgba(9, 20, 38, 0.8);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      white-space: pre-wrap;
+    }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>CartelHood - Proje Hafiza (memory)</h1>
+      <div class="meta">Son guncelleme: 31.03.2026 | Platform: Flutter (Android/Web) + Firebase Functions + Firestore</div>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>1) Kimlik / Giris Sistemi</h2>
+        <ul>
+          <li>E-posta/sifre giris-kayit akislari duzeltildi.</li>
+          <li>Google ile giris akisi stabil hale getirildi (Android odakli).</li>
+          <li>Giristen sonra profil tamamlama ve karakter secimi akisi aktif.</li>
+          <li>Karakter secimi kilidi mantigi uygulandi (degistirilemez).</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>2) Ceza / Pop-up Sistemleri</h2>
+        <ul>
+          <li>Hastane ve hapishane icin merkezde ozel popup tasarimlari aktif.</li>
+          <li>Tek popup akisi: cakisan ikinci sonuc popupi kapatildi.</li>
+          <li>Altin ile erken cikis + bekleme secenekleri korunuyor.</li>
+          <li>Guncel denge: <b>45 dk</b> bekleme, erken cikis <b>80 altin</b>.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>3) PvP / Saldiri Altyapisi</h2>
+        <ul>
+          <li>Saldiri, cooldown ve guc penceresi (ust 5 / alt 5) kisiti aktif.</li>
+          <li>Sunucu otoriter saldiri: <span class="mono">executePvpAttack</span>.</li>
+          <li>Enerji kontrolu sunucuda zorunlu ve harcama transaction icinde.</li>
+          <li>Hedef kalkan kontrolu eklendi (kalkanli hedefe saldiri blok).</li>
+          <li>Guc farki buyukse calinan nakit carpani dusuruluyor (snowball engeli).</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>4) Cete / Sosyal Sistemler</h2>
+        <ul>
+          <li>Cete baskini (gang raid) callable akisi aktif.</li>
+          <li>Baskin cezalari ve durum guncellemeleri Firestore tarafinda isleniyor.</li>
+          <li>Liderlik/siralama ve sosyal ekranlari icin veri akislari duzenlendi.</li>
+          <li>Oyuncu ID gosterim-kopyalama tarafinda iyilestirmeler yapildi.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>5) Gorev / Ekonomi Dengeleme (Hard v1)</h2>
+        <ul>
+          <li>Gorev enerji maliyetleri arttirildi.</li>
+          <li>Basari oranlari dusuruldu (kolay/orta/zor daha sert).</li>
+          <li>Oduller azaltildi, basarisizlikta nakit cezasi eklendi.</li>
+          <li>Gorev metni guncellemesi: <b>Madde Teslimati</b> (guvenli dil).</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>6) Premium / Pay-to-Win Paketi (Son)</h2>
+        <ul>
+          <li>VIP Heal: 8 altin (HP+Enerji full + 2 saat kalkan).</li>
+          <li>Energy Rush: 3 altin (Enerji full + bonus HP).</li>
+          <li>VIP Shield: 45 altin (24 saat).</li>
+          <li>Smuggler Crate: 20 altin, jackpot sansi %6.</li>
+          <li>Gold Deagle premium alimi: 55 altin.</li>
+          <li>Premium silah gucleri ve VIP item etkileri belirgin arttirildi.</li>
+          <li>VIP alinan esyalar seviye bonuslu veriliyor (Lv2/Lv3).</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>7) Envanter / Ekipman</h2>
+        <ul>
+          <li>Ekipman slot sistemi duzeltildi (4 slot, arac dahil).</li>
+          <li>Bos slot gorunurlugu sadeleştirildi, dinamik gosterim iyilestirildi.</li>
+          <li>Arac slotunda klasik araba karti aktif.</li>
+          <li>Ekipman guc toplamasi ve enerji indirimi mantigi calisiyor.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>8) UI/UX ve Ekranlar</h2>
+        <ul>
+          <li>Giris kapak ekrani yeniden tasarlandi (sadece Giris Yap/Kaydol).</li>
+          <li>Alt navigasyon modernlestirildi.</li>
+          <li>Sonuc popup/bildirim akislari merkez popup mantigina cekildi.</li>
+          <li>TR/EN dil altyapisi ve metin tutarliligi genisletildi.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>9) Teknik Durum</h2>
+        <ul>
+          <li class="ok">Flutter test suiti geciyor.</li>
+          <li class="ok">Android emulator deploy adimlari basarili.</li>
+          <li class="ok">Firebase function deploy: executePvpAttack + executeGangRaid guncel.</li>
+          <li class="warn">Bazi dosyalarda cosmetic lint info (deprecated withOpacity) mevcut, kritik degil.</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h2>10) Kullanilan Ana Komutlar</h2>
+        <div class="mono">flutter test --reporter compact
+flutter analyze
+flutter run -d emulator-5554 --target lib/main.dart --debug --no-resident
+firebase.cmd deploy --only functions:executePvpAttack,functions:executeGangRaid</div>
+      </article>
+    </section>
+
+    <section class="hero" style="margin-top:12px;">
+      <h2>Not</h2>
+      <div class="meta">Bu dosya proje ilerleme hafizasi olarak tutulur. Yeni sprintlerde bu dosya uzerine ekleme yapilmalidir.</div>
+    </section>
+  </div>
+</body>
+</html>

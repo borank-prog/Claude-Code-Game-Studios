@@ -6,6 +6,13 @@ import '../state/game_state.dart';
 import '../widgets/format.dart';
 import '../widgets/glass_panel.dart';
 
+class _StatLine {
+  final String label;
+  final String value;
+  final Color color;
+  const _StatLine(this.label, this.value, this.color);
+}
+
 class MarketScreen extends StatelessWidget {
   const MarketScreen({super.key});
 
@@ -91,6 +98,20 @@ class MarketScreen extends StatelessWidget {
               iconColor: const Color(0xFFEF4444),
               priceGold: state.vipHealGoldCost,
               onPressed: () async => state.buyVipHeal(),
+              showSnackBar: false,
+              onAfterPressed: (msg) async {
+                if (!context.mounted) return;
+                if (_isPurchaseSuccess(msg)) {
+                  await _showPurchaseDialog(context, state,
+                    serviceTitle: state.tt('VIP Tedavi', 'VIP Heal'),
+                    serviceDesc: msg,
+                    serviceIcon: Icons.local_hospital_outlined,
+                    serviceIconColor: const Color(0xFFEF4444),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                }
+              },
             ),
             _premiumCard(
               context,
@@ -104,6 +125,20 @@ class MarketScreen extends StatelessWidget {
               iconColor: const Color(0xFF60A5FA),
               priceGold: state.energyRushGoldCost,
               onPressed: () async => state.buyEnergyRush(),
+              showSnackBar: false,
+              onAfterPressed: (msg) async {
+                if (!context.mounted) return;
+                if (_isPurchaseSuccess(msg)) {
+                  await _showPurchaseDialog(context, state,
+                    serviceTitle: state.tt('Adrenalin İğnesi', 'Adrenaline Shot'),
+                    serviceDesc: msg,
+                    serviceIcon: Icons.bolt,
+                    serviceIconColor: const Color(0xFF60A5FA),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                }
+              },
             ),
             _premiumCard(
               context,
@@ -123,6 +158,20 @@ class MarketScreen extends StatelessWidget {
                       'Active: ${state.shieldSecondsLeft ~/ 3600}h ${(state.shieldSecondsLeft % 3600) ~/ 60}m',
                     )
                   : null,
+              showSnackBar: false,
+              onAfterPressed: (msg) async {
+                if (!context.mounted) return;
+                if (_isPurchaseSuccess(msg)) {
+                  await _showPurchaseDialog(context, state,
+                    serviceTitle: state.tt('24 Saatlik VIP Kalkan', '24-Hour VIP Shield'),
+                    serviceDesc: msg,
+                    serviceIcon: Icons.shield_outlined,
+                    serviceIconColor: const Color(0xFF22D3EE),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                }
+              },
             ),
             _premiumCard(
               context,
@@ -230,21 +279,13 @@ class MarketScreen extends StatelessWidget {
                             : () async {
                                 final ok = await state.buyItem(item.id);
                                 if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      ok
-                                          ? state.tt(
-                                              '${state.itemName(item)} satın alındı.',
-                                              '${state.itemName(item)} purchased.',
-                                            )
-                                          : state.tt(
-                                              'Satın alma başarısız.',
-                                              'Purchase failed.',
-                                            ),
-                                    ),
-                                  ),
-                                );
+                                if (ok) {
+                                  await _showPurchaseDialog(context, state, item: item);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(state.tt('Satın alma başarısız.', 'Purchase failed.'))),
+                                  );
+                                }
                               },
                         child: Text(price),
                       ),
@@ -296,6 +337,142 @@ class MarketScreen extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _showPurchaseDialog(
+    BuildContext context,
+    GameState state, {
+    ItemDef? item,
+    String? serviceTitle,
+    String? serviceDesc,
+    IconData? serviceIcon,
+    Color serviceIconColor = const Color(0xFF34D399),
+    List<_StatLine> extraStats = const [],
+  }) async {
+    final isItem = item != null;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xEE0F1B33),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFF34D399), width: 1.4),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                state.tt('SATIN ALINDI!', 'PURCHASED!'),
+                style: const TextStyle(
+                  color: Color(0xFF34D399),
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (isItem)
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A1630),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF34D399), width: 1.2),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(item.iconAsset, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(Icons.inventory_2_outlined, color: const Color(0xFF34D399), size: 48)),
+                  ),
+                )
+              else
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: serviceIconColor.withOpacity(0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: serviceIconColor, width: 1.5),
+                  ),
+                  child: Icon(serviceIcon ?? Icons.check_circle, color: serviceIconColor, size: 38),
+                ),
+              const SizedBox(height: 12),
+              Text(
+                isItem ? state.itemName(item) : (serviceTitle ?? ''),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  children: [
+                    if (isItem) ...[
+                      _statRow(state.tt('Güç Bonusu', 'Power Bonus'), '+${item.powerBonus}', const Color(0xFF34D399)),
+                      _statRow(state.tt('Tür', 'Type'), _itemTypeName(state, item.type), const Color(0xFF60A5FA)),
+                      _statRow(state.tt('Min. Seviye', 'Min. Level'), '${item.reqLevel}', const Color(0xFFA78BFA)),
+                      if (item.costGold > 0)
+                        _statRow(state.tt('Fiyat', 'Price'), '${item.costGold} ${state.tt('Altın', 'Gold')}', const Color(0xFFFBBF24))
+                      else
+                        _statRow(state.tt('Fiyat', 'Price'), '\$${item.costCash}', const Color(0xFFFBBF24)),
+                    ] else ...[
+                      if (serviceDesc != null)
+                        Text(serviceDesc, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                    ],
+                    ...extraStats.map((s) => _statRow(s.label, s.value, s.color)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF34D399),
+                    foregroundColor: Colors.black,
+                  ),
+                  child: Text(state.tt('Harika!', 'Awesome!'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statRow(String label, String value, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  String _itemTypeName(GameState state, String type) {
+    return switch (type) {
+      'weapon'  => state.tt('Silah', 'Weapon'),
+      'armor'   => state.tt('Zırh', 'Armor'),
+      'vehicle' => state.tt('Araç', 'Vehicle'),
+      'knife'   => state.tt('Yakın Dövüş', 'Melee'),
+      _         => type,
+    };
   }
 
   Widget _premiumCard(
@@ -423,7 +600,28 @@ class MarketScreen extends StatelessWidget {
       trailingNote: owned
           ? state.tt('Envanterde', 'Owned')
           : '+${item.powerBonus} ${state.tt('Güç', 'Power')}',
+      showSnackBar: false,
+      onAfterPressed: (msg) async {
+        if (!context.mounted) return;
+        if (_isPurchaseSuccess(msg)) {
+          await _showPurchaseDialog(context, state, item: item);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        }
+      },
     );
+  }
+
+  bool _isPurchaseSuccess(String msg) {
+    final lower = msg.toLowerCase();
+    return !lower.contains('yok') &&
+        !lower.contains('not enough') &&
+        !lower.contains('geçersiz') &&
+        !lower.contains('invalid') &&
+        !lower.contains('zaten sende') &&
+        !lower.contains('already own') &&
+        !lower.contains('başarısız') &&
+        !lower.contains('failed');
   }
 
   Future<void> _showSmugglerResultDialog(
