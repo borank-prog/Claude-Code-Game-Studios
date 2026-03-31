@@ -1,0 +1,43 @@
+[
+  {
+    "name": "mobile",
+    "shots": [
+      "c:/Users/boran/CartelHooD/CartelHood/qa_artifacts/web_smoke_20260331/mobile_01_home.png",
+      "c:/Users/boran/CartelHooD/CartelHood/qa_artifacts/web_smoke_20260331/mobile_02_auth.png",
+      "c:/Users/boran/CartelHooD/CartelHood/qa_artifacts/web_smoke_20260331/mobile_03_lang_toggle.png",
+      "c:/Users/boran/CartelHooD/CartelHood/qa_artifacts/web_smoke_20260331/mobile_04_back.png"
+    ],
+    "logs": [
+      "[warning] [.WebGL-0x66ec073c3100]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "[warning] [.WebGL-0x66ec073c3100]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "[warning] [.WebGL-0x66ec073c3100]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "[warning] Info: The current domain is not authorized for OAuth operations. This will prevent signInWithPopup, signInWithRedirect, linkWithPopup and linkWithRedirect from working. Add your domain (boran41.web.app) to the OAuth redirect domains list in the Firebase console -> Authentication -> Settings -> Authorized domains tab.",
+      "[warning] [.WebGL-0x66ec073c3100]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    ],
+    "errors": [],
+    "steps": [
+      "Home loaded",
+      "Clicked GIRIS YAP by coordinate",
+      "Tapped top-right language area",
+      "Tapped back arrow area"
+    ]
+  },
+  {
+    "name": "desktop",
+    "shots": [
+      "c:/Users/boran/CartelHooD/CartelHood/qa_artifacts/web_smoke_20260331/desktop_01_home.png",
+      "c:/Users/boran/CartelHooD/CartelHood/qa_artifacts/web_smoke_20260331/desktop_02_click_center.png"
+    ],
+    "logs": [
+      "[warning] [.WebGL-0x12f407a2dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "[warning] [.WebGL-0x12f407a2dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "[warning] [.WebGL-0x12f407a2dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels",
+      "[warning] [.WebGL-0x12f407a2dc00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    ],
+    "errors": [],
+    "steps": [
+      "Home loaded",
+      "Clicked center-lower CTA area"
+    ]
+  }
+]
