@@ -242,7 +242,7 @@ class _SocialScreenState extends State<SocialScreen> {
                     state.tt('ARKADAŞLAR', 'FRIENDS'),
                     style: TextStyle(
                       color: Color(0xFFFBBF24),
-                      fontSize: 22,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -404,7 +404,7 @@ class _SocialScreenState extends State<SocialScreen> {
                     state.tt('KARTEL YÖNETİMİ', 'CARTEL MANAGEMENT'),
                     style: TextStyle(
                       color: Color(0xFFFBBF24),
-                      fontSize: 22,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -427,7 +427,7 @@ class _SocialScreenState extends State<SocialScreen> {
                                 state.tt('Çete', 'Gang'),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 20,
+                              fontSize: 16,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -634,17 +634,12 @@ class _SocialScreenState extends State<SocialScreen> {
                     ),
                   ] else ...[
                     Text(
-                      '${state.currentGang?['name'] ?? state.tt('Çete', 'Gang')} (${state.gangId})',
+                      state.currentGang?['name'] ?? state.tt('Çete', 'Gang'),
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${state.tt('Rütbe', 'Rank')}: ${state.gangRank}  •  ${state.tt('Saygınlık', 'Respect')}: ${state.gangRespectPoints}',
-                      style: const TextStyle(color: Color(0xFF34D399)),
                     ),
                     if (state.isGangLeader) ...[
                       const SizedBox(height: 8),
@@ -841,7 +836,7 @@ class _SocialScreenState extends State<SocialScreen> {
                     state.tt('LİDERLİK TABLOSU', 'LEADERBOARD'),
                     style: TextStyle(
                       color: Color(0xFFFBBF24),
-                      fontSize: 24,
+                      fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -955,7 +950,7 @@ class _SocialLeaderboardProfileSheet extends StatelessWidget {
                   name,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 20,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
