@@ -313,13 +313,7 @@ class MarketScreen extends StatelessWidget {
                       ),
                     ),
                     if (owned)
-                      Text(
-                        state.tt('Alındı', 'Owned'),
-                        style: const TextStyle(
-                          color: Color(0xFFFBBF24),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      )
+                      _ownedItemTrailing(context, state, item.id)
                     else
                       FilledButton(
                         onPressed: locked
@@ -359,6 +353,77 @@ class MarketScreen extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  Widget _ownedItemTrailing(
+    BuildContext context,
+    GameState state,
+    String itemId,
+  ) {
+    final dur = state.itemDurabilityPercent(itemId);
+    final repairCost = state.repairItemGoldCost(itemId);
+    final Color barColor = dur > 60
+        ? const Color(0xFF34D399)
+        : dur > 30
+            ? const Color(0xFFFBBF24)
+            : const Color(0xFFEF4444);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '%$dur',
+          style: TextStyle(
+            color: barColor,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 3),
+        SizedBox(
+          width: 56,
+          child: LinearProgressIndicator(
+            value: dur / 100,
+            color: barColor,
+            backgroundColor: const Color(0xFF1E2D45),
+            minHeight: 5,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+        if (repairCost > 0)
+          GestureDetector(
+            onTap: () async {
+              final msg = await state.repairItemWithGold(itemId);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(msg)));
+            },
+            child: Padding(
+              padding: const EdgeInsets.only(top: 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.build_circle_outlined,
+                    color: Color(0xFFFBBF24),
+                    size: 13,
+                  ),
+                  const SizedBox(width: 2),
+                  Text(
+                    '$repairCost ${state.tt('Altın', 'Gold')}',
+                    style: const TextStyle(
+                      color: Color(0xFFFBBF24),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 
