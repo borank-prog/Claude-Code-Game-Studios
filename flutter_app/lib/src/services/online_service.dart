@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -1116,19 +1117,32 @@ class OnlineService {
     final memberRef = gangRef.collection('members').doc(uid);
     final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
 
+    // Üye sayısını kontrol et
+    final gangSnap = await gangRef.get().timeout(_firestoreOpTimeout);
+    final currentCount = (gangSnap.data()?['memberCount'] as num?)?.toInt() ?? 1;
+    final ownerId = (gangSnap.data()?['ownerId'] as String? ?? '').trim();
+    final isOwner = ownerId == uid.trim();
+
     final batch = FirebaseFirestore.instance.batch();
     batch.delete(memberRef);
-    batch.update(gangRef, {
-      'memberCount': FieldValue.increment(-1),
-      'totalPower': FieldValue.increment(-power),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
     batch.set(userRef, {
       'gangId': '',
       'gangName': '',
       'gangRole': '',
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+
+    // Son üye veya lider çıkıyorsa çeteyi sil
+    if (currentCount <= 1 || isOwner) {
+      batch.delete(gangRef);
+    } else {
+      batch.update(gangRef, {
+        'memberCount': FieldValue.increment(-1),
+        'totalPower': FieldValue.increment(-power),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
     await batch.commit();
   }
 
@@ -1153,6 +1167,16 @@ class OnlineService {
         .get()
         .timeout(_firestoreOpTimeout);
     return snap.docs.map((d) => d.data()).toList(growable: false);
+  }
+
+  Future<void> seedBotData() async {
+    try {
+      await FirebaseFunctions.instance
+          .httpsCallable('seedBotData')
+          .call();
+    } catch (_) {
+      // Sessizce geç — kritik değil
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchGangs({int limit = 20}) async {

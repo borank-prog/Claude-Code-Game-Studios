@@ -1081,6 +1081,171 @@ function buildMessage(outcome, attackerName, stolenCash, type) {
   };
 }
 
+// ── Bot Data ──────────────────────────────────────────────────────────────────
+
+const BOT_GANGS = [
+  { id: 'bot_gang_kuzey', name: 'Kuzey Kurtları', tag: 'KK', inviteOnly: false, acceptJoinRequests: true },
+  { id: 'bot_gang_gece',  name: 'Gece Baronları', tag: 'GB', inviteOnly: false, acceptJoinRequests: true },
+  { id: 'bot_gang_demir', name: 'Demir Yumruk',   tag: 'DY', inviteOnly: true,  acceptJoinRequests: false },
+  { id: 'bot_gang_kizil', name: 'Kızıl Kartal',   tag: 'KR', inviteOnly: false, acceptJoinRequests: true },
+];
+
+const BOT_PLAYERS = [
+  { id: 'bot_reis_tuna',    name: 'Reis_Tuna',    gangId: 'bot_gang_kuzey', power: 1170, cash: 85000, level: 18 },
+  { id: 'bot_serseri_cenk', name: 'Serseri_Cenk', gangId: 'bot_gang_kuzey', power: 1115, cash: 72000, level: 16 },
+  { id: 'bot_baba_rasim',   name: 'Baba_Rasim',   gangId: 'bot_gang_gece',  power: 1060, cash: 68000, level: 15 },
+  { id: 'bot_bela_burak',   name: 'Bela_Burak',   gangId: 'bot_gang_gece',  power: 1005, cash: 61000, level: 14 },
+  { id: 'bot_kara_kemal',   name: 'Kara_Kemal',   gangId: 'bot_gang_demir', power: 950,  cash: 55000, level: 13 },
+  { id: 'bot_cete_ali',     name: 'Çete_Ali',     gangId: 'bot_gang_kizil', power: 890,  cash: 48000, level: 12 },
+  { id: 'bot_sokak_serkan', name: 'Sokak_Serkan', gangId: 'bot_gang_kizil', power: 830,  cash: 42000, level: 11 },
+  { id: 'bot_tilki_tekin',  name: 'Tilki_Tekin',  gangId: 'bot_gang_kuzey', power: 780,  cash: 37000, level: 10 },
+  { id: 'bot_kaplan_kaan',  name: 'Kaplan_Kaan',  gangId: 'bot_gang_gece',  power: 720,  cash: 32000, level: 9 },
+  { id: 'bot_yilan_yusuf',  name: 'Yılan_Yusuf',  gangId: 'bot_gang_demir', power: 660,  cash: 27000, level: 8 },
+];
+
+exports.seedBotData = onCall(async (request) => {
+  const batch = db.batch();
+
+  for (const gang of BOT_GANGS) {
+    const botMembers = BOT_PLAYERS.filter(p => p.gangId === gang.id);
+    const totalPower = botMembers.reduce((s, p) => s + p.power, 0);
+    const gangRef = db.collection('gangs').doc(gang.id);
+    batch.set(gangRef, {
+      id: gang.id,
+      name: gang.name,
+      tag: gang.tag,
+      ownerId: botMembers[0]?.id ?? 'bot',
+      ownerName: botMembers[0]?.name ?? 'Bot',
+      inviteOnly: gang.inviteOnly,
+      acceptJoinRequests: gang.acceptJoinRequests,
+      memberCount: botMembers.length,
+      totalPower,
+      respectPoints: Math.floor(totalPower * 1.1),
+      vault: Math.floor(totalPower * 40),
+      gangRank: 1,
+      isBot: true,
+      createdAt: admin.firestore.Timestamp.now(),
+      updatedAt: admin.firestore.Timestamp.now(),
+    }, { merge: true });
+
+    for (const bot of botMembers) {
+      const memberRef = gangRef.collection('members').doc(bot.id);
+      batch.set(memberRef, {
+        uid: bot.id,
+        displayName: bot.name,
+        role: bot.id === botMembers[0]?.id ? 'Lider' : 'Üye',
+        power: bot.power,
+        isBot: true,
+        joinedAt: admin.firestore.Timestamp.now(),
+      }, { merge: true });
+    }
+  }
+
+  for (const bot of BOT_PLAYERS) {
+    const userRef = db.collection('users').doc(bot.id);
+    batch.set(userRef, {
+      uid: bot.id,
+      displayName: bot.name,
+      power: bot.power,
+      cash: bot.cash,
+      level: bot.level,
+      xp: bot.level * 1000,
+      gangId: bot.gangId,
+      gangName: BOT_GANGS.find(g => g.id === bot.gangId)?.name ?? '',
+      gangRole: 'Üye',
+      energy: 100,
+      hp: 100,
+      status: 'active',
+      isBot: true,
+      score: bot.power * 30 + bot.cash / 100,
+      updatedAt: admin.firestore.Timestamp.now(),
+    }, { merge: true });
+  }
+
+  await batch.commit();
+  return { ok: true, gangs: BOT_GANGS.length, players: BOT_PLAYERS.length };
+});
+
+exports.botActivityLoop = onSchedule('every 10 minutes', async () => {
+  const now = admin.firestore.Timestamp.now();
+  const batch = db.batch();
+
+  for (const bot of BOT_PLAYERS) {
+    const rnd = Math.random();
+    const cashGain = Math.floor(Math.random() * 800 + 200);
+    const xpGain   = Math.floor(Math.random() * 30 + 5);
+    const powerDelta = Math.random() < 0.1 ? Math.floor(Math.random() * 10 + 1) : 0;
+
+    const userRef = db.collection('users').doc(bot.id);
+
+    if (rnd < 0.6) {
+      // Görev yaptı
+      batch.set(userRef, {
+        cash: admin.firestore.FieldValue.increment(cashGain),
+        xp:   admin.firestore.FieldValue.increment(xpGain),
+        power: admin.firestore.FieldValue.increment(powerDelta),
+        score: admin.firestore.FieldValue.increment(cashGain / 10 + xpGain),
+        updatedAt: now,
+      }, { merge: true });
+    } else if (rnd < 0.85) {
+      // Saldırı kaybetti, biraz hasar aldı
+      batch.set(userRef, {
+        updatedAt: now,
+      }, { merge: true });
+    } else {
+      // Saldırı kazandı, nakit çaldı
+      const loot = Math.floor(Math.random() * 300 + 100);
+      batch.set(userRef, {
+        cash:  admin.firestore.FieldValue.increment(loot),
+        score: admin.firestore.FieldValue.increment(loot / 10),
+        updatedAt: now,
+      }, { merge: true });
+
+      // Saldırı kaydı oluştur (gerçek oyunculara görünsün)
+      const realUsers = await db.collection('users')
+        .where('isBot', '==', false)
+        .limit(5)
+        .get();
+      if (!realUsers.empty) {
+        const target = realUsers.docs[Math.floor(Math.random() * realUsers.docs.length)];
+        const atkRef = db.collection('attacks').doc();
+        batch.set(atkRef, {
+          attackerId: bot.id,
+          attackerName: bot.name,
+          targetId: target.id,
+          targetName: target.data().displayName ?? 'Oyuncu',
+          outcome: 'win',
+          type: 'quick',
+          stolenCash: loot,
+          xpGained: xpGain,
+          timestamp: now,
+        });
+      }
+    }
+  }
+
+  // Çete güç toplamlarını güncelle
+  for (const gang of BOT_GANGS) {
+    const gangRef = db.collection('gangs').doc(gang.id);
+    const botMembers = BOT_PLAYERS.filter(p => p.gangId === gang.id);
+    // Firestore'daki güncel güçleri topla
+    const memberSnaps = await Promise.all(
+      botMembers.map(b => db.collection('users').doc(b.id).get())
+    );
+    const totalPower = memberSnaps.reduce((s, snap) => {
+      return s + ((snap.data()?.power) ?? 0);
+    }, 0);
+    batch.update(gangRef, {
+      totalPower,
+      respectPoints: Math.floor(totalPower * 1.1),
+      updatedAt: now,
+    });
+  }
+
+  await batch.commit();
+  console.log('Bot activity loop completed.');
+});
+
 async function sendNotification(token, title, body, data = {}) {
   try {
     await getMessaging().send({

@@ -601,7 +601,8 @@ class _SocialScreenState extends State<SocialScreen> {
                           (g['respectPoints'] as num?)?.toInt() ?? 0;
                       final inviteOnly = g['inviteOnly'] == true;
                       final acceptRequests = g['acceptJoinRequests'] != false;
-                      final canJoin = gId.isNotEmpty;
+                      final isSeed = gId.startsWith('seed_');
+                      final canJoin = gId.isNotEmpty && !isSeed;
                       return Container(
                         margin: const EdgeInsets.only(top: 8),
                         padding: const EdgeInsets.all(10),
@@ -659,6 +660,20 @@ class _SocialScreenState extends State<SocialScreen> {
                               ),
                             ),
                             const SizedBox(height: 6),
+                            if (isSeed)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Text(
+                                  state.tt(
+                                    'Demo çete — katılım mevcut değil.',
+                                    'Demo gang — joining not available.',
+                                  ),
+                                  style: const TextStyle(
+                                    color: Color(0xFF6B7280),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
                             SizedBox(
                               width: double.infinity,
                               child: FilledButton(

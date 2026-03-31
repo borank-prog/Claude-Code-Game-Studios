@@ -1258,24 +1258,12 @@ class _GameStateBase extends ChangeNotifier {
         ..clear()
         ..addAll(await _onlineService.fetchGangs(limit: 20));
       if (discoverableGangs.isEmpty) {
-        discoverableGangs.addAll([
-          {
-            'id': 'seed_kuzey_kurtlari',
-            'name': 'Kuzey Kurtları',
-            'memberCount': 10,
-            'totalPower': 8600,
-            'respectPoints': 1300,
-            'vault': 42000,
-          },
-          {
-            'id': 'seed_gece_baronlari',
-            'name': 'Gece Baronları',
-            'memberCount': 10,
-            'totalPower': 8450,
-            'respectPoints': 1270,
-            'vault': 39000,
-          },
-        ]);
+        // Bot çeteleri Firestore'a yaz, sonra tekrar çek
+        unawaited(_onlineService.seedBotData());
+        await Future.delayed(const Duration(seconds: 2));
+        discoverableGangs
+          ..clear()
+          ..addAll(await _onlineService.fetchGangs(limit: 20));
       }
 
       final gId = currentGang?['id']?.toString() ?? '';
