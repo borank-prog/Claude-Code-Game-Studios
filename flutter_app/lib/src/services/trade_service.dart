@@ -79,7 +79,9 @@ class TradeService {
         );
   }
 
-  Future<List<Map<String, dynamic>>> fetchGangLeaderboard() async {
+  Future<List<Map<String, dynamic>>> fetchGangLeaderboard({
+    String? myGangId,
+  }) async {
     final seedGangs = <Map<String, dynamic>>[
       {
         'id': 'seed_gang_01',
@@ -146,14 +148,37 @@ class TradeService {
       } catch (_) {}
     }
 
-    // Gerçek çeteler varsa seed'lerle merge et (seed ID'lerini override et)
+    // Kullanıcının kendi çetesi Firestore'da varsa ve listede yoksa ekle
+    if (myGangId != null && myGangId.isNotEmpty) {
+      final alreadyIn = realGangs.any((g) => g['id'] == myGangId);
+      if (!alreadyIn) {
+        try {
+          final myGangSnap =
+              await _db.collection('gangs').doc(myGangId).get().timeout(
+                    const Duration(seconds: 6),
+                  );
+          if (myGangSnap.exists) {
+            realGangs.add({'id': myGangSnap.id, ...myGangSnap.data()!});
+          }
+        } catch (_) {}
+      }
+    }
+
+    // Gerçek çeteler varsa seed'lerle merge et
+    // ID ve isim bazlı dedupe — seed'ler sadece gerçek listede karşılığı yoksa eklenir
     if (realGangs.isNotEmpty) {
       final realIds = realGangs.map((g) => g['id'] as String).toSet();
+      final realNames = realGangs
+          .map((g) => (g['name'] as String? ?? '').toLowerCase())
+          .toSet();
       final merged = [
         ...realGangs,
-        ...seedGangs.where((s) => !realIds.contains(s['id'])),
+        ...seedGangs.where(
+          (s) =>
+              !realIds.contains(s['id']) &&
+              !realNames.contains((s['name'] as String? ?? '').toLowerCase()),
+        ),
       ];
-      // totalPower'a göre sırala
       merged.sort(
         (a, b) => ((b['totalPower'] as num?) ?? 0)
             .compareTo((a['totalPower'] as num?) ?? 0),

@@ -27,7 +27,10 @@ class _GangLeaderboardScreenState extends State<GangLeaderboardScreen> {
   Future<void> _fetch() async {
     setState(() => _loading = true);
     try {
-      final data = await _svc.fetchGangLeaderboard();
+      final state = context.read<GameState>();
+      final data = await _svc.fetchGangLeaderboard(
+        myGangId: state.gangId.isNotEmpty ? state.gangId : null,
+      );
       if (mounted) setState(() { _gangs = data; _loading = false; });
     } catch (_) {
       if (mounted) setState(() => _loading = false);
