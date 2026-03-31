@@ -7,6 +7,7 @@ import '../widgets/glass_panel.dart';
 import 'attack_confirm_sheet.dart';
 import 'trade_screen.dart';
 import 'gang_leaderboard_screen.dart';
+import 'gang_chat_screen.dart';
 import 'inbox_screen.dart';
 
 class SocialScreen extends StatefulWidget {
@@ -233,6 +234,30 @@ class _SocialScreenState extends State<SocialScreen> {
                 minimumSize: const Size(double.infinity, 44),
               ),
             ),
+            if (state.hasGang) ...[
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => GangChatScreen(
+                        gangId: state.gangId,
+                        gangName: state.currentGang?['name']?.toString() ??
+                            state.tt('Çete', 'Gang'),
+                        currentUid: state.userId,
+                        currentName: state.playerName,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                label: Text(state.tt('Çete Sohbeti', 'Gang Chat')),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 44),
+                  backgroundColor: const Color(0xFF1E3A5F),
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             GlassPanel(
               child: Column(
