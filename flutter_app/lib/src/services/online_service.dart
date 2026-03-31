@@ -528,7 +528,18 @@ class OnlineService {
         .orderBy('displayName')
         .get()
         .timeout(_firestoreOpTimeout);
-    return snap.docs.map((d) => d.data()).toList(growable: false);
+    final seenUids = <String>{};
+    final seenNames = <String>{};
+    final result = <Map<String, dynamic>>[];
+    for (final d in snap.docs) {
+      final data = d.data();
+      final friendUid = (data['uid'] as String?)?.trim() ?? d.id;
+      final name = (data['displayName'] as String?)?.trim() ?? '';
+      if (seenUids.add(friendUid) && (name.isEmpty || seenNames.add(name))) {
+        result.add(data);
+      }
+    }
+    return result;
   }
 
   Future<List<Map<String, dynamic>>> fetchIncomingRequests(String uid) async {
@@ -1307,13 +1318,16 @@ class OnlineService {
         .orderBy('power', descending: true)
         .get()
         .timeout(_firestoreOpTimeout);
-    // Aynı UID'ye sahip birden fazla doküman varsa ilkini al (dedupe)
-    final seen = <String>{};
+    // Dedupe: doc ID, uid alanı ve displayName bazlı
+    final seenUids = <String>{};
+    final seenNames = <String>{};
     final result = <Map<String, dynamic>>[];
     for (final d in snap.docs) {
-      final uid = d.id;
-      if (seen.add(uid)) {
-        result.add(d.data());
+      final data = d.data();
+      final memberUid = (data['uid'] as String?)?.trim() ?? d.id;
+      final name = (data['displayName'] as String?)?.trim() ?? '';
+      if (seenUids.add(memberUid) && (name.isEmpty || seenNames.add(name))) {
+        result.add(data);
       }
     }
     return result;
