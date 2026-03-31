@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../state/game_state.dart';
 import '../widgets/glass_panel.dart';
+import 'attack_confirm_sheet.dart';
 import 'trade_screen.dart';
 import 'gang_leaderboard_screen.dart';
 
@@ -53,12 +54,71 @@ class _SocialScreenState extends State<SocialScreen> {
     _snack(state.tt('Oyuncu ID kopyalandı.', 'Player ID copied.'));
   }
 
-  Future<void> _copyGangId(GameState state, String gangId) async {
-    final id = gangId.trim();
-    if (id.isEmpty) return;
-    await Clipboard.setData(ClipboardData(text: id));
-    if (!mounted) return;
-    _snack(state.tt('Çete ID kopyalandı.', 'Gang ID copied.'));
+  Future<void> _showLeaderboardProfile(
+    GameState state,
+    Map<String, dynamic> row,
+  ) async {
+    final uid = (row['uid'] ?? '').toString().trim();
+    if (uid.isEmpty || uid == state.userId) return;
+    final name = (row['displayName'] ?? row['name'] ?? 'Oyuncu')
+        .toString()
+        .trim();
+    final power = (row['power'] as num?)?.toInt() ?? 0;
+    final wins = (row['wins'] as num?)?.toInt() ?? 0;
+    final cash = (row['cash'] as num?)?.toInt() ?? 0;
+    final gangName = (row['gangName'] ?? '').toString().trim();
+    final online = row['online'] == true;
+    final canAttack =
+        state.userId.isNotEmpty && uid.isNotEmpty && !uid.startsWith('bot_');
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SocialLeaderboardProfileSheet(
+        name: name.isEmpty ? 'Oyuncu' : name,
+        uid: uid,
+        power: power,
+        wins: wins,
+        cash: cash,
+        gangName: gangName,
+        online: online,
+        canAttack: canAttack,
+      ),
+    );
+
+    if (action == 'friend') {
+      final ok = await state.sendFriendRequest(uid);
+      if (!mounted) return;
+      _snack(
+        ok
+            ? state.tt(
+                '$name için arkadaşlık isteği gönderildi.',
+                'Friend request sent to $name.',
+              )
+            : state.tt(
+                'İstek gönderilemedi.',
+                'Could not send friend request.',
+              ),
+      );
+      return;
+    }
+
+    if (action == 'attack' && canAttack && mounted) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => AttackConfirmSheet(
+          attackerId: state.userId,
+          attackerName: state.displayPlayerName,
+          attackerPower: state.totalPower,
+          targetId: uid,
+          targetName: name.isEmpty ? 'Oyuncu' : name,
+          targetPower: power,
+        ),
+      );
+    }
   }
 
   int _metric(GameState state, String key) =>
@@ -795,36 +855,199 @@ class _SocialScreenState extends State<SocialScreen> {
             ),
             const SizedBox(height: 8),
             ...rankedRows.asMap().entries.map(
-              (e) => GlassPanel(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  children: [
-                    Text(
-                      '#${e.key + 1}',
-                      style: const TextStyle(
-                        color: Color(0xFFFBBF24),
-                        fontWeight: FontWeight.w700,
+              (e) => GestureDetector(
+                onTap: () => _showLeaderboardProfile(state, e.value),
+                child: GlassPanel(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Text(
+                        '#${e.key + 1}',
+                        style: const TextStyle(
+                          color: Color(0xFFFBBF24),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        (e.value['displayName'] ?? e.value['name'] ?? 'Oyuncu')
-                            .toString(),
-                        style: const TextStyle(color: Colors.white),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          (e.value['displayName'] ??
+                                  e.value['name'] ??
+                                  'Oyuncu')
+                              .toString(),
+                          style: const TextStyle(color: Colors.white),
+                        ),
                       ),
-                    ),
-                    Text(
-                      '${state.tt('Skor', 'Score')}: ${_leaderboardScore(e.value)}  •  ${state.tt('Güç', 'Power')}: ${(e.value['power'] ?? 0)}',
-                      style: const TextStyle(color: Color(0xFF34D399)),
-                    ),
-                  ],
+                      Text(
+                        '${state.tt('Skor', 'Score')}: ${_leaderboardScore(e.value)}  •  ${state.tt('Güç', 'Power')}: ${(e.value['power'] ?? 0)}',
+                        style: const TextStyle(color: Color(0xFF34D399)),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        color: Colors.white24,
+                        size: 18,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+class _SocialLeaderboardProfileSheet extends StatelessWidget {
+  final String name;
+  final String uid;
+  final int power;
+  final int wins;
+  final int cash;
+  final String gangName;
+  final bool online;
+  final bool canAttack;
+
+  const _SocialLeaderboardProfileSheet({
+    required this.name,
+    required this.uid,
+    required this.power,
+    required this.wins,
+    required this.cash,
+    required this.gangName,
+    required this.online,
+    required this.canAttack,
+  });
+
+  String _fmt(int v) {
+    if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
+    if (v >= 1000) return '${(v / 1000).toStringAsFixed(0)}K';
+    return '$v';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassPanel(
+      margin: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: online ? const Color(0xFF34D399) : Colors.white24,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'UID: $uid',
+            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+          ),
+          if (gangName.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              gangName,
+              style: const TextStyle(color: Color(0xFFFBBF24), fontSize: 12),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniStat(label: 'Güç', value: '$power'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MiniStat(label: 'Galibiyet', value: '$wins'),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _MiniStat(label: 'Nakit', value: '\$${_fmt(cash)}'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(context, 'friend'),
+                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                  label: const Text('Arkadaş Ekle'),
+                ),
+              ),
+              if (canAttack) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context, 'attack'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFfbbf24),
+                      foregroundColor: Colors.black,
+                    ),
+                    icon: const Icon(Icons.gps_fixed_rounded, size: 16),
+                    label: const Text('Saldır'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MiniStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF334155)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF34D399),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 }

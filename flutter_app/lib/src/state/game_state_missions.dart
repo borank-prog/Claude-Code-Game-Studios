@@ -204,7 +204,7 @@ mixin _GameStateMissions on _GameStateBase {
     _metricAdd('mission_cash_lost_total', failCashPenalty);
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     if (failureToJail) {
-      final failXp = max(2, (mission.xp * 0.2).round());
+      final failXp = max(2, (mission.xp * _GameStateBase._missionFailXpRatio).round());
       _grantXp(failXp);
       _metricAdd('mission_xp_earned_total', failXp);
       jailUntilEpoch = now + _GameStateBase._penaltyDurationSec;

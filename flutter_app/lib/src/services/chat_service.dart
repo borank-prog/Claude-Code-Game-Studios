@@ -82,4 +82,19 @@ class ChatService {
         .snapshots()
         .map((s) => s.docs.length);
   }
+
+  Future<void> markMessagesRead(String gangId, String uid) async {
+    final snap = await _col(gangId)
+        .where('isRead', isEqualTo: false)
+        .where('senderId', isNotEqualTo: uid)
+        .limit(50)
+        .get()
+        .timeout(const Duration(seconds: 6));
+    if (snap.docs.isEmpty) return;
+    final batch = _db.batch();
+    for (final doc in snap.docs) {
+      batch.update(doc.reference, {'isRead': true});
+    }
+    await batch.commit();
+  }
 }

@@ -210,9 +210,45 @@ class _GangDetailSheetState extends State<_GangDetailSheet> {
     _fetchMembers();
   }
 
+  static const Map<String, List<Map<String, dynamic>>> _seedMembers = {
+    'seed_gang_01': [
+      {'displayName': 'Kurt_Memo', 'role': 'Lider', 'power': 1235},
+      {'displayName': 'Tetikci_Orhan', 'role': 'Üye', 'power': 1180},
+      {'displayName': 'Baron_Ali', 'role': 'Üye', 'power': 1125},
+      {'displayName': 'Racon_Selim', 'role': 'Üye', 'power': 1070},
+      {'displayName': 'Gece_Kargasi', 'role': 'Üye', 'power': 1015},
+    ],
+    'seed_gang_02': [
+      {'displayName': 'Sokak_Vurgun', 'role': 'Lider', 'power': 960},
+      {'displayName': 'Golge', 'role': 'Üye', 'power': 905},
+      {'displayName': 'Kasirga_Han', 'role': 'Üye', 'power': 850},
+      {'displayName': 'Kral_Panzer', 'role': 'Üye', 'power': 795},
+      {'displayName': 'Don_Marco', 'role': 'Üye', 'power': 740},
+    ],
+    'seed_gang_03': [
+      {'displayName': 'Mafya_Cem', 'role': 'Lider', 'power': 785},
+      {'displayName': 'Demir_Yusuf', 'role': 'Üye', 'power': 730},
+      {'displayName': 'Silahsor_Apo', 'role': 'Üye', 'power': 675},
+      {'displayName': 'Karanlik_Tolga', 'role': 'Üye', 'power': 620},
+      {'displayName': 'Bicakci_Erdem', 'role': 'Üye', 'power': 565},
+    ],
+    'seed_gang_04': [
+      {'displayName': 'Bela_Burak', 'role': 'Lider', 'power': 510},
+      {'displayName': 'Baba_Rasim', 'role': 'Üye', 'power': 455},
+      {'displayName': 'Serseri_Cenk', 'role': 'Üye', 'power': 400},
+      {'displayName': 'Reis_Tuna', 'role': 'Üye', 'power': 345},
+      {'displayName': 'Vurguncu_Levent', 'role': 'Üye', 'power': 290},
+    ],
+  };
+
   Future<void> _fetchMembers() async {
     final gangId = widget.gang['id']?.toString() ?? '';
     if (gangId.isEmpty) { setState(() => _loading = false); return; }
+    // Seed çeteler için Firestore'a gitme
+    if (_seedMembers.containsKey(gangId)) {
+      if (mounted) setState(() { _members = List.from(_seedMembers[gangId]!); _loading = false; });
+      return;
+    }
     try {
       final m = await _onlineSvc.fetchGangMembers(gangId);
       if (mounted) setState(() { _members = m; _loading = false; });

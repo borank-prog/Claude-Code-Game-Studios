@@ -56,6 +56,7 @@ mixin _GameStateCombat on _GameStateBase {
     _trackDaily('raid_joined', 1);
     _trackDaily('cash_earned', max(0, cashGained));
     _grantXp(max(0, xpGained));
+    wins += 1;
     trackAchievement('battles_won', 1);
     trackAchievement('total_cash_earned', max(0, cashGained));
     _queueEvent('solo_attack_win', {
@@ -138,6 +139,8 @@ mixin _GameStateCombat on _GameStateBase {
     _grantXp(max(0, xpGained));
     gangRespectPoints += max(0, respectGained);
     _recomputeGangRank();
+    wins += 1;
+    gangWins += 1;
     trackAchievement('battles_won', 1);
     trackAchievement('gang_raids_joined', 1);
     _queueEvent('gang_attack_win', {

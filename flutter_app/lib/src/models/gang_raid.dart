@@ -7,6 +7,7 @@ class GangRaid {
   final String leaderId;
   final String targetId;
   final List<String> members;
+  final Map<String, String> memberNames;
   final RaidStatus status;
   final DateTime createdAt;
 
@@ -15,19 +16,25 @@ class GangRaid {
     required this.leaderId,
     required this.targetId,
     required this.members,
+    required this.memberNames,
     required this.status,
     required this.createdAt,
   });
 
-  bool get isFull => members.length >= 4;
-  bool get canStart => members.length >= 2;
+  static const int maxMembers = 4;
+  static const int minMembersToStart = 2;
+
+  bool get isFull => members.length >= maxMembers;
+  bool get canStart => members.length >= minMembersToStart;
 
   factory GangRaid.fromFirestore(String id, Map<String, dynamic> d) {
+    final rawNames = d['memberNames'] as Map<String, dynamic>? ?? {};
     return GangRaid(
       id: id,
       leaderId: d['leaderId'] as String,
       targetId: d['targetId'] as String,
       members: List<String>.from(d['members'] ?? []),
+      memberNames: rawNames.map((k, v) => MapEntry(k, v.toString())),
       status: RaidStatus.values.firstWhere(
         (s) => s.name == d['status'],
         orElse: () => RaidStatus.waiting,
@@ -40,6 +47,7 @@ class GangRaid {
         'leaderId': leaderId,
         'targetId': targetId,
         'members': members,
+        'memberNames': memberNames,
         'status': status.name,
         'createdAt': Timestamp.fromDate(createdAt),
       };

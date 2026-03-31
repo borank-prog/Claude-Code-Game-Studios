@@ -1,5 +1,12 @@
 {
   "projects": {
     "default": "futbot-a33e9"
+  },
+  "targets": {
+    "futbot-a33e9": {
+      "hosting": {
+        "cartelhood": ["boran41"]
+      }
+    }
   }
 }

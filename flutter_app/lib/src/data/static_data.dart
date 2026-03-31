@@ -33,6 +33,7 @@ class StaticData {
       powerMult: 1.05,
       missionSuccessBonus: 0.02,
       missionCashMult: 1.10,
+      energyCostMult: 1.30,
     ),
     AvatarClass(
       id: 'baron',
@@ -42,6 +43,7 @@ class StaticData {
       powerMult: 1.08,
       missionSuccessBonus: 0.01,
       missionCashMult: 1.02,
+      energyCostMult: 1.25,
     ),
     AvatarClass(
       id: 'firsatci',

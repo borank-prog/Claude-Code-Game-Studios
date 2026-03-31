@@ -7,6 +7,7 @@ class AvatarClass {
     required this.powerMult,
     required this.missionSuccessBonus,
     required this.missionCashMult,
+    this.energyCostMult = 1.0,
   });
 
   final String id;
@@ -16,6 +17,8 @@ class AvatarClass {
   final double powerMult;
   final double missionSuccessBonus;
   final double missionCashMult;
+  /// Saldırı başına enerji maliyeti çarpanı (>1 = daha pahalı).
+  final double energyCostMult;
 }
 
 class ItemDef {

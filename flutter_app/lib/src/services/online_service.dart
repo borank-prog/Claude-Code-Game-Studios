@@ -297,9 +297,11 @@ class OnlineService {
   }
 
   Future<void> signOut() async {
-    await FirebaseAuth.instance.signOut();
     try {
-      await GoogleSignIn.instance.signOut();
+      await FirebaseAuth.instance.signOut().timeout(const Duration(seconds: 4));
+    } catch (_) {}
+    try {
+      await GoogleSignIn.instance.signOut().timeout(const Duration(seconds: 3));
     } catch (_) {}
   }
 
@@ -309,6 +311,10 @@ class OnlineService {
     required int power,
     required int level,
     required int rank,
+    int? cash,
+    int? wins,
+    int? gangWins,
+    int? lastLoginEpoch,
     int? currentTp,
     int? maxTp,
     int? currentEnergy,
@@ -328,10 +334,16 @@ class OnlineService {
     final doc = FirebaseFirestore.instance.collection('users').doc(uid);
     final payload = <String, dynamic>{
       'uid': uid,
+      'name': displayName,
       'displayName': displayName,
       'power': power,
       'level': level,
       'rank': rank,
+      'cash': cash ?? 0,
+      'wins': wins ?? 0,
+      'gangWins': gangWins ?? 0,
+      if (lastLoginEpoch != null && lastLoginEpoch > 0)
+        'lastLoginEpoch': lastLoginEpoch,
       'currentTp': currentTp ?? 0,
       'maxTp': maxTp ?? 0,
       'currentEnergy': currentEnergy ?? 0,
@@ -422,13 +434,82 @@ class OnlineService {
   }
 
   Future<List<Map<String, dynamic>>> fetchLeaderboard({int limit = 20}) async {
-    final snap = await FirebaseFirestore.instance
-        .collection('users')
-        .orderBy('power', descending: true)
-        .limit(limit)
-        .get()
-        .timeout(_firestoreOpTimeout);
-    return snap.docs.map((d) => d.data()).toList(growable: false);
+    final col = FirebaseFirestore.instance.collection('users');
+    final byUid = <String, Map<String, dynamic>>{};
+
+    void absorb(QuerySnapshot<Map<String, dynamic>> snap) {
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final uid = doc.id.trim();
+        if (uid.isEmpty) continue;
+        byUid[uid] = {
+          'uid': uid,
+          'name': (data['name'] ?? data['displayName'] ?? 'Oyuncu').toString(),
+          'displayName': (data['displayName'] ?? data['name'] ?? 'Oyuncu')
+              .toString(),
+          'power': (data['power'] as num?)?.toInt() ?? 0,
+          'cash': (data['cash'] as num?)?.toInt() ?? 0,
+          'wins': (data['wins'] as num?)?.toInt() ?? 0,
+          'gangWins': (data['gangWins'] as num?)?.toInt() ?? 0,
+          'gangName': data['gangName'],
+          'online': data['online'] == true,
+        };
+      }
+    }
+
+    try {
+      final ranked = await col
+          .orderBy('power', descending: true)
+          .limit(limit < 100 ? 100 : limit)
+          .get()
+          .timeout(_firestoreOpTimeout);
+      absorb(ranked);
+    } catch (_) {
+      // Missing index/field scenario — fallback queries below.
+    }
+
+    if (byUid.length < limit) {
+      try {
+        final active = await col
+            .orderBy('updatedAt', descending: true)
+            .limit(limit < 120 ? 120 : (limit * 2))
+            .get()
+            .timeout(_firestoreOpTimeout);
+        absorb(active);
+      } catch (_) {}
+    }
+
+    if (byUid.length < limit) {
+      try {
+        final any = await col
+            .limit(limit < 200 ? 200 : (limit * 3))
+            .get()
+            .timeout(_firestoreOpTimeout);
+        absorb(any);
+      } catch (_) {}
+    }
+
+    final rows = byUid.values.toList();
+    rows.sort((a, b) {
+      final scoreCompare = _leaderboardScore(b).compareTo(_leaderboardScore(a));
+      if (scoreCompare != 0) return scoreCompare;
+      final powerA = (a['power'] as num?)?.toInt() ?? 0;
+      final powerB = (b['power'] as num?)?.toInt() ?? 0;
+      final powerCompare = powerB.compareTo(powerA);
+      if (powerCompare != 0) return powerCompare;
+      final winsA = (a['wins'] as num?)?.toInt() ?? 0;
+      final winsB = (b['wins'] as num?)?.toInt() ?? 0;
+      return winsB.compareTo(winsA);
+    });
+    return rows.take(limit).toList(growable: false);
+  }
+
+  int _leaderboardScore(Map<String, dynamic> row) {
+    final power = (row['power'] as num?)?.toInt() ?? 0;
+    final cash = (row['cash'] as num?)?.toInt() ?? 0;
+    final wins = (row['wins'] as num?)?.toInt() ?? 0;
+    final gangWins = (row['gangWins'] as num?)?.toInt() ?? 0;
+    return (power * 12) + (wins * 900) + (gangWins * 1200) + (cash ~/ 2000);
   }
 
   Future<List<Map<String, dynamic>>> fetchFriends(String uid) async {
@@ -758,7 +839,8 @@ class OnlineService {
           if ((gang['ownerId'] as String? ?? '').trim() != cleanLeaderUid) {
             throw Exception('Lider bilgisi geçersiz.');
           }
-          final currentMemberCount = (gang['memberCount'] as num?)?.toInt() ?? 0;
+          final currentMemberCount =
+              (gang['memberCount'] as num?)?.toInt() ?? 0;
           if (currentMemberCount >= 5) {
             throw Exception('Çete dolu. Maksimum 5 üye olabilir.');
           }
@@ -1127,7 +1209,8 @@ class OnlineService {
 
     // Üye sayısını kontrol et
     final gangSnap = await gangRef.get().timeout(_firestoreOpTimeout);
-    final currentCount = (gangSnap.data()?['memberCount'] as num?)?.toInt() ?? 1;
+    final currentCount =
+        (gangSnap.data()?['memberCount'] as num?)?.toInt() ?? 1;
     final ownerId = (gangSnap.data()?['ownerId'] as String? ?? '').trim();
     final isOwner = ownerId == uid.trim();
 
@@ -1179,9 +1262,7 @@ class OnlineService {
 
   Future<void> seedBotData() async {
     try {
-      await FirebaseFunctions.instance
-          .httpsCallable('seedBotData')
-          .call();
+      await FirebaseFunctions.instance.httpsCallable('seedBotData').call();
     } catch (_) {
       // Sessizce geç — kritik değil
     }

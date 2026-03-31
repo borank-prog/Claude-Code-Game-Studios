@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../services/notification_service.dart';
 import '../state/game_state.dart';
 import '../widgets/game_background.dart';
 import '../widgets/glass_panel.dart';
+import 'login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -229,6 +231,53 @@ class SettingsScreen extends StatelessWidget {
           langBtn('en', 'EN'),
         ],
       ),
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext context, GameState state) async {
+    final nav = Navigator.of(context, rootNavigator: true);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          state.tt('Çıkış Yap', 'Log Out'),
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          state.tt(
+            'Hesabından çıkmak istediğine emin misin?',
+            'Are you sure you want to log out?',
+          ),
+          style: const TextStyle(color: Color(0xFF9ca3af)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              state.tt('Vazgeç', 'Cancel'),
+              style: const TextStyle(color: Color(0xFF9ca3af)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              state.tt('Çıkış Yap', 'Log Out'),
+              style: const TextStyle(
+                color: Color(0xFFEF4444),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await state.logout();
+    nav.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
     );
   }
 
@@ -488,14 +537,13 @@ class SettingsScreen extends StatelessWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(
                           Icons.logout,
-                          color: Color(0xFFD1D5DB),
+                          color: Color(0xFFEF4444),
                         ),
-                        title: Text(state.tt('Çıkış Yap', 'Log Out')),
-                        onTap: () async {
-                          await state.logout();
-                          if (!context.mounted) return;
-                          Navigator.of(context).pop();
-                        },
+                        title: Text(
+                          state.tt('Çıkış Yap', 'Log Out'),
+                          style: const TextStyle(color: Color(0xFFEF4444)),
+                        ),
+                        onTap: () => _confirmLogout(context, state),
                       ),
                       ListTile(
                         contentPadding: EdgeInsets.zero,

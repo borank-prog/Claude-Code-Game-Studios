@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/attack_result.dart';
+import '../state/game_state.dart';
 
 class AttackResultSheet extends StatefulWidget {
   final AttackResult result;
@@ -254,7 +256,8 @@ class _AttackResultSheetState extends State<AttackResultSheet>
                           _StatRow(
                             icon: Icons.timer,
                             label: 'Hastane süresi',
-                            value: '45 dakika',
+                            value:
+                                '${context.read<GameState>().penaltyDurationMinutes} dakika',
                             color: const Color(0xFFf87171),
                           ),
                       ],
@@ -298,11 +301,9 @@ class _AttackResultSheetState extends State<AttackResultSheet>
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: Text(
-                      widget.result.outcome == AttackOutcome.lose
-                          ? '80 Altın ile Çık'
-                          : 'Kapat',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    child: const Text(
+                      'Kapat',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),

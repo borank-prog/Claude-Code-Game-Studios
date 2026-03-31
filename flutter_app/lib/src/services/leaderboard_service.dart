@@ -1,9 +1,18 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/leaderboard_entry.dart';
 
 class LeaderboardService {
   final _db = FirebaseFirestore.instance;
+  static const List<String> _seedGangs = [
+    'Kuzey Kurtları',
+    'Gece Baronları',
+    'Demir Yumruk',
+    'Kızıl Kartel',
+  ];
+
   static const List<String> _seedNames = [
     'Kurt_Memo',
     'Tetikci_Orhan',
@@ -42,26 +51,59 @@ class LeaderboardService {
         : limit;
 
     try {
-      final snap = await _db
-          .collection('users')
-          .orderBy(field, descending: true)
-          .limit(queryLimit)
-          .get()
-          .timeout(const Duration(seconds: 10));
+      final col = _db.collection('users');
+      final byUid = <String, Map<String, dynamic>>{};
 
-      final normalized = snap.docs.map((doc) {
-        final data = doc.data();
-        return <String, dynamic>{
-          'uid': doc.id,
-          'name': (data['name'] ?? data['displayName'] ?? 'Anonim').toString(),
-          'power': (data['power'] as num?)?.toInt() ?? 0,
-          'cash': (data['cash'] as num?)?.toInt() ?? 0,
-          'wins': (data['wins'] as num?)?.toInt() ?? 0,
-          'gangWins': (data['gangWins'] as num?)?.toInt() ?? 0,
-          'gangName': data['gangName'],
-        };
-      }).toList();
+      void absorb(QuerySnapshot<Map<String, dynamic>> snap) {
+        for (final doc in snap.docs) {
+          final data = doc.data();
+          byUid[doc.id] = <String, dynamic>{
+            'uid': doc.id,
+            'name': (data['name'] ?? data['displayName'] ?? 'Anonim')
+                .toString(),
+            'power': (data['power'] as num?)?.toInt() ?? 0,
+            'cash': (data['cash'] as num?)?.toInt() ?? 0,
+            'wins': (data['wins'] as num?)?.toInt() ?? 0,
+            'gangWins': (data['gangWins'] as num?)?.toInt() ?? 0,
+            'gangName': data['gangName'],
+            'online': data['online'] == true,
+          };
+        }
+      }
 
+      try {
+        final ranked = await col
+            .orderBy(field, descending: true)
+            .limit(queryLimit)
+            .get()
+            .timeout(const Duration(seconds: 10));
+        absorb(ranked);
+      } catch (_) {
+        // Missing field/index fallback continues below.
+      }
+
+      if (byUid.length < queryLimit) {
+        try {
+          final active = await col
+              .orderBy('updatedAt', descending: true)
+              .limit(queryLimit < 150 ? 150 : (queryLimit * 2))
+              .get()
+              .timeout(const Duration(seconds: 10));
+          absorb(active);
+        } catch (_) {}
+      }
+
+      if (byUid.length < queryLimit) {
+        try {
+          final any = await col
+              .limit(queryLimit < 250 ? 250 : (queryLimit * 3))
+              .get()
+              .timeout(const Duration(seconds: 10));
+          absorb(any);
+        } catch (_) {}
+      }
+
+      final normalized = byUid.values.toList(growable: false);
       final merged = _topUpWithSeed(
         category: category,
         rows: normalized,
@@ -76,38 +118,42 @@ class LeaderboardService {
   }
 
   Future<int> fetchMyRank(String uid, LeaderboardCategory category) async {
-    if (category == LeaderboardCategory.score) {
-      try {
-        final top = await fetchTop(category: category, limit: 200);
-        final idx = top.indexWhere((entry) => entry.uid == uid);
-        if (idx >= 0) return idx + 1;
-        return 201;
-      } catch (_) {
-        return 11;
-      }
-    }
-
+    // Tüm kategorilerde gerçek sırayı hesapla (bot sıralaması dahil)
     try {
-      final me = await _db.collection('users').doc(uid).get();
-      final field = switch (category) {
-        LeaderboardCategory.power => 'power',
-        LeaderboardCategory.cash => 'cash',
-        LeaderboardCategory.wins => 'wins',
-        LeaderboardCategory.score => 'power',
-      };
-      final myVal = (me.data()?[field] as num?)?.toInt() ?? 0;
-
-      final above = await _db
-          .collection('users')
-          .where(field, isGreaterThan: myVal)
-          .count()
-          .get()
-          .timeout(const Duration(seconds: 8));
-
-      return (above.count ?? 0) + 1;
+      final top = await fetchTop(category: category, limit: 200);
+      final idx = top.indexWhere((entry) => entry.uid == uid);
+      if (idx >= 0) return idx + 1;
+      // Listeye girmemiş — listenin sonundan bir sonraki sıra
+      return top.length + 1;
     } catch (_) {
-      return 11;
+      return 99;
     }
+  }
+
+  /// Bot istatistiklerini saat+dakika bazlı rastgele üret.
+  /// Böylece her yenilemede botlar hafif farklı görünür (canlı oyuncu hissi).
+  Map<String, dynamic> _botRow(int i) {
+    final seed = DateTime.now().hour * 1000 + DateTime.now().minute ~/ 5;
+    final rng = Random(seed + i * 97);
+    // Botların taban gücü düşük tutuldu (50-400 arası) — gerçek oyuncular kolayca üste geçsin
+    final basePower = 50 + (i * 18);
+    final power = max(30, basePower + rng.nextInt(20) - 10);
+    final baseWins = 2 + i;
+    final wins = max(0, baseWins + rng.nextInt(4) - 1);
+    final baseCash = 500 + (i * 300);
+    final cash = max(0, baseCash + rng.nextInt(500) - 200);
+    // %60 ihtimalle online
+    final isOnline = rng.nextInt(5) < 3;
+    return {
+      'uid': 'bot_${(i + 1).toString().padLeft(2, '0')}',
+      'name': _seedNames[i],
+      'power': power,
+      'cash': cash,
+      'wins': wins,
+      'gangWins': 1 + (i ~/ 4),
+      'gangName': _seedGangs[i ~/ 5],
+      'online': isOnline,
+    };
   }
 
   List<LeaderboardEntry> _seedTop(
@@ -116,16 +162,7 @@ class LeaderboardService {
   }) {
     final rows = <Map<String, dynamic>>[];
     for (var i = 0; i < _seedNames.length; i++) {
-      final power = 180 + (i * 55);
-      rows.add({
-        'uid': 'bot_${(i + 1).toString().padLeft(2, '0')}',
-        'name': _seedNames[i],
-        'power': power,
-        'cash': 2600 + (i * 850),
-        'wins': 5 + i,
-        'gangWins': 1 + (i ~/ 3),
-        'gangName': i < 10 ? 'Kuzey Kurtları' : 'Gece Baronları',
-      });
+      rows.add(_botRow(i));
     }
 
     int valueOf(Map<String, dynamic> row) {
@@ -158,16 +195,7 @@ class LeaderboardService {
       if (out.length >= limit) break;
       final uid = 'bot_${(i + 1).toString().padLeft(2, '0')}';
       if (existingIds.contains(uid)) continue;
-      final power = 180 + (i * 55);
-      out.add({
-        'uid': uid,
-        'name': _seedNames[i],
-        'power': power,
-        'cash': 2600 + (i * 850),
-        'wins': 5 + i,
-        'gangWins': 1 + (i ~/ 3),
-        'gangName': i < 10 ? 'Kuzey Kurtları' : 'Gece Baronları',
-      });
+      out.add(_botRow(i));
       existingIds.add(uid);
     }
 

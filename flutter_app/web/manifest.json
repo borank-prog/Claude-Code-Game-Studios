@@ -1,11 +1,11 @@
 {
-    "name": "flutter_app",
-    "short_name": "flutter_app",
+    "name": "CartelHooD",
+    "short_name": "CartelHooD",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0b1220",
+    "theme_color": "#0b1220",
+    "description": "CartelHooD - Sokakların Hakimi",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

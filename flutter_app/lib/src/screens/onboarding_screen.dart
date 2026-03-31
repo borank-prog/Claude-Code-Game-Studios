@@ -36,6 +36,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+  static final _validNameRegex = RegExp(
+    r'^[\p{L}0-9_\s]+$',
+    unicode: true,
+  );
+
   Future<void> _submit(GameState state) async {
     if (_saving) return;
     final name = _nameCtrl.text.trim();
@@ -46,6 +51,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             state.tt(
               'İsim en az 3 karakter olmalı.',
               'Name must be at least 3 characters.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (name.length > 20) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            state.tt(
+              'İsim en fazla 20 karakter olabilir.',
+              'Name can be at most 20 characters.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    if (!_validNameRegex.hasMatch(name)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            state.tt(
+              'İsim sadece harf, rakam, alt çizgi ve boşluk içerebilir.',
+              'Name can only contain letters, numbers, underscores and spaces.',
             ),
           ),
         ),
@@ -68,6 +99,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final powerDelta = ((avatar.powerMult - 1) * 100).round();
     final successDelta = (avatar.missionSuccessBonus * 100).round();
     final cashDelta = ((avatar.missionCashMult - 1) * 100).round();
+    final energyPenalty = ((avatar.energyCostMult - 1) * 100).round();
 
     final pros = <String>[];
     final cons = <String>[];
@@ -110,6 +142,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         state.tt(
           'Görev gelirleri %$cashDelta',
           'Mission cash rewards $cashDelta%',
+        ),
+      );
+    }
+
+    if (energyPenalty > 0) {
+      cons.add(
+        state.tt(
+          'Saldırı enerji maliyeti +%$energyPenalty',
+          'Attack energy cost +$energyPenalty%',
+        ),
+      );
+    } else if (energyPenalty < 0) {
+      pros.add(
+        state.tt(
+          'Saldırı enerji maliyeti %$energyPenalty',
+          'Attack energy cost $energyPenalty%',
         ),
       );
     }

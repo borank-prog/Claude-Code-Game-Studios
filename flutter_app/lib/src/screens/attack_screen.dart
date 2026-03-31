@@ -21,8 +21,12 @@ class AttackScreen extends StatefulWidget {
 
 class _AttackScreenState extends State<AttackScreen>
     with SingleTickerProviderStateMixin {
-  static const String _seedGangA = 'Kuzey Kurtları';
-  static const String _seedGangB = 'Gece Baronları';
+  static const List<String> _seedGangs = [
+    'Kuzey Kurtları',
+    'Gece Baronları',
+    'Demir Yumruk',
+    'Kızıl Kartel',
+  ];
 
   final Map<String, _RivalVm> _rivalsById = <String, _RivalVm>{};
   final Random _simRandom = Random();
@@ -33,6 +37,11 @@ class _AttackScreenState extends State<AttackScreen>
   late AnimationController _flashController;
   Color _flashColor = Colors.transparent;
   String? _lastAttackTargetId;
+
+  // Cache to avoid rebuilding rivals on every GameState notification
+  int _lastRowsLength = -1;
+  String _lastMyName = '';
+  List<_RivalVm> _cachedRivals = const [];
 
   @override
   void initState() {
@@ -83,11 +92,17 @@ class _AttackScreenState extends State<AttackScreen>
       'Vurguncu_Levent',
     ];
 
+    final rng = Random();
     final rivals = <_RivalVm>[];
     for (var i = 0; i < names.length; i++) {
-      final power = 180 + (i * 55);
+      final basePower = 180 + (i * 55);
+      final variance = rng.nextInt(basePower ~/ 5 + 1) - basePower ~/ 10;
+      final power = max(50, basePower + variance);
       final level = max(2, (power / 70).round());
-      final cash = 2600 + (i * 850);
+      final baseCash = 2600 + (i * 850);
+      final cash = max(100, baseCash + rng.nextInt(1000) - 500);
+      final currentTP = rng.nextBool() ? 100 : (40 + rng.nextInt(61));
+      final isOnline = rng.nextInt(3) != 0;
       rivals.add(
         _RivalVm(
           id: 'bot_${(i + 1).toString().padLeft(2, '0')}',
@@ -95,9 +110,9 @@ class _AttackScreenState extends State<AttackScreen>
           power: power,
           cash: cash,
           level: level,
-          gangName: i < 10 ? _seedGangA : _seedGangB,
-          currentTP: 100,
-          isOnline: true,
+          gangName: _seedGangs[i ~/ 5],
+          currentTP: currentTP,
+          isOnline: isOnline,
           combatWeaponId: WeaponMatchupService.defaultWeaponIdForPower(power),
           knifeId: WeaponMatchupService.defaultKnifeIdForPower(power),
           armorId: WeaponMatchupService.defaultArmorIdForPower(power),
@@ -111,13 +126,19 @@ class _AttackScreenState extends State<AttackScreen>
   String _resolvedGangName(String rawGangName, int index) {
     final cleaned = rawGangName.trim();
     if (cleaned.isNotEmpty) return cleaned;
-    return index.isEven ? _seedGangA : _seedGangB;
+    return _seedGangs[index % _seedGangs.length];
   }
 
   List<_RivalVm> _buildRivals(GameState state) {
-    final incoming = <_RivalVm>[];
     final myNameLower = state.displayPlayerName.toLowerCase().trim();
     final rows = state.leaderboardRows;
+    if (rows.length == _lastRowsLength && myNameLower == _lastMyName && _cachedRivals.isNotEmpty) {
+      return _cachedRivals;
+    }
+    _lastRowsLength = rows.length;
+    _lastMyName = myNameLower;
+
+    final incoming = <_RivalVm>[];
 
     if (rows.isNotEmpty) {
       for (var i = 0; i < rows.length; i++) {
@@ -203,22 +224,27 @@ class _AttackScreenState extends State<AttackScreen>
 
     final validIds = incoming.map((e) => e.id).toSet();
     _rivalsById.removeWhere((key, _) => !validIds.contains(key));
-    return _rivalsById.values.toList(growable: false);
+    _cachedRivals = _rivalsById.values.toList(growable: false);
+    return _cachedRivals;
   }
 
   void _simulateBotArena() {
     if (!mounted || _busy || _rivalsById.length < 2) return;
-    final rivals = _rivalsById.values.toList(growable: false);
-    if (!rivals.every((r) => r.id.startsWith('bot_'))) return;
     final state = context.read<GameState>();
 
+    // Only simulate bots — real players are excluded from the arena simulation.
+    final bots = _rivalsById.values
+        .where((r) => r.id.startsWith('bot_'))
+        .toList(growable: false);
+    if (bots.length < 2) return;
+
     // Passive economy tick so bots keep progressing like live players.
-    for (final rival in rivals) {
+    for (final rival in bots) {
       final passiveIncome = 35 + _simRandom.nextInt(120);
       _rivalsById[rival.id] = rival.copyWith(cash: rival.cash + passiveIncome);
     }
 
-    final down = rivals.where((r) => r.currentTP <= 0).toList(growable: false);
+    final down = bots.where((r) => r.currentTP <= 0).toList(growable: false);
     if (down.isNotEmpty && _simRandom.nextDouble() < 0.35) {
       final recovered = down[_simRandom.nextInt(down.length)];
       _rivalsById[recovered.id] = recovered.copyWith(
@@ -234,7 +260,7 @@ class _AttackScreenState extends State<AttackScreen>
       return;
     }
 
-    final active = _rivalsById.values
+    final active = bots
         .where((r) => r.currentTP > 0)
         .toList(growable: false);
     if (active.length < 2) return;
@@ -765,9 +791,6 @@ class _AttackScreenState extends State<AttackScreen>
     final canAttack =
         !isTargetHospitalized && !_busy && hasEnergy && !state.isHospitalized;
     final isFlashing = _lastAttackTargetId == target.id;
-    final weaponItem = WeaponMatchupService.itemById(target.combatWeaponId);
-    final armorItem = WeaponMatchupService.itemById(target.armorId);
-    final vehicleItem = WeaponMatchupService.itemById(target.vehicleId);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -809,13 +832,28 @@ class _AttackScreenState extends State<AttackScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${state.tt('Sv.', 'Lv.')} ${target.level} | ${target.name}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: BoxDecoration(
+                            color: target.isOnline
+                                ? const Color(0xFF34D399)
+                                : Colors.white30,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        Text(
+                          '${state.tt('Sv.', 'Lv.')} ${target.level} | ${target.name}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -841,33 +879,6 @@ class _AttackScreenState extends State<AttackScreen>
                         style: const TextStyle(
                           color: Colors.orangeAccent,
                           fontSize: 12,
-                        ),
-                      ),
-                    if (weaponItem != null)
-                      Text(
-                        '${state.tt('Silah', 'Weapon')}: ${state.itemName(weaponItem)}',
-                        style: const TextStyle(
-                          color: Colors.lightBlueAccent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    if (armorItem != null)
-                      Text(
-                        '${state.tt('Zırh', 'Armor')}: ${state.itemName(armorItem)}',
-                        style: const TextStyle(
-                          color: Colors.tealAccent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    if (vehicleItem != null)
-                      Text(
-                        '${state.tt('Araç', 'Vehicle')}: ${state.itemName(vehicleItem)}',
-                        style: const TextStyle(
-                          color: Colors.orangeAccent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                   ],

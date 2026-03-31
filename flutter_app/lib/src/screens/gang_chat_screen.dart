@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../models/chat_message.dart';
@@ -29,9 +30,18 @@ class _GangChatScreenState extends State<GangChatScreen> {
   final _scroll = ScrollController();
   bool _sending = false;
 
+  static const int _maxMessageLength = 500;
+
+  @override
+  void initState() {
+    super.initState();
+    _svc.markMessagesRead(widget.gangId, widget.currentUid);
+  }
+
   Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty || _sending) return;
+    if (text.length > _maxMessageLength) return;
 
     setState(() => _sending = true);
     _ctrl.clear();
@@ -113,6 +123,9 @@ class _GangChatScreenState extends State<GangChatScreen> {
             child: StreamBuilder<List<ChatMessage>>(
               stream: _svc.watchMessages(widget.gangId),
               builder: (context, snap) {
+                if (snap.hasData) {
+                  _svc.markMessagesRead(widget.gangId, widget.currentUid);
+                }
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(
@@ -385,6 +398,11 @@ class _InputBar extends StatelessWidget {
               style: const TextStyle(color: Colors.white, fontSize: 14),
               maxLines: null,
               textCapitalization: TextCapitalization.sentences,
+              inputFormatters: [
+                LengthLimitingTextInputFormatter(
+                  _GangChatScreenState._maxMessageLength,
+                ),
+              ],
               decoration: InputDecoration(
                 hintText: 'Mesaj yaz...',
                 hintStyle: const TextStyle(color: Colors.white24),

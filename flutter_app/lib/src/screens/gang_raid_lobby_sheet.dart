@@ -10,6 +10,7 @@ import 'attack_result_sheet.dart';
 class GangRaidLobbySheet extends StatefulWidget {
   final GangRaid raid;
   final String currentUserId;
+  final String currentUserName;
   final int totalPower;
   final int targetPower;
 
@@ -17,6 +18,7 @@ class GangRaidLobbySheet extends StatefulWidget {
     super.key,
     required this.raid,
     required this.currentUserId,
+    required this.currentUserName,
     required this.totalPower,
     required this.targetPower,
   });
@@ -28,8 +30,27 @@ class GangRaidLobbySheet extends StatefulWidget {
 class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
   final _svc = GangRaidService();
   bool _starting = false;
+  bool _joining = false;
 
   bool get _isLeader => widget.currentUserId == widget.raid.leaderId;
+
+  Future<void> _join(GangRaid raid) async {
+    setState(() => _joining = true);
+    try {
+      await _svc.joinRaid(
+        raidId: raid.id,
+        userId: widget.currentUserId,
+        userName: widget.currentUserName,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Katılım hatası: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _joining = false);
+    }
+  }
 
   Future<void> _start(GangRaid raid) async {
     setState(() => _starting = true);
@@ -127,6 +148,14 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
               const SizedBox(height: 20),
               ...List.generate(4, (i) {
                 final filled = i < raid.members.length;
+                final uid = filled ? raid.members[i] : null;
+                final isMe = uid == widget.currentUserId;
+                final isLeader = uid == raid.leaderId;
+                final displayName = filled
+                    ? (isMe
+                        ? 'Sen'
+                        : (raid.memberNames[uid] ?? 'Üye ${i + 1}'))
+                    : 'Boş slot';
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -150,17 +179,13 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        filled
-                            ? (raid.members[i] == widget.currentUserId
-                                ? 'Sen'
-                                : 'Üye ${i + 1}')
-                            : 'Boş slot',
+                        displayName,
                         style: TextStyle(
                           color: filled ? Colors.white70 : Colors.white24,
                           fontSize: 14,
                         ),
                       ),
-                      if (filled && raid.members[i] == raid.leaderId) ...[
+                      if (filled && isLeader) ...[
                         const Spacer(),
                         Container(
                           padding:
@@ -210,6 +235,37 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                 ),
               ),
               const SizedBox(height: 24),
+              if (!raid.members.contains(widget.currentUserId) && !raid.isFull)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _joining ? null : () => _join(raid),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFfbbf24)),
+                        foregroundColor: const Color(0xFFfbbf24),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _joining
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFFfbbf24),
+                              ),
+                            )
+                          : const Text(
+                              'Baskına Katıl',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
+                ),
               if (_isLeader)
                 SizedBox(
                   width: double.infinity,

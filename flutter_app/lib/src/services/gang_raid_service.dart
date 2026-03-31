@@ -6,12 +6,19 @@ import '../models/attack_result.dart';
 import '../models/gang_raid.dart';
 
 class GangRaidService {
+  static const double cashStealRatio = 0.15;
+  static const int maxRaidMembers = 4;
+  static const int memberBonusPctPerExtra = 10;
+  static const int raidXpReward = 50;
+  static const int prisonDurationMinutes = 45;
+
   final _db = FirebaseFirestore.instance;
   final _rng = Random();
 
   Future<GangRaid> createRaid({
     required String leaderId,
     required String targetId,
+    required String leaderName,
   }) async {
     final ref = _db.collection('gang_raids').doc();
     final raid = GangRaid(
@@ -19,6 +26,7 @@ class GangRaidService {
       leaderId: leaderId,
       targetId: targetId,
       members: [leaderId],
+      memberNames: {leaderId: leaderName},
       status: RaidStatus.waiting,
       createdAt: DateTime.now(),
     );
@@ -29,11 +37,23 @@ class GangRaidService {
   Future<void> joinRaid({
     required String raidId,
     required String userId,
+    required String userName,
   }) async {
     final ref = _db.collection('gang_raids').doc(raidId);
     await ref.update({
       'members': FieldValue.arrayUnion([userId]),
+      'memberNames.$userId': userName,
     }).timeout(const Duration(seconds: 6));
+  }
+
+  Future<GangRaid?> fetchRaid(String raidId) async {
+    final snap = await _db
+        .collection('gang_raids')
+        .doc(raidId)
+        .get()
+        .timeout(const Duration(seconds: 6));
+    if (!snap.exists) return null;
+    return GangRaid.fromFirestore(snap.id, snap.data()!);
   }
 
   Future<AttackResult> startRaid({
@@ -43,7 +63,7 @@ class GangRaidService {
   }) async {
     if (!raid.canStart) throw Exception('En az 2 kişi gerekli');
 
-    final bonus = (raid.members.length - 1) * 10;
+    final bonus = (raid.members.length - 1) * memberBonusPctPerExtra;
     final boostedPower =
         totalAttackerPower + (totalAttackerPower * bonus ~/ 100);
 
@@ -67,9 +87,9 @@ class GangRaidService {
       final targetSnap =
           await _db.collection('users').doc(raid.targetId).get();
       final targetCash = (targetSnap['cash'] as num?)?.toInt() ?? 0;
-      final totalStolen = (targetCash * 0.15).toInt().clamp(100, 100000);
+      final totalStolen = (targetCash * cashStealRatio).toInt().clamp(100, 100000);
       stolenCash = totalStolen ~/ raid.members.length;
-      xpGained = 50;
+      xpGained = raidXpReward;
 
       for (final uid in raid.members) {
         batch.update(_db.collection('users').doc(uid), {
@@ -81,7 +101,7 @@ class GangRaidService {
         'cash': FieldValue.increment(-totalStolen),
         'status': 'prison',
         'statusUntil': Timestamp.fromDate(
-          DateTime.now().add(const Duration(minutes: 45)),
+          DateTime.now().add(Duration(minutes: prisonDurationMinutes)),
         ),
       });
       message = 'Çete baskını başarılı! Kişi başı $stolenCash \$ kazandınız.';
@@ -89,7 +109,7 @@ class GangRaidService {
       batch.update(_db.collection('users').doc(raid.leaderId), {
         'status': 'hospital',
         'statusUntil': Timestamp.fromDate(
-          DateTime.now().add(const Duration(minutes: 45)),
+          DateTime.now().add(Duration(minutes: prisonDurationMinutes)),
         ),
       });
       message = 'Baskın başarısız! Lider hastaneye kaldırıldı.';

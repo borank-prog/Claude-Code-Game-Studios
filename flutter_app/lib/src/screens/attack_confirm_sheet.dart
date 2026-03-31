@@ -68,6 +68,7 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
         final raid = await raidSvc.createRaid(
           leaderId: widget.attackerId,
           targetId: widget.targetId,
+          leaderName: widget.attackerName,
         );
         if (!mounted) return;
         Navigator.pop(context);
@@ -78,6 +79,7 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
           builder: (_) => GangRaidLobbySheet(
             raid: raid,
             currentUserId: widget.attackerId,
+            currentUserName: widget.attackerName,
             totalPower: widget.attackerPower,
             targetPower: widget.targetPower,
           ),

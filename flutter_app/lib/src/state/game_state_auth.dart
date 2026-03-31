@@ -202,37 +202,11 @@ mixin _GameStateAuth on _GameStateBase {
   }
 
   Future<void> logout() async {
-    if (authMode == 'firebase' && firebaseReady) {
-      if (userId.isNotEmpty) {
-        try {
-          await NotificationService.clearToken(userId);
-        } catch (_) {}
-        try {
-          await _onlineService.upsertUserProfile(
-            uid: userId,
-            displayName: playerName,
-            power: totalPower,
-            level: level,
-            rank: rank,
-            currentTp: currentTP,
-            maxTp: maxTP,
-            currentEnergy: currentEnerji,
-            maxEnergy: maxEnerji,
-            shieldUntilEpoch: shieldUntilEpoch,
-            online: false,
-            gangId: currentGang?['id']?.toString() ?? '',
-            gangName: currentGang?['name']?.toString() ?? '',
-            avatarId: selectedAvatarId,
-            equippedWeaponId: equippedWeaponId,
-            equippedKnifeId: equippedKnifeId,
-            equippedArmorId: equippedArmorId,
-            equippedVehicleId: equippedVehicleId,
-            combatWeaponId: equippedCombatWeaponId,
-          );
-        } catch (_) {}
-      }
-      await _onlineService.signOut();
-    }
+    lastLogoutEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    // Önce UI'ı hemen güncelle — Firebase işlemleri beklemesin
+    final savedAuthMode = authMode;
+    final savedUserId = userId;
     loggedIn = false;
     playerOnline = false;
     authMode = 'local';
@@ -249,7 +223,40 @@ mixin _GameStateAuth on _GameStateBase {
     gangRespectPoints = 0;
     _sessionOfflineReports.clear();
     notifyListeners();
-    await _save();
+    unawaited(_save());
+
+    // Firebase işlemleri arka planda tamamlansın
+    if (savedAuthMode == 'firebase' && firebaseReady && savedUserId.isNotEmpty) {
+      try { await NotificationService.clearToken(savedUserId); } catch (_) {}
+      try {
+        await _onlineService.upsertUserProfile(
+          uid: savedUserId,
+          displayName: playerName,
+          power: totalPower,
+          level: level,
+          rank: rank,
+          cash: cash,
+          wins: wins,
+          gangWins: gangWins,
+          lastLoginEpoch: lastLoginEpoch,
+          currentTp: currentTP,
+          maxTp: maxTP,
+          currentEnergy: currentEnerji,
+          maxEnergy: maxEnerji,
+          shieldUntilEpoch: shieldUntilEpoch,
+          online: false,
+          gangId: currentGang?['id']?.toString() ?? '',
+          gangName: currentGang?['name']?.toString() ?? '',
+          avatarId: selectedAvatarId,
+          equippedWeaponId: equippedWeaponId,
+          equippedKnifeId: equippedKnifeId,
+          equippedArmorId: equippedArmorId,
+          equippedVehicleId: equippedVehicleId,
+          combatWeaponId: equippedCombatWeaponId,
+        );
+      } catch (_) {}
+      await _onlineService.signOut();
+    }
   }
 
   Future<void> setOnline(bool value) async {
@@ -291,7 +298,7 @@ mixin _GameStateAuth on _GameStateBase {
     onboardingCompleted = true;
     nicknameChosen = true;
     await _save();
-    _syncOnlineSoon();
+    unawaited(ensureOnlineProfile());
     notifyListeners();
   }
 

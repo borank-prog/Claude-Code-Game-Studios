@@ -110,7 +110,11 @@ class CombatService {
       attacker.currentTP = max(0, attacker.currentTP - attackerDamage);
       defender.currentTP = max(0, defender.currentTP - defenderDamage);
 
-      final stolenCash = _random.nextInt(100) + 50;
+      // Scale stolen cash based on power gap: weaker target = less reward
+      final powerGap = (attacker.power - defender.power).clamp(-500, 500);
+      final baseSteal = _random.nextInt(100) + 50;
+      final gapBonus = (powerGap < 0 ? (-powerGap * 0.4) : (powerGap * -0.15)).toInt();
+      final stolenCash = max(10, baseSteal + gapBonus);
       attacker.cash += stolenCash;
       defender.cash = max(0, defender.cash - stolenCash);
 
@@ -164,13 +168,6 @@ class CombatService {
       defenderDamage: defenderDamage,
       attackCost: _attackCost,
     );
-  }
-
-  SoloCombatResult soloAttack({
-    required Player attacker,
-    required Player target,
-  }) {
-    return executeSoloAttack(attacker: attacker, defender: target);
   }
 
   GangCombatResult gangAttack({

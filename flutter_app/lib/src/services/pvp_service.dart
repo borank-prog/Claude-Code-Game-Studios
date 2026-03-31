@@ -123,8 +123,6 @@ class PvpService {
     required int equipmentBonus,
     required int attackCost,
   }) async {
-    // Signature stays stable for existing callers.
-    final _ = attackerId + attackerPower.toString() + targetPower.toString();
     try {
       final response = await _functions
           .httpsCallable('executePvpAttack')

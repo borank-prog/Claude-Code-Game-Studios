@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -40,15 +41,62 @@ Future<void> _initializeFirebase() async {
   }
 }
 
-class CartelHoodFlutterApp extends StatelessWidget {
+class CartelHoodFlutterApp extends StatefulWidget {
   const CartelHoodFlutterApp({super.key, required this.gameState});
 
   final GameState gameState;
 
   @override
+  State<CartelHoodFlutterApp> createState() => _CartelHoodFlutterAppState();
+}
+
+class _CartelHoodFlutterAppState extends State<CartelHoodFlutterApp>
+    with WidgetsBindingObserver {
+  bool _wasLoggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _wasLoggedIn = widget.gameState.loggedIn;
+    widget.gameState.addListener(_onAuthChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.gameState.removeListener(_onAuthChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    final loggedIn = widget.gameState.loggedIn;
+    if (_wasLoggedIn && !loggedIn) {
+      // Frame bittikten sonra navigate et — build sırasında çağrılmasın
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NotificationService.navigatorKey.currentState?.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      });
+    }
+    _wasLoggedIn = loggedIn;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      widget.gameState.onAppBackground();
+    } else if (state == AppLifecycleState.resumed) {
+      widget.gameState.onAppForeground();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
-      value: gameState,
+      value: widget.gameState,
       child: MaterialApp(
         navigatorKey: NotificationService.navigatorKey,
         debugShowCheckedModeBanner: false,
@@ -93,12 +141,54 @@ class CartelHoodFlutterApp extends StatelessWidget {
           }
           return null;
         },
+        builder: kIsWeb
+            ? (context, child) => _WebMobileFrame(child: child!)
+            : null,
         home: Consumer<GameState>(
           builder: (context, state, child) {
             if (!state.loggedIn) return const LoginScreen();
             if (state.needsOnboarding) return const OnboardingScreen();
             return const HomeShell();
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// Web'de uygulamayı telefon boyutuna (430px) kısıtlar.
+/// MediaQuery'yi de override ederek tüm widget'ların dar ekran gördüğünü sağlar.
+class _WebMobileFrame extends StatelessWidget {
+  const _WebMobileFrame({required this.child});
+
+  final Widget child;
+
+  static const double _mobileWidth = 430.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+
+    // Gerçek mobil tarayıcı — kısıtlama yapma
+    if (mq.size.width <= _mobileWidth + 20) return child;
+
+    // Masaüstü/tablet: ortala, MediaQuery'yi 430px olarak raporla
+    final narrowMq = mq.copyWith(
+      size: Size(_mobileWidth, mq.size.height),
+    );
+
+    return Container(
+      color: const Color(0xFF030810),
+      child: Center(
+        child: SizedBox(
+          width: _mobileWidth,
+          height: mq.size.height,
+          child: ClipRect(
+            child: MediaQuery(
+              data: narrowMq,
+              child: child,
+            ),
+          ),
         ),
       ),
     );

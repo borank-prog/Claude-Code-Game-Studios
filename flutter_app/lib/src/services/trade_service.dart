@@ -104,6 +104,44 @@ class TradeService {
         return snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
       }
     } catch (_) {}
-    return [];
+    // Firestore'da çete yoksa seed fallback
+    return [
+      {
+        'id': 'seed_gang_01',
+        'name': 'Kuzey Kurtları',
+        'totalPower': 4950,
+        'memberCount': 5,
+        'respectPoints': 120,
+        'inviteOnly': false,
+        'acceptJoinRequests': false,
+      },
+      {
+        'id': 'seed_gang_02',
+        'name': 'Gece Baronları',
+        'totalPower': 4200,
+        'memberCount': 5,
+        'respectPoints': 95,
+        'inviteOnly': false,
+        'acceptJoinRequests': false,
+      },
+      {
+        'id': 'seed_gang_03',
+        'name': 'Demir Yumruk',
+        'totalPower': 3500,
+        'memberCount': 5,
+        'respectPoints': 72,
+        'inviteOnly': false,
+        'acceptJoinRequests': false,
+      },
+      {
+        'id': 'seed_gang_04',
+        'name': 'Kızıl Kartel',
+        'totalPower': 2800,
+        'memberCount': 5,
+        'respectPoints': 58,
+        'inviteOnly': false,
+        'acceptJoinRequests': false,
+      },
+    ];
   }
 }

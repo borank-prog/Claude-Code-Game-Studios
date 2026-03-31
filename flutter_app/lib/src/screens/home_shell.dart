@@ -5,8 +5,10 @@ import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'package:provider/provider.dart';
 
+import '../services/notification_service.dart';
 import '../state/game_state.dart';
 import 'achievements_screen.dart';
+import 'login_screen.dart';
 import 'city_screen.dart';
 import 'market_screen.dart';
 import 'profile_screen.dart';
@@ -618,7 +620,62 @@ class _HomeShellState extends State<HomeShell> {
                                   color: Color(0xFFFCA5A5),
                                 ),
                                 onPressed: () async {
-                                  await context.read<GameState>().logout();
+                                  final gs = context.read<GameState>();
+                                  final nav = Navigator.of(context, rootNavigator: true);
+                                  final confirmed = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      backgroundColor: const Color(0xFF111a2e),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                      title: Text(
+                                        gs.tt('Çıkış Yap', 'Log Out'),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      content: Text(
+                                        gs.tt(
+                                          'Hesabından çıkmak istediğine emin misin?',
+                                          'Are you sure you want to log out?',
+                                        ),
+                                        style: const TextStyle(
+                                          color: Color(0xFF9ca3af),
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(ctx).pop(false),
+                                          child: Text(
+                                            gs.tt('Vazgeç', 'Cancel'),
+                                            style: const TextStyle(
+                                              color: Color(0xFF9ca3af),
+                                            ),
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => Navigator.of(ctx).pop(true),
+                                          child: Text(
+                                            gs.tt('Çıkış Yap', 'Log Out'),
+                                            style: const TextStyle(
+                                              color: Color(0xFFEF4444),
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  if (confirmed != true) return;
+                                  await gs.logout();
+                                  nav.pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (_) => const LoginScreen(),
+                                    ),
+                                    (route) => false,
+                                  );
                                 },
                                 style: IconButton.styleFrom(
                                   minimumSize: const Size(42, 42),

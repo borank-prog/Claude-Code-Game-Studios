@@ -47,6 +47,7 @@ class _GameStateBase extends ChangeNotifier {
   static const _oneTimeGoldGiftAmount = 1000000;
   static const _oneTimeCashGiftAmount = 1000000;
   static const _penaltyDurationSec = 2700;
+  static const _missionFailXpRatio = 0.2;
   static const _pendingQueueMax = 200;
   static const _pendingQueueTtlMs = 7 * 24 * 60 * 60 * 1000;
   static const Duration _authPostStepTimeout = Duration(seconds: 2);
@@ -129,6 +130,10 @@ class _GameStateBase extends ChangeNotifier {
   int hospitalUntilEpoch = 0;
   int jailUntilEpoch = 0;
   bool playerOnline = false;
+  int wins = 0;
+  int gangWins = 0;
+  int lastLoginEpoch = 0;
+  int lastLogoutEpoch = 0;
   final List<String> offlineLogs = [];
   final List<String> _sessionOfflineReports = [];
 
@@ -595,7 +600,10 @@ class _GameStateBase extends ChangeNotifier {
   }
 
   bool get hasEnoughEnergyForAttack => currentEnerji >= attackEnergyCost;
-  int get attackEnergyCost => max(12, 22 - vehicleAttackEnergyDiscount);
+  int get attackEnergyCost => max(
+    12,
+    ((22 - vehicleAttackEnergyDiscount) * avatar.energyCostMult).round(),
+  );
   int get penaltyDurationMinutes => _penaltyDurationSec ~/ 60;
   int get vipHealGoldCost => PremiumShopService.vipHealGoldCost;
   int get energyRushGoldCost => PremiumShopService.energyRushGoldCost;
@@ -882,6 +890,7 @@ class _GameStateBase extends ChangeNotifier {
 
   void _handlePlayerLogin() {
     playerOnline = true;
+    lastLoginEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     _ensureDailyState();
     _applyDailyLoginStreakIfNeeded();
     _applyOfflineRegeneration();
@@ -908,6 +917,39 @@ class _GameStateBase extends ChangeNotifier {
   Future<void> onPlayerLoginSyncReports() async {
     _handlePlayerLogin();
     await _save();
+    notifyListeners();
+  }
+
+  Future<void> onAppBackground() async {
+    if (!loggedIn) return;
+    lastLogoutEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await _save();
+    if (firebaseReady &&
+        online &&
+        authMode == 'firebase' &&
+        userId.isNotEmpty) {
+      await _pushCloudSave();
+    }
+    unawaited(
+      NotificationService.scheduleGameNotifications(
+        hospitalUntilEpoch: hospitalUntilEpoch,
+        jailUntilEpoch: jailUntilEpoch,
+        currentEnergy: currentEnerji,
+        maxEnergy: maxEnerji,
+        energyRegenPerMin: 5,
+      ).catchError(
+        (e) => debugPrint('[GameState] scheduleGameNotifications failed: $e'),
+      ),
+    );
+  }
+
+  Future<void> onAppForeground() async {
+    if (!loggedIn) return;
+    _applyOfflineRegeneration();
+    lastLoginEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    unawaited(NotificationService.cancelGameNotifications().catchError((_) {}));
+    await _save();
+    _syncOnlineSoon();
     notifyListeners();
   }
 
@@ -1251,7 +1293,7 @@ class _GameStateBase extends ChangeNotifier {
         ..addAll(await _onlineService.fetchIncomingGangInvites(userId));
       leaderboardRows
         ..clear()
-        ..addAll(await _onlineService.fetchLeaderboard(limit: 20));
+        ..addAll(await _onlineService.fetchLeaderboard(limit: 100));
       _ensureSeedLeaderboardRows();
       _sortLeaderboardRows();
       discoverableGangs
@@ -1373,6 +1415,10 @@ class _GameStateBase extends ChangeNotifier {
         power: totalPower,
         level: level,
         rank: rank,
+        cash: cash,
+        wins: wins,
+        gangWins: gangWins,
+        lastLoginEpoch: lastLoginEpoch,
         currentTp: currentTP,
         maxTp: maxTP,
         currentEnergy: currentEnerji,
@@ -1499,7 +1545,7 @@ class _GameStateBase extends ChangeNotifier {
         final shouldApplyRemote =
             saveOwnerUid != currentUid || remoteEpoch > localEpoch;
         if (shouldApplyRemote) {
-          await prefs.setString(_storageKey, jsonEncode(remotePayload));
+          await prefs.setString(_storageKey, _safeJsonEncode(remotePayload));
           await _load();
           loggedIn = true;
           authMode = 'firebase';
@@ -1546,6 +1592,10 @@ class _GameStateBase extends ChangeNotifier {
     hospitalUntilEpoch = 0;
     jailUntilEpoch = 0;
     playerOnline = true;
+    wins = 0;
+    gangWins = 0;
+    lastLoginEpoch = 0;
+    lastLogoutEpoch = 0;
     onboardingCompleted = false;
     nicknameChosen = false;
     selectedAvatarId = 'baba';
@@ -1623,6 +1673,10 @@ class _GameStateBase extends ChangeNotifier {
       'jailUntilEpoch': jailUntilEpoch,
       'lastRegenCheckEpoch': lastRegenCheckEpoch,
       'playerOnline': playerOnline,
+      'wins': wins,
+      'gangWins': gangWins,
+      'lastLoginEpoch': lastLoginEpoch,
+      'lastLogoutEpoch': lastLogoutEpoch,
       'offlineLogs': offlineLogs,
       'ownedItems': ownedItems,
       'itemLevels': itemLevels,
@@ -1784,6 +1838,10 @@ class _GameStateBase extends ChangeNotifier {
         map['lastRegenCheckEpoch'] as int? ??
         (DateTime.now().millisecondsSinceEpoch ~/ 1000);
     playerOnline = map['playerOnline'] as bool? ?? false;
+    wins = (map['wins'] as num?)?.toInt() ?? 0;
+    gangWins = (map['gangWins'] as num?)?.toInt() ?? 0;
+    lastLoginEpoch = (map['lastLoginEpoch'] as num?)?.toInt() ?? 0;
+    lastLogoutEpoch = (map['lastLogoutEpoch'] as num?)?.toInt() ?? 0;
     offlineLogs
       ..clear()
       ..addAll(

@@ -7,6 +7,7 @@ class LeaderboardEntry {
   final int wins;
   final int gangWins;
   final String? gangName;
+  final bool online;
 
   const LeaderboardEntry({
     required this.rank,
@@ -17,6 +18,7 @@ class LeaderboardEntry {
     required this.wins,
     required this.gangWins,
     this.gangName,
+    this.online = false,
   });
 
   factory LeaderboardEntry.fromFirestore(int rank, Map<String, dynamic> d) {
@@ -29,6 +31,7 @@ class LeaderboardEntry {
       wins: (d['wins'] as num?)?.toInt() ?? 0,
       gangWins: (d['gangWins'] as num?)?.toInt() ?? 0,
       gangName: d['gangName'] as String?,
+      online: d['online'] == true,
     );
   }
 
