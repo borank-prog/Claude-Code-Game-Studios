@@ -7,6 +7,7 @@ import '../widgets/glass_panel.dart';
 import 'attack_confirm_sheet.dart';
 import 'trade_screen.dart';
 import 'gang_leaderboard_screen.dart';
+import 'inbox_screen.dart';
 
 class SocialScreen extends StatefulWidget {
   const SocialScreen({super.key});
@@ -68,8 +69,7 @@ class _SocialScreenState extends State<SocialScreen> {
     final cash = (row['cash'] as num?)?.toInt() ?? 0;
     final gangName = (row['gangName'] ?? '').toString().trim();
     final online = row['online'] == true;
-    final canAttack =
-        state.userId.isNotEmpty && uid.isNotEmpty && !uid.startsWith('bot_');
+    final canAttack = state.userId.isNotEmpty && uid.isNotEmpty;
 
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -119,6 +119,35 @@ class _SocialScreenState extends State<SocialScreen> {
         ),
       );
     }
+  }
+
+  bool _canAttackRow(GameState state, Map<String, dynamic> row) {
+    final uid = (row['uid'] ?? '').toString().trim();
+    if (state.userId.isEmpty || uid.isEmpty) return false;
+    if (uid == state.userId) return false;
+    return true;
+  }
+
+  void _openAttackSheetForRow(GameState state, Map<String, dynamic> row) {
+    final uid = (row['uid'] ?? '').toString().trim();
+    if (uid.isEmpty) return;
+    final name = (row['displayName'] ?? row['name'] ?? 'Oyuncu')
+        .toString()
+        .trim();
+    final power = (row['power'] as num?)?.toInt() ?? 0;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AttackConfirmSheet(
+        attackerId: state.userId,
+        attackerName: state.displayPlayerName,
+        attackerPower: state.totalPower,
+        targetId: uid,
+        targetName: name.isEmpty ? 'Oyuncu' : name,
+        targetPower: power,
+      ),
+    );
   }
 
   int _metric(GameState state, String key) =>
@@ -240,6 +269,23 @@ class _SocialScreenState extends State<SocialScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: state.userId.isEmpty
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => InboxScreen(uid: state.userId),
+                        ),
+                      );
+                    },
+              icon: const Icon(Icons.mail_outline_rounded, size: 18),
+              label: Text(state.tt('Mesaj Kutusu', 'Inbox')),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+              ),
             ),
             const SizedBox(height: 8),
             GlassPanel(
@@ -586,13 +632,16 @@ class _SocialScreenState extends State<SocialScreen> {
                     FilledButton(
                       onPressed: () async {
                         final ok = await state.createGang(gangNameCtrl.text);
+                        final failText = state.lastAuthError.trim().isNotEmpty
+                            ? state.lastAuthError
+                            : state.tt(
+                                'Çete kurulamadı.',
+                                'Gang could not be created.',
+                              );
                         _snack(
                           ok
                               ? state.tt('Çete kuruldu.', 'Gang created.')
-                              : state.tt(
-                                  'Çete kurulamadı.',
-                                  'Gang could not be created.',
-                                ),
+                              : failText,
                         );
                         if (ok) gangNameCtrl.clear();
                       },
@@ -616,16 +665,20 @@ class _SocialScreenState extends State<SocialScreen> {
                         FilledButton(
                           onPressed: () async {
                             final ok = await state.joinGang(gangIdCtrl.text);
+                            final failText =
+                                state.lastAuthError.trim().isNotEmpty
+                                ? state.lastAuthError
+                                : state.tt(
+                                    'Katılım başarısız.',
+                                    'Join failed.',
+                                  );
                             _snack(
                               ok
                                   ? state.tt(
                                       'Katılım isteği lidere gönderildi.',
                                       'Join request sent to leader.',
                                     )
-                                  : state.tt(
-                                      'Katılım başarısız.',
-                                      'Join failed.',
-                                    ),
+                                  : failText,
                             );
                             if (ok) gangIdCtrl.clear();
                           },
@@ -882,12 +935,26 @@ class _SocialScreenState extends State<SocialScreen> {
                         '${state.tt('Skor', 'Score')}: ${_leaderboardScore(e.value)}  •  ${state.tt('Güç', 'Power')}: ${(e.value['power'] ?? 0)}',
                         style: const TextStyle(color: Color(0xFF34D399)),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Colors.white24,
-                        size: 18,
-                      ),
+                      if (_canAttackRow(state, e.value)) ...[
+                        const SizedBox(width: 6),
+                        IconButton(
+                          tooltip: state.tt('Saldır', 'Attack'),
+                          onPressed: () =>
+                              _openAttackSheetForRow(state, e.value),
+                          icon: const Icon(
+                            Icons.gps_fixed_rounded,
+                            color: Color(0xFFFBBF24),
+                            size: 18,
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.white24,
+                          size: 18,
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'dart:math' as math;
 import 'package:provider/provider.dart';
 
-import '../services/notification_service.dart';
 import '../state/game_state.dart';
 import 'achievements_screen.dart';
 import 'login_screen.dart';
@@ -134,7 +133,6 @@ class _HomeShellState extends State<HomeShell> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocalState) {
-            final secLeft = context.watch<GameState>().jailSecondsLeft;
             final cost = state.jailSkipGoldCost;
             return Dialog(
               backgroundColor: Colors.transparent,
@@ -189,13 +187,35 @@ class _HomeShellState extends State<HomeShell> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      '${state.tt('Kalan Süre', 'Time Left')}: ${secondsToClock(secLeft)}',
-                      style: const TextStyle(
-                        color: Color(0xFFFCA5A5),
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                    StreamBuilder<int>(
+                      stream: Stream<int>.periodic(
+                        const Duration(seconds: 1),
+                        (_) => DateTime.now().millisecondsSinceEpoch ~/ 1000,
                       ),
+                      initialData:
+                          DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                      builder: (context, snap) {
+                        final nowEpoch =
+                            snap.data ??
+                            (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+                        final secLeft = math.max(
+                          0,
+                          state.jailUntilEpoch - nowEpoch,
+                        );
+                        if (secLeft <= 0) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (ctx.mounted) Navigator.of(ctx).pop();
+                          });
+                        }
+                        return Text(
+                          '${state.tt('Kalan Süre', 'Time Left')}: ${secondsToClock(secLeft)}',
+                          style: const TextStyle(
+                            color: Color(0xFFFCA5A5),
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 10),
                     SizedBox(
@@ -274,7 +294,6 @@ class _HomeShellState extends State<HomeShell> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocalState) {
-            final secLeft = context.watch<GameState>().hospitalSecondsLeft;
             final cost = state.hospitalSkipGoldCost;
             return Dialog(
               backgroundColor: Colors.transparent,
@@ -329,13 +348,35 @@ class _HomeShellState extends State<HomeShell> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      '${state.tt('Kalan Süre', 'Time Left')}: ${secondsToClock(secLeft)}',
-                      style: const TextStyle(
-                        color: Color(0xFFFCA5A5),
-                        fontSize: 28,
-                        fontWeight: FontWeight.w900,
+                    StreamBuilder<int>(
+                      stream: Stream<int>.periodic(
+                        const Duration(seconds: 1),
+                        (_) => DateTime.now().millisecondsSinceEpoch ~/ 1000,
                       ),
+                      initialData:
+                          DateTime.now().millisecondsSinceEpoch ~/ 1000,
+                      builder: (context, snap) {
+                        final nowEpoch =
+                            snap.data ??
+                            (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+                        final secLeft = math.max(
+                          0,
+                          state.hospitalUntilEpoch - nowEpoch,
+                        );
+                        if (secLeft <= 0) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (ctx.mounted) Navigator.of(ctx).pop();
+                          });
+                        }
+                        return Text(
+                          '${state.tt('Kalan Süre', 'Time Left')}: ${secondsToClock(secLeft)}',
+                          style: const TextStyle(
+                            color: Color(0xFFFCA5A5),
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 10),
                     SizedBox(
@@ -621,7 +662,10 @@ class _HomeShellState extends State<HomeShell> {
                                 ),
                                 onPressed: () async {
                                   final gs = context.read<GameState>();
-                                  final nav = Navigator.of(context, rootNavigator: true);
+                                  final nav = Navigator.of(
+                                    context,
+                                    rootNavigator: true,
+                                  );
                                   final confirmed = await showDialog<bool>(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
@@ -647,7 +691,8 @@ class _HomeShellState extends State<HomeShell> {
                                       ),
                                       actions: [
                                         TextButton(
-                                          onPressed: () => Navigator.of(ctx).pop(false),
+                                          onPressed: () =>
+                                              Navigator.of(ctx).pop(false),
                                           child: Text(
                                             gs.tt('Vazgeç', 'Cancel'),
                                             style: const TextStyle(
@@ -656,7 +701,8 @@ class _HomeShellState extends State<HomeShell> {
                                           ),
                                         ),
                                         TextButton(
-                                          onPressed: () => Navigator.of(ctx).pop(true),
+                                          onPressed: () =>
+                                              Navigator.of(ctx).pop(true),
                                           child: Text(
                                             gs.tt('Çıkış Yap', 'Log Out'),
                                             style: const TextStyle(

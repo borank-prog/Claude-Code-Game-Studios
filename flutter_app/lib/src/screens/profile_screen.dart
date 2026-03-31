@@ -9,12 +9,60 @@ import '../widgets/glass_panel.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  Future<void> _showActionLockedPopup(
+    BuildContext context,
+    GameState state,
+  ) async {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.actionLockTitle,
+          style: const TextStyle(
+            color: Color(0xFFEF4444),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          state.actionLockMessage,
+          style: const TextStyle(color: Color(0xFFD1D5DB)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Tamam', 'OK')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _repairItem(
+    BuildContext context,
+    GameState state,
+    ItemDef item,
+  ) async {
+    if (state.isActionLocked) {
+      await _showActionLockedPopup(context, state);
+      return;
+    }
+    final msg = await state.repairItemWithGold(item.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   Future<void> _equipItem(
     BuildContext context,
     GameState state,
     ItemDef item, {
     String? preferredSlot,
   }) async {
+    if (state.isActionLocked) {
+      await _showActionLockedPopup(context, state);
+      return;
+    }
     final ok = await state.equipOwnedItem(
       item.id,
       preferredSlot: preferredSlot,
@@ -70,6 +118,10 @@ class ProfileScreen extends StatelessWidget {
     GameState state,
     String slot,
   ) async {
+    if (state.isActionLocked) {
+      await _showActionLockedPopup(context, state);
+      return;
+    }
     final candidates = state.equipCandidatesForSlot(slot);
     await showModalBottomSheet<void>(
       context: context,
@@ -81,9 +133,7 @@ class ProfileScreen extends StatelessWidget {
       builder: (ctx) {
         final mq = MediaQuery.of(ctx);
         return ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: mq.size.height * 0.75,
-          ),
+          constraints: BoxConstraints(maxHeight: mq.size.height * 0.75),
           child: SafeArea(
             top: false,
             child: Column(
@@ -122,7 +172,12 @@ class ProfileScreen extends StatelessWidget {
                         ...candidates.map((item) {
                           final current =
                               (state.equipped[slot] ?? '') == item.id;
+                          final durability = state.itemDurabilityPercent(
+                            item.id,
+                          );
+                          final repairCost = state.repairItemGoldCost(item.id);
                           return ListTile(
+                            isThreeLine: true,
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: Image.asset(
@@ -137,34 +192,64 @@ class ProfileScreen extends StatelessWidget {
                               style: const TextStyle(color: Colors.white),
                             ),
                             subtitle: Text(
-                              '+${item.powerBonus} ${state.tt('Güç', 'Power')}',
-                              style: const TextStyle(
-                                color: Color(0xFF34D399),
+                              '+${item.powerBonus} ${state.tt('Güç', 'Power')}  •  ${state.tt('Dayanıklılık', 'Durability')}: %$durability',
+                              style: const TextStyle(color: Color(0xFF34D399)),
+                            ),
+                            trailing: SizedBox(
+                              width: 152,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  if (repairCost > 0)
+                                    IconButton(
+                                      tooltip:
+                                          '${state.tt('Tamir et', 'Repair')} (-$repairCost ${state.tt('Altın', 'Gold')})',
+                                      onPressed: () async {
+                                        await _repairItem(context, state, item);
+                                      },
+                                      icon: const Icon(
+                                        Icons.build_circle_outlined,
+                                        color: Color(0xFFFBBF24),
+                                      ),
+                                    ),
+                                  if (current)
+                                    Text(
+                                      state.tt('Kuşanılı', 'Equipped'),
+                                      style: const TextStyle(
+                                        color: Color(0xFFFBBF24),
+                                      ),
+                                    )
+                                  else
+                                    FilledButton(
+                                      onPressed: () async {
+                                        if (state.isActionLocked) {
+                                          await _showActionLockedPopup(
+                                            context,
+                                            state,
+                                          );
+                                          return;
+                                        }
+                                        await state.equipOwnedItem(
+                                          item.id,
+                                          preferredSlot: slot,
+                                        );
+                                        if (!context.mounted) return;
+                                        Navigator.of(ctx).pop();
+                                      },
+                                      child: Text(state.tt('Kuşan', 'Equip')),
+                                    ),
+                                ],
                               ),
                             ),
-                            trailing: current
-                                ? Text(
-                                    state.tt('Kuşanılı', 'Equipped'),
-                                    style: const TextStyle(
-                                      color: Color(0xFFFBBF24),
-                                    ),
-                                  )
-                                : FilledButton(
-                                    onPressed: () async {
-                                      await state.equipOwnedItem(
-                                        item.id,
-                                        preferredSlot: slot,
-                                      );
-                                      if (!context.mounted) return;
-                                      Navigator.of(ctx).pop();
-                                    },
-                                    child: Text(state.tt('Kuşan', 'Equip')),
-                                  ),
                           );
                         }),
                         const SizedBox(height: 6),
                         TextButton.icon(
                           onPressed: () async {
+                            if (state.isActionLocked) {
+                              await _showActionLockedPopup(context, state);
+                              return;
+                            }
                             await state.unequipSlot(slot);
                             if (!context.mounted) return;
                             Navigator.of(ctx).pop();
@@ -380,6 +465,8 @@ class ProfileScreen extends StatelessWidget {
     GameState state,
     AvatarClass avatar,
   ) {
+    final showPenaltyPanel =
+        state.jailSecondsLeft > 0 || state.hospitalSecondsLeft > 0;
     return Center(
       child: Column(
         children: [
@@ -415,6 +502,10 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
+          if (showPenaltyPanel) ...[
+            _buildPenaltyPanel(context, state),
+            const SizedBox(height: 10),
+          ],
           // İsim
           Text(
             state.displayPlayerName,
@@ -480,6 +571,109 @@ class ProfileScreen extends StatelessWidget {
                     const Color(0xFFEF4444),
                   ),
               ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPenaltyPanel(BuildContext context, GameState state) {
+    final inJail = state.jailSecondsLeft > 0;
+    final title = inJail
+        ? state.tt('HAPİSTESİN', 'YOU ARE IN JAIL')
+        : state.tt('HASTANEDESİN', 'YOU ARE IN HOSPITAL');
+    final borderColor = inJail
+        ? const Color(0xFFEF4444)
+        : const Color(0xFFFB7185);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: const Color(0xCC10203A),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderColor.withValues(alpha: 0.7)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: borderColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          StreamBuilder<int>(
+            stream: Stream<int>.periodic(
+              const Duration(seconds: 1),
+              (_) => DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            ),
+            initialData: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            builder: (context, snap) {
+              final nowEpoch =
+                  snap.data ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+              final left = inJail
+                  ? (state.jailUntilEpoch - nowEpoch).clamp(0, 999999)
+                  : (state.hospitalUntilEpoch - nowEpoch).clamp(0, 999999);
+              return Text(
+                '${state.tt('Kalan Süre', 'Time Left')}: ${secondsToClock(left)}',
+                style: const TextStyle(
+                  color: Color(0xFFFCA5A5),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () async {
+                final beforeGold = state.gold;
+                if (inJail) {
+                  await state.payJailWithGold();
+                } else {
+                  await state.payHospitalWithGold();
+                }
+                if (!context.mounted) return;
+                if (state.gold == beforeGold) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        state.tt('Yeterli altının yok!', 'Not enough gold!'),
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: Text(
+                inJail
+                    ? '${state.jailSkipGoldCost} ${state.tt('Altın Öde ve Çık', 'Pay Gold & Exit')}'
+                    : '${state.hospitalSkipGoldCost} ${state.tt('Altın Öde ve Çık', 'Pay Gold & Exit')}',
+              ),
+            ),
+          ),
+          if (!inJail) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () async {
+                  final msg = await state.buyVipHeal();
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(msg)));
+                },
+                child: Text(
+                  '${state.vipHealGoldCost} ${state.tt('Altın VIP Tedavi', 'Gold VIP Heal')}',
+                ),
+              ),
             ),
           ],
         ],
@@ -623,6 +817,10 @@ class ProfileScreen extends StatelessWidget {
               onPressed: !canSpend
                   ? null
                   : () async {
+                      if (state.isActionLocked) {
+                        await _showActionLockedPopup(context, state);
+                        return;
+                      }
                       final ok = await state.spendStatPoint(statKey);
                       if (!context.mounted || ok) return;
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -821,6 +1019,16 @@ class ProfileScreen extends StatelessWidget {
                               fontWeight: FontWeight.w700,
                             ),
                           ),
+                          Text(
+                            '${state.tt('Dur', 'Dur')}: %${state.itemDurabilityPercent(item.id)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF34D399),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -969,6 +1177,16 @@ class ProfileScreen extends StatelessWidget {
             style: const TextStyle(
               color: Color(0xFFD1D5DB),
               fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Text(
+            '${state.tt('Dur', 'Dur')}: %${state.itemDurabilityPercent(item.id)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Color(0xFF34D399),
+              fontSize: 9,
               fontWeight: FontWeight.w700,
             ),
           ),

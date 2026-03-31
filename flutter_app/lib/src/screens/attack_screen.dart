@@ -68,6 +68,40 @@ class _AttackScreenState extends State<AttackScreen>
     _flashController.forward(from: 0);
   }
 
+  Future<void> _showActionLockedPopup(GameState state) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.actionLockTitle,
+          style: const TextStyle(
+            color: Color(0xFFEF4444),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          '${state.actionLockMessage}\n\n${state.tt('Kalan Süre', 'Time Left')}: ${_clock(state.actionLockSecondsLeft)}',
+          style: const TextStyle(color: Color(0xFFD1D5DB)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Tamam', 'OK')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _clock(int sec) {
+    final s = sec.clamp(0, 999999);
+    final mm = (s ~/ 60).toString().padLeft(2, '0');
+    final ss = (s % 60).toString().padLeft(2, '0');
+    return '$mm:$ss';
+  }
+
   List<_RivalVm> _fallbackRivals() {
     const names = <String>[
       'Kurt_Memo',
@@ -153,6 +187,13 @@ class _AttackScreenState extends State<AttackScreen>
         final power = (row['power'] as num?)?.toInt() ?? 120 + (i * 70);
         final level = (row['level'] as num?)?.toInt() ?? max(1, power ~/ 100);
         final cash = (row['cash'] as num?)?.toInt() ?? (350 + (power ~/ 2));
+        final nowEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        final rawStatus = (row['status'] ?? 'active').toString().trim().toLowerCase();
+        final statusUntilEpoch = (row['statusUntilEpoch'] as num?)?.toInt() ?? 0;
+        final status = (statusUntilEpoch > nowEpoch &&
+                (rawStatus == 'hospital' || rawStatus == 'prison'))
+            ? rawStatus
+            : 'active';
         final currentTP = (row['currentTp'] as num?)?.toInt() ?? 100;
         final shield = (row['shieldUntilEpoch'] as num?)?.toInt() ?? 0;
         final combatWeaponId =
@@ -173,6 +214,8 @@ class _AttackScreenState extends State<AttackScreen>
             level: max(1, level),
             gangName: _resolvedGangName(row['gangName']?.toString() ?? '', i),
             currentTP: currentTP.clamp(0, 100),
+            status: status,
+            statusUntilEpoch: statusUntilEpoch,
             shieldUntilEpoch: shield,
             isOnline: row['online'] == true,
             combatWeaponId: combatWeaponId.isEmpty
@@ -374,13 +417,8 @@ class _AttackScreenState extends State<AttackScreen>
 
   void _openAttackSheet(GameState state, _RivalVm target) {
     if (_busy) return;
-    if (state.isHospitalized) {
-      setState(() {
-        _battleReport = state.tt(
-          'Hastanedeyken saldıramazsın.',
-          'You cannot attack while hospitalized.',
-        );
-      });
+    if (state.isActionLocked) {
+      _showActionLockedPopup(state);
       return;
     }
     if (!state.hasEnoughEnergyForAttack) {
@@ -414,13 +452,8 @@ class _AttackScreenState extends State<AttackScreen>
 
   void _runLocalBotAttack(GameState state, _RivalVm target) {
     if (_busy) return;
-    if (state.isHospitalized) {
-      setState(() {
-        _battleReport = state.tt(
-          'Hastanedeyken saldıramazsın.',
-          'You cannot attack while hospitalized.',
-        );
-      });
+    if (state.isActionLocked) {
+      _showActionLockedPopup(state);
       return;
     }
     if (!state.hasEnoughEnergyForAttack) {
@@ -432,11 +465,11 @@ class _AttackScreenState extends State<AttackScreen>
       });
       return;
     }
-    if (target.currentTP <= 0) {
+    if (target.currentTP <= 0 || target.isDetained) {
       setState(() {
         _battleReport = state.tt(
-          '${target.name} zaten hastanede.',
-          '${target.name} is already in hospital.',
+          '${target.name} şu an işlem dışı.',
+          '${target.name} is currently unavailable.',
         );
       });
       return;
@@ -787,9 +820,14 @@ class _AttackScreenState extends State<AttackScreen>
 
   Widget _buildRivalCard(GameState state, _RivalVm target) {
     final isTargetHospitalized = target.currentTP <= 0;
+    final isTargetDetained = target.isDetained;
     final hasEnergy = state.hasEnoughEnergyForAttack;
     final canAttack =
-        !isTargetHospitalized && !_busy && hasEnergy && !state.isHospitalized;
+        !isTargetHospitalized &&
+        !isTargetDetained &&
+        !_busy &&
+        hasEnergy &&
+        !state.isActionLocked;
     final isFlashing = _lastAttackTargetId == target.id;
 
     return AnimatedContainer(
@@ -823,7 +861,9 @@ class _AttackScreenState extends State<AttackScreen>
                     ? Colors.red[900]
                     : Colors.amber[800],
                 child: Icon(
-                  isTargetHospitalized ? Icons.local_hospital : Icons.person,
+                  (isTargetHospitalized || isTargetDetained)
+                      ? Icons.local_hospital
+                      : Icons.person,
                   color: Colors.white,
                 ),
               ),
@@ -901,8 +941,10 @@ class _AttackScreenState extends State<AttackScreen>
                     child: Text(
                       isTargetHospitalized
                           ? state.tt('HASTANEDE', 'IN HOSPITAL')
-                          : state.isHospitalized
-                          ? state.tt('HASTANEDESİN', 'YOU ARE HOSPITALIZED')
+                          : isTargetDetained
+                          ? state.tt('CEZALI', 'DETAINED')
+                          : state.isActionLocked
+                          ? state.actionLockTitle
                           : !hasEnergy
                           ? state.tt('ENERJİ YOK', 'NO ENERGY')
                           : (_busy ? '...' : state.tt('SALDIR', 'ATTACK')),
@@ -1381,6 +1423,8 @@ class _RivalVm {
     required this.level,
     required this.currentTP,
     this.gangName = '',
+    this.status = 'active',
+    this.statusUntilEpoch = 0,
     this.shieldUntilEpoch = 0,
     this.isOnline = false,
     this.combatWeaponId = '',
@@ -1396,12 +1440,17 @@ class _RivalVm {
   final int level;
   final String gangName;
   final int currentTP;
+  final String status;
+  final int statusUntilEpoch;
   final int shieldUntilEpoch;
   final bool isOnline;
   final String combatWeaponId;
   final String knifeId;
   final String armorId;
   final String vehicleId;
+  bool get isDetained =>
+      (status == 'hospital' || status == 'prison') &&
+      statusUntilEpoch > (DateTime.now().millisecondsSinceEpoch ~/ 1000);
 
   _RivalVm copyWith({
     String? id,
@@ -1411,6 +1460,8 @@ class _RivalVm {
     int? level,
     String? gangName,
     int? currentTP,
+    String? status,
+    int? statusUntilEpoch,
     int? shieldUntilEpoch,
     bool? isOnline,
     String? combatWeaponId,
@@ -1426,6 +1477,8 @@ class _RivalVm {
       level: level ?? this.level,
       gangName: gangName ?? this.gangName,
       currentTP: currentTP ?? this.currentTP,
+      status: status ?? this.status,
+      statusUntilEpoch: statusUntilEpoch ?? this.statusUntilEpoch,
       shieldUntilEpoch: shieldUntilEpoch ?? this.shieldUntilEpoch,
       isOnline: isOnline ?? this.isOnline,
       combatWeaponId: combatWeaponId ?? this.combatWeaponId,

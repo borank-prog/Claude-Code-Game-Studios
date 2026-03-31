@@ -4,6 +4,9 @@ part of 'game_state.dart';
 
 mixin _GameStateMissions on _GameStateBase {
   Future<String> claimDailyTask(String taskId) async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     _ensureDailyState();
     if (!_GameStateBase._dailyTargets.containsKey(taskId)) {
       return tt('Geçersiz görev.', 'Invalid task.');
@@ -37,6 +40,9 @@ mixin _GameStateMissions on _GameStateBase {
   }
 
   Future<String> claimDailyLoginReward() async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     _ensureDailyState();
     if (dailyLoginClaimed) {
       return tt(
@@ -120,6 +126,10 @@ mixin _GameStateMissions on _GameStateBase {
 
     currentEnerji = max(0, currentEnerji - mission.staminaCost);
     _syncLegacyEnergyFields();
+    _applyItemWear(
+      reason: 'mission',
+      wearBySlot: _GameStateBase._missionWearBySlot,
+    );
     _metricAdd('mission_attempts_total', 1);
     _metricAdd('mission_attempts_${mission.difficulty}', 1);
     _metricAdd('mission_energy_spent_total', mission.staminaCost);
@@ -204,7 +214,10 @@ mixin _GameStateMissions on _GameStateBase {
     _metricAdd('mission_cash_lost_total', failCashPenalty);
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     if (failureToJail) {
-      final failXp = max(2, (mission.xp * _GameStateBase._missionFailXpRatio).round());
+      final failXp = max(
+        2,
+        (mission.xp * _GameStateBase._missionFailXpRatio).round(),
+      );
       _grantXp(failXp);
       _metricAdd('mission_xp_earned_total', failXp);
       jailUntilEpoch = now + _GameStateBase._penaltyDurationSec;

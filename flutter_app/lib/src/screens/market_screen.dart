@@ -16,6 +16,36 @@ class _StatLine {
 class MarketScreen extends StatelessWidget {
   const MarketScreen({super.key});
 
+  Future<void> _showActionLockedPopup(
+    BuildContext context,
+    GameState state,
+  ) async {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.actionLockTitle,
+          style: const TextStyle(
+            color: Color(0xFFEF4444),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          state.actionLockMessage,
+          style: const TextStyle(color: Color(0xFFD1D5DB)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Tamam', 'OK')),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<GameState>(
@@ -102,14 +132,18 @@ class MarketScreen extends StatelessWidget {
               onAfterPressed: (msg) async {
                 if (!context.mounted) return;
                 if (_isPurchaseSuccess(msg)) {
-                  await _showPurchaseDialog(context, state,
+                  await _showPurchaseDialog(
+                    context,
+                    state,
                     serviceTitle: state.tt('VIP Tedavi', 'VIP Heal'),
                     serviceDesc: msg,
                     serviceIcon: Icons.local_hospital_outlined,
                     serviceIconColor: const Color(0xFFEF4444),
                   );
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(msg)));
                 }
               },
             ),
@@ -129,14 +163,21 @@ class MarketScreen extends StatelessWidget {
               onAfterPressed: (msg) async {
                 if (!context.mounted) return;
                 if (_isPurchaseSuccess(msg)) {
-                  await _showPurchaseDialog(context, state,
-                    serviceTitle: state.tt('Adrenalin İğnesi', 'Adrenaline Shot'),
+                  await _showPurchaseDialog(
+                    context,
+                    state,
+                    serviceTitle: state.tt(
+                      'Adrenalin İğnesi',
+                      'Adrenaline Shot',
+                    ),
                     serviceDesc: msg,
                     serviceIcon: Icons.bolt,
                     serviceIconColor: const Color(0xFF60A5FA),
                   );
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(msg)));
                 }
               },
             ),
@@ -162,14 +203,21 @@ class MarketScreen extends StatelessWidget {
               onAfterPressed: (msg) async {
                 if (!context.mounted) return;
                 if (_isPurchaseSuccess(msg)) {
-                  await _showPurchaseDialog(context, state,
-                    serviceTitle: state.tt('24 Saatlik VIP Kalkan', '24-Hour VIP Shield'),
+                  await _showPurchaseDialog(
+                    context,
+                    state,
+                    serviceTitle: state.tt(
+                      '24 Saatlik VIP Kalkan',
+                      '24-Hour VIP Shield',
+                    ),
                     serviceDesc: msg,
                     serviceIcon: Icons.shield_outlined,
                     serviceIconColor: const Color(0xFF22D3EE),
                   );
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(msg)));
                 }
               },
             ),
@@ -178,8 +226,8 @@ class MarketScreen extends StatelessWidget {
               state,
               title: state.tt('Kaçakçı Sandığı', 'Smuggler Crate'),
               description: state.tt(
-                '%6 ihtimalle efsanevi silah, aksi halde yüksek seviye ödül.',
-                '6% chance for legendary weapon, otherwise high-tier rewards.',
+                'Sandığın en iyi ödülü Magnum Altıpatlar olabilir.',
+                'Best possible drop is Magnum Revolver.',
               ),
               icon: Icons.all_inbox_outlined,
               iconColor: const Color(0xFFF59E0B),
@@ -277,13 +325,28 @@ class MarketScreen extends StatelessWidget {
                         onPressed: locked
                             ? null
                             : () async {
+                                if (state.isActionLocked) {
+                                  await _showActionLockedPopup(context, state);
+                                  return;
+                                }
                                 final ok = await state.buyItem(item.id);
                                 if (!context.mounted) return;
                                 if (ok) {
-                                  await _showPurchaseDialog(context, state, item: item);
+                                  await _showPurchaseDialog(
+                                    context,
+                                    state,
+                                    item: item,
+                                  );
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(state.tt('Satın alma başarısız.', 'Purchase failed.'))),
+                                    SnackBar(
+                                      content: Text(
+                                        state.tt(
+                                          'Satın alma başarısız.',
+                                          'Purchase failed.',
+                                        ),
+                                      ),
+                                    ),
                                   );
                                 }
                               },
@@ -382,12 +445,22 @@ class MarketScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFF0A1630),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF34D399), width: 1.2),
+                    border: Border.all(
+                      color: const Color(0xFF34D399),
+                      width: 1.2,
+                    ),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(item.iconAsset, fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(Icons.inventory_2_outlined, color: const Color(0xFF34D399), size: 48)),
+                    child: Image.asset(
+                      item.iconAsset,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.inventory_2_outlined,
+                        color: const Color(0xFF34D399),
+                        size: 48,
+                      ),
+                    ),
                   ),
                 )
               else
@@ -399,13 +472,21 @@ class MarketScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: serviceIconColor, width: 1.5),
                   ),
-                  child: Icon(serviceIcon ?? Icons.check_circle, color: serviceIconColor, size: 38),
+                  child: Icon(
+                    serviceIcon ?? Icons.check_circle,
+                    color: serviceIconColor,
+                    size: 38,
+                  ),
                 ),
               const SizedBox(height: 12),
               Text(
                 isItem ? state.itemName(item) : (serviceTitle ?? ''),
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 10),
               Container(
@@ -418,18 +499,47 @@ class MarketScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     if (isItem) ...[
-                      _statRow(state.tt('Güç Bonusu', 'Power Bonus'), '+${item.powerBonus}', const Color(0xFF34D399)),
-                      _statRow(state.tt('Tür', 'Type'), _itemTypeName(state, item.type), const Color(0xFF60A5FA)),
-                      _statRow(state.tt('Min. Seviye', 'Min. Level'), '${item.reqLevel}', const Color(0xFFA78BFA)),
+                      _statRow(
+                        state.tt('Güç Bonusu', 'Power Bonus'),
+                        '+${item.powerBonus}',
+                        const Color(0xFF34D399),
+                      ),
+                      _statRow(
+                        state.tt('Tür', 'Type'),
+                        _itemTypeName(state, item.type),
+                        const Color(0xFF60A5FA),
+                      ),
+                      _statRow(
+                        state.tt('Min. Seviye', 'Min. Level'),
+                        '${item.reqLevel}',
+                        const Color(0xFFA78BFA),
+                      ),
                       if (item.costGold > 0)
-                        _statRow(state.tt('Fiyat', 'Price'), '${item.costGold} ${state.tt('Altın', 'Gold')}', const Color(0xFFFBBF24))
+                        _statRow(
+                          state.tt('Fiyat', 'Price'),
+                          '${item.costGold} ${state.tt('Altın', 'Gold')}',
+                          const Color(0xFFFBBF24),
+                        )
                       else
-                        _statRow(state.tt('Fiyat', 'Price'), '\$${item.costCash}', const Color(0xFFFBBF24)),
+                        _statRow(
+                          state.tt('Fiyat', 'Price'),
+                          '\$${item.costCash}',
+                          const Color(0xFFFBBF24),
+                        ),
                     ] else ...[
                       if (serviceDesc != null)
-                        Text(serviceDesc, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
+                        Text(
+                          serviceDesc,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 13,
+                          ),
+                        ),
                     ],
-                    ...extraStats.map((s) => _statRow(s.label, s.value, s.color)),
+                    ...extraStats.map(
+                      (s) => _statRow(s.label, s.value, s.color),
+                    ),
                   ],
                 ),
               ),
@@ -442,7 +552,10 @@ class MarketScreen extends StatelessWidget {
                     backgroundColor: const Color(0xFF34D399),
                     foregroundColor: Colors.black,
                   ),
-                  child: Text(state.tt('Harika!', 'Awesome!'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(
+                    state.tt('Harika!', 'Awesome!'),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
             ],
@@ -458,8 +571,18 @@ class MarketScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13)),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13)),
+          Text(
+            label,
+            style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
     );
@@ -467,11 +590,11 @@ class MarketScreen extends StatelessWidget {
 
   String _itemTypeName(GameState state, String type) {
     return switch (type) {
-      'weapon'  => state.tt('Silah', 'Weapon'),
-      'armor'   => state.tt('Zırh', 'Armor'),
+      'weapon' => state.tt('Silah', 'Weapon'),
+      'armor' => state.tt('Zırh', 'Armor'),
       'vehicle' => state.tt('Araç', 'Vehicle'),
-      'knife'   => state.tt('Yakın Dövüş', 'Melee'),
-      _         => type,
+      'knife' => state.tt('Yakın Dövüş', 'Melee'),
+      _ => type,
     };
   }
 
@@ -540,6 +663,10 @@ class MarketScreen extends StatelessWidget {
           const SizedBox(width: 8),
           FilledButton(
             onPressed: () async {
+              if (state.isActionLocked) {
+                await _showActionLockedPopup(context, state);
+                return;
+              }
               final msg = await onPressed();
               if (!context.mounted) return;
               if (showSnackBar) {
@@ -606,7 +733,9 @@ class MarketScreen extends StatelessWidget {
         if (_isPurchaseSuccess(msg)) {
           await _showPurchaseDialog(context, state, item: item);
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
         }
       },
     );
@@ -642,7 +771,8 @@ class MarketScreen extends StatelessWidget {
         ? state.itemName(rewardItem)
         : state.tt('Bilinmeyen Ödül', 'Unknown Reward');
     final imageAsset =
-        rewardItem?.iconAsset ?? 'assets/art/items/equipment_icons/altin_deagle.png';
+        rewardItem?.iconAsset ??
+        'assets/art/items/equipment_icons/altin_deagle.png';
 
     await showDialog<void>(
       context: context,
@@ -663,7 +793,10 @@ class MarketScreen extends StatelessWidget {
                 Text(
                   state.lastCrateJackpot
                       ? state.tt('JACKPOT!', 'JACKPOT!')
-                      : state.tt('KAÇAKÇI SANDIĞI AÇILDI', 'SMUGGLER CRATE OPENED'),
+                      : state.tt(
+                          'KAÇAKÇI SANDIĞI AÇILDI',
+                          'SMUGGLER CRATE OPENED',
+                        ),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: state.lastCrateJackpot
@@ -680,7 +813,10 @@ class MarketScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFF0A1630),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFFBBF24), width: 1.2),
+                    border: Border.all(
+                      color: const Color(0xFFFBBF24),
+                      width: 1.2,
+                    ),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
@@ -714,7 +850,10 @@ class MarketScreen extends StatelessWidget {
                 Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 13,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(

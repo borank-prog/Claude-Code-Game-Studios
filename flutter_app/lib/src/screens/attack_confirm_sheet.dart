@@ -36,6 +36,33 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
   String? _errorMsg;
   final _pvp = PvpService();
 
+  Future<void> _showActionLockedPopup(GameState state) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.actionLockTitle,
+          style: const TextStyle(
+            color: Color(0xFFEF4444),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          state.actionLockMessage,
+          style: const TextStyle(color: Color(0xFFD1D5DB)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Tamam', 'OK')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _launch() async {
     setState(() {
       _loading = true;
@@ -43,6 +70,13 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
     });
     try {
       final state = context.read<GameState>();
+      if (state.isActionLocked) {
+        await _showActionLockedPopup(state);
+        setState(() {
+          _loading = false;
+        });
+        return;
+      }
       if (!state.hasEnoughEnergyForAttack) {
         setState(() {
           _errorMsg = 'Saldırı için enerji yetersiz.';
@@ -98,6 +132,7 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
         equipmentBonus: _selectedType == AttackType.planned ? 15 : 0,
         attackCost: state.attackEnergyCost,
       );
+      await state.applyAttackItemWear(reason: 'online_pvp_attack');
       if (result.remainingEnergy != null) {
         await state.syncAttackEnergyFromServer(
           remainingEnergy: result.remainingEnergy!,

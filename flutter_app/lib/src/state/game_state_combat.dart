@@ -3,8 +3,21 @@
 part of 'game_state.dart';
 
 mixin _GameStateCombat on _GameStateBase {
+  Future<void> applyAttackItemWear({String reason = 'pvp_attack'}) async {
+    _applyItemWear(
+      reason: reason,
+      wearBySlot: _GameStateBase._attackWearBySlot,
+    );
+    await _save();
+    _syncOnlineSoon();
+    notifyListeners();
+  }
+
   Future<bool> spendAttackEnergy({required int attackCost}) async {
     _applyOfflineRegeneration();
+    if (isActionLocked) {
+      return false;
+    }
     final cost = max(0, attackCost);
     if (currentEnerji < cost) {
       return false;
@@ -18,7 +31,9 @@ mixin _GameStateCombat on _GameStateBase {
     return true;
   }
 
-  Future<void> syncAttackEnergyFromServer({required int remainingEnergy}) async {
+  Future<void> syncAttackEnergyFromServer({
+    required int remainingEnergy,
+  }) async {
     _applyOfflineRegeneration();
     currentEnerji = remainingEnergy.clamp(0, maxEnerji);
     _syncLegacyEnergyFields();
@@ -52,6 +67,10 @@ mixin _GameStateCombat on _GameStateBase {
       }
     }
     _syncLegacyEnergyFields();
+    _applyItemWear(
+      reason: 'solo_attack_win',
+      wearBySlot: _GameStateBase._attackWearBySlot,
+    );
     cash += max(0, cashGained);
     _trackDaily('raid_joined', 1);
     _trackDaily('cash_earned', max(0, cashGained));
@@ -97,6 +116,10 @@ mixin _GameStateCombat on _GameStateBase {
       }
     }
     _syncLegacyEnergyFields();
+    _applyItemWear(
+      reason: 'solo_attack_loss',
+      wearBySlot: _GameStateBase._attackWearBySlot,
+    );
     _trackDaily('raid_joined', 1);
     _queueEvent('solo_attack_loss', {
       'hospitalSec': _GameStateBase._penaltyDurationSec,
@@ -135,6 +158,10 @@ mixin _GameStateCombat on _GameStateBase {
       }
     }
     _syncLegacyEnergyFields();
+    _applyItemWear(
+      reason: 'gang_attack_win',
+      wearBySlot: _GameStateBase._attackWearBySlot,
+    );
     _trackDaily('raid_joined', 1);
     _grantXp(max(0, xpGained));
     gangRespectPoints += max(0, respectGained);
@@ -179,6 +206,10 @@ mixin _GameStateCombat on _GameStateBase {
       }
     }
     _syncLegacyEnergyFields();
+    _applyItemWear(
+      reason: 'gang_attack_loss',
+      wearBySlot: _GameStateBase._attackWearBySlot,
+    );
     _trackDaily('raid_joined', 1);
     _queueEvent('gang_attack_loss', {
       'hospitalSec': _GameStateBase._penaltyDurationSec,

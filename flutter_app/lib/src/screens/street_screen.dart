@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import '../data/game_models.dart';
 import 'attack_screen.dart';
 import '../state/game_state.dart';
-import '../widgets/format.dart';
 import '../widgets/glass_panel.dart';
 
 class StreetScreen extends StatefulWidget {
@@ -19,6 +18,33 @@ class StreetScreen extends StatefulWidget {
 class _StreetScreenState extends State<StreetScreen> {
   String difficulty = 'easy';
   Timer? _timer;
+
+  Future<void> _showActionLockedPopup(GameState state) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.actionLockTitle,
+          style: const TextStyle(
+            color: Color(0xFFEF4444),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          state.actionLockMessage,
+          style: const TextStyle(color: Color(0xFFD1D5DB)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Tamam', 'OK')),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -85,6 +111,10 @@ class _StreetScreenState extends State<StreetScreen> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () {
+                        if (state.isActionLocked) {
+                          _showActionLockedPopup(state);
+                          return;
+                        }
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => const AttackScreen(),
@@ -100,37 +130,6 @@ class _StreetScreenState extends State<StreetScreen> {
             ),
             const SizedBox(height: 8),
             _buildDailyPanel(state),
-            if (state.jailSecondsLeft > 0)
-              _statusCard(
-                title: state.tt('Hapiste', 'In Jail'),
-                left: state.tt(
-                  'Cezanın bitmesine: ${secondsToClock(state.jailSecondsLeft)}',
-                  'Time left: ${secondsToClock(state.jailSecondsLeft)}',
-                ),
-                buttonLabel:
-                    '${state.jailSkipGoldCost} ${state.tt('Altın Öde ve Çık', 'Pay Gold and Exit')}',
-                onTap: state.payJailWithGold,
-              ),
-            if (state.hospitalSecondsLeft > 0)
-              _statusCard(
-                title: state.tt('Hastane', 'Hospital'),
-                left: state.tt(
-                  'İyileşme süresi: ${secondsToClock(state.hospitalSecondsLeft)}',
-                  'Recovery time: ${secondsToClock(state.hospitalSecondsLeft)}',
-                ),
-                buttonLabel:
-                    '${state.hospitalSkipGoldCost} ${state.tt('Altın Öde ve Çık', 'Pay Gold and Exit')}',
-                onTap: state.payHospitalWithGold,
-                secondaryLabel:
-                    '${state.vipHealGoldCost} ${state.tt('Altın VIP Tedavi', 'Gold VIP Heal')}',
-                onSecondaryTap: () async {
-                  final msg = await state.buyVipHeal();
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(SnackBar(content: Text(msg)));
-                },
-              ),
             if (state.currentEnerji < state.attackEnergyCost)
               _statusCard(
                 title: state.tt('Enerji Düşük', 'Low Energy'),
@@ -141,6 +140,10 @@ class _StreetScreenState extends State<StreetScreen> {
                 buttonLabel:
                     '${state.energyRushGoldCost} ${state.tt('Altın Adrenalin', 'Gold Adrenaline')}',
                 onTap: () async {
+                  if (state.isActionLocked) {
+                    await _showActionLockedPopup(state);
+                    return;
+                  }
                   final msg = await state.buyEnergyRush();
                   if (!context.mounted) return;
                   ScaffoldMessenger.of(
@@ -264,6 +267,10 @@ class _StreetScreenState extends State<StreetScreen> {
           const SizedBox(width: 8),
           FilledButton(
             onPressed: () async {
+              if (state.isActionLocked) {
+                await _showActionLockedPopup(state);
+                return;
+              }
               final res = await state.completeMission(m);
               if (!mounted) return;
               await _showMissionResultSheet(context, state, m, res);
@@ -349,6 +356,10 @@ class _StreetScreenState extends State<StreetScreen> {
                 onPressed: state.dailyLoginClaimed
                     ? null
                     : () async {
+                        if (state.isActionLocked) {
+                          await _showActionLockedPopup(state);
+                          return;
+                        }
                         final msg = await state.claimDailyLoginReward();
                         if (!mounted) return;
                         ScaffoldMessenger.of(
@@ -576,6 +587,10 @@ class _StreetScreenState extends State<StreetScreen> {
             child: FilledButton(
               onPressed: canClaim
                   ? () async {
+                      if (state.isActionLocked) {
+                        await _showActionLockedPopup(state);
+                        return;
+                      }
                       final msg = await state.claimDailyTask(taskId);
                       if (!mounted) return;
                       ScaffoldMessenger.of(

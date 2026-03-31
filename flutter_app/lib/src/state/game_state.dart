@@ -43,7 +43,8 @@ class GameState extends _GameStateBase
 
 class _GameStateBase extends ChangeNotifier {
   static const _storageKey = 'cartelhood_flutter_save_v2';
-  static const _saveVersion = 10;
+  static const _saveVersion = 11;
+  static const _maxItemDurability = 100;
   static const _oneTimeGoldGiftAmount = 1000000;
   static const _oneTimeCashGiftAmount = 1000000;
   static const _penaltyDurationSec = 2700;
@@ -57,6 +58,18 @@ class _GameStateBase extends ChangeNotifier {
     'knife',
     'vehicle',
   ];
+  static const Map<String, int> _missionWearBySlot = {
+    'weapon': 2,
+    'armor': 1,
+    'knife': 1,
+    'vehicle': 1,
+  };
+  static const Map<String, int> _attackWearBySlot = {
+    'weapon': 4,
+    'armor': 2,
+    'knife': 2,
+    'vehicle': 1,
+  };
   static const List<String> _seedBotNames = [
     'Kurt_Memo',
     'Tetikci_Orhan',
@@ -139,6 +152,7 @@ class _GameStateBase extends ChangeNotifier {
 
   final Map<String, int> ownedItems = {};
   final Map<String, int> itemLevels = {};
+  final Map<String, int> itemDurabilityMap = {};
   final Map<String, String> equipped = {
     for (final slot in _equipmentSlots) slot: '',
   };
@@ -535,6 +549,8 @@ class _GameStateBase extends ChangeNotifier {
     var sum = 0;
     for (final itemId in equipped.values) {
       if (itemId.isEmpty) continue;
+      if ((ownedItems[itemId] ?? 0) <= 0) continue;
+      if (itemDurabilityPercent(itemId) <= 0) continue;
       final item = _getItem(itemId);
       if (item == null) continue;
       final lvl = itemLevels[itemId] ?? 1;
@@ -558,11 +574,15 @@ class _GameStateBase extends ChangeNotifier {
 
   String get equippedCombatWeaponId {
     final weaponId = equippedWeaponId;
-    if (weaponId.isNotEmpty && (ownedItems[weaponId] ?? 0) > 0) {
+    if (weaponId.isNotEmpty &&
+        (ownedItems[weaponId] ?? 0) > 0 &&
+        itemDurabilityPercent(weaponId) > 0) {
       return weaponId;
     }
     final knifeId = equippedKnifeId;
-    if (knifeId.isNotEmpty && (ownedItems[knifeId] ?? 0) > 0) {
+    if (knifeId.isNotEmpty &&
+        (ownedItems[knifeId] ?? 0) > 0 &&
+        itemDurabilityPercent(knifeId) > 0) {
       return knifeId;
     }
     return '';
@@ -580,8 +600,29 @@ class _GameStateBase extends ChangeNotifier {
   }
 
   bool get isHospitalized => currentTP <= 0 || hospitalSecondsLeft > 0;
-  bool get hasVehicleEquipped => equippedVehicleId.trim().isNotEmpty;
+  bool get isInJail => jailSecondsLeft > 0;
+  bool get isActionLocked => isInJail || isHospitalized;
+  int get actionLockSecondsLeft => isInJail ? jailSecondsLeft : hospitalSecondsLeft;
+  String get actionLockStatus => isInJail ? 'prison' : 'hospital';
+  int get actionLockUntilEpoch =>
+      isInJail ? jailUntilEpoch : hospitalUntilEpoch;
+  String get actionLockTitle => isInJail
+      ? tt('HAPİSHANEDESİN', 'YOU ARE IN PRISON')
+      : tt('HASTANEDESİN', 'YOU ARE IN HOSPITAL');
+  String get actionLockMessage => isInJail
+      ? tt(
+          'Cezan bitene kadar işlem yapamazsın.',
+          'You cannot perform actions until your sentence ends.',
+        )
+      : tt(
+          'İyileşene kadar işlem yapamazsın.',
+          'You cannot perform actions until you recover.',
+        );
+  bool get hasVehicleEquipped =>
+      equippedVehicleId.trim().isNotEmpty &&
+      itemDurabilityPercent(equippedVehicleId) > 0;
   int get vehicleAttackEnergyDiscount {
+    if (!hasVehicleEquipped) return 0;
     switch (equippedVehicleId) {
       case 'klasik_araba_sv1':
         return 3;
@@ -591,6 +632,7 @@ class _GameStateBase extends ChangeNotifier {
   }
 
   double get vehicleMissionCashMult {
+    if (!hasVehicleEquipped) return 1.0;
     switch (equippedVehicleId) {
       case 'klasik_araba_sv1':
         return 1.12;
@@ -610,6 +652,30 @@ class _GameStateBase extends ChangeNotifier {
   int get vipShieldGoldCost => PremiumShopService.vipShieldGoldCost;
   int get smugglerCrateGoldCost => PremiumShopService.smugglerCrateGoldCost;
   int get premiumWeaponGoldCost => PremiumShopService.premiumWeaponGoldCost;
+
+  int itemDurabilityPercent(String itemId) {
+    if (itemId.trim().isEmpty) return 0;
+    if ((ownedItems[itemId] ?? 0) <= 0) return 0;
+    final raw = itemDurabilityMap[itemId];
+    if (raw == null) return _maxItemDurability;
+    return raw.clamp(0, _maxItemDurability);
+  }
+
+  int repairItemGoldCost(String itemId) {
+    final item = _getItem(itemId);
+    if (item == null || (ownedItems[itemId] ?? 0) <= 0) return 0;
+    final current = itemDurabilityPercent(itemId);
+    final missing = _maxItemDurability - current;
+    if (missing <= 0) return 0;
+    final tier = max(
+      1,
+      ((item.powerBonus / 350).ceil()) + (item.costGold > 0 ? 2 : 0),
+    );
+    return max(2, ((missing / 12).ceil()) * tier);
+  }
+
+  bool canRepairItem(String itemId) =>
+      repairItemGoldCost(itemId) > 0 && gold >= repairItemGoldCost(itemId);
 
   int get shieldSecondsLeft {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
@@ -673,7 +739,11 @@ class _GameStateBase extends ChangeNotifier {
 
   List<ItemDef> ownedInventoryItems() {
     return StaticData.shopItems
-        .where((item) => (ownedItems[item.id] ?? 0) > 0)
+        .where(
+          (item) =>
+              (ownedItems[item.id] ?? 0) > 0 &&
+              itemDurabilityPercent(item.id) > 0,
+        )
         .toList(growable: false);
   }
 
@@ -1084,7 +1154,104 @@ class _GameStateBase extends ChangeNotifier {
     return null;
   }
 
+  void _ensureOwnedItemDurability(String itemId) {
+    if ((ownedItems[itemId] ?? 0) <= 0) {
+      itemDurabilityMap.remove(itemId);
+      return;
+    }
+    final current = itemDurabilityMap[itemId];
+    if (current == null) {
+      itemDurabilityMap[itemId] = _maxItemDurability;
+      return;
+    }
+    itemDurabilityMap[itemId] = current.clamp(0, _maxItemDurability);
+  }
+
+  List<String> _applyItemWear({
+    required String reason,
+    required Map<String, int> wearBySlot,
+  }) {
+    final broken = <String>[];
+    for (final entry in wearBySlot.entries) {
+      final slot = entry.key;
+      final wear = max(0, entry.value);
+      if (wear <= 0) continue;
+      final itemId = (equipped[slot] ?? '').trim();
+      if (itemId.isEmpty) continue;
+      if ((ownedItems[itemId] ?? 0) <= 0) {
+        equipped[slot] = '';
+        continue;
+      }
+      _ensureOwnedItemDurability(itemId);
+      final next = (itemDurabilityMap[itemId] ?? _maxItemDurability) - wear;
+      if (next <= 0) {
+        _breakItem(itemId, reason: reason);
+        final item = _getItem(itemId);
+        broken.add(item == null ? itemId : itemName(item));
+      } else {
+        itemDurabilityMap[itemId] = next;
+      }
+    }
+    return broken;
+  }
+
+  void _breakItem(String itemId, {required String reason}) {
+    if ((ownedItems[itemId] ?? 0) <= 0) return;
+    ownedItems.remove(itemId);
+    itemLevels.remove(itemId);
+    itemDurabilityMap.remove(itemId);
+    for (final slot in equipped.keys.toList()) {
+      if ((equipped[slot] ?? '').trim() == itemId) {
+        equipped[slot] = '';
+      }
+    }
+    _queueEvent('item_broken', {'itemId': itemId, 'reason': reason});
+    final item = _getItem(itemId);
+    _addNews(
+      tt('Eşya Bozuldu', 'Item Broken'),
+      tt(
+        '${item == null ? itemId : itemName(item)} tamamen eskidi ve çöpe atıldı.',
+        '${item == null ? itemId : itemName(item)} wore out and was discarded.',
+      ),
+    );
+  }
+
+  void _sanitizeInventoryState() {
+    for (final id in ownedItems.keys.toList()) {
+      if ((ownedItems[id] ?? 0) <= 0 || _getItem(id) == null) {
+        ownedItems.remove(id);
+      }
+    }
+    for (final id in itemLevels.keys.toList()) {
+      if (!ownedItems.containsKey(id)) {
+        itemLevels.remove(id);
+      }
+    }
+    for (final id in itemDurabilityMap.keys.toList()) {
+      if (!ownedItems.containsKey(id)) {
+        itemDurabilityMap.remove(id);
+        continue;
+      }
+      final val = itemDurabilityMap[id] ?? _maxItemDurability;
+      itemDurabilityMap[id] = val.clamp(0, _maxItemDurability);
+      if ((itemDurabilityMap[id] ?? 0) <= 0) {
+        _breakItem(id, reason: 'sanitize');
+      }
+    }
+    for (final id in ownedItems.keys) {
+      _ensureOwnedItemDurability(id);
+    }
+    for (final slot in _equipmentSlots) {
+      final id = (equipped[slot] ?? '').trim();
+      if (id.isEmpty) continue;
+      if ((ownedItems[id] ?? 0) <= 0 || itemDurabilityPercent(id) <= 0) {
+        equipped[slot] = '';
+      }
+    }
+  }
+
   void _autoEquip(ItemDef item) {
+    _ensureOwnedItemDurability(item.id);
     if (item.type == 'weapon') {
       equipped['weapon'] = item.id;
       if (item.id.contains('caki') ||
@@ -1294,6 +1461,7 @@ class _GameStateBase extends ChangeNotifier {
       leaderboardRows
         ..clear()
         ..addAll(await _onlineService.fetchLeaderboard(limit: 100));
+      _dedupeLeaderboardRows();
       _ensureSeedLeaderboardRows();
       _sortLeaderboardRows();
       discoverableGangs
@@ -1340,8 +1508,38 @@ class _GameStateBase extends ChangeNotifier {
     } catch (e) {
       lastAuthError = _sanitizeError(e);
       _ensureSeedLeaderboardRows();
+      _dedupeLeaderboardRows();
     }
     notifyListeners();
+  }
+
+  void _dedupeLeaderboardRows() {
+    if (leaderboardRows.isEmpty) return;
+    final byUid = <String, Map<String, dynamic>>{};
+    final byNameForUidless = <String, Map<String, dynamic>>{};
+
+    for (final raw in leaderboardRows) {
+      final row = Map<String, dynamic>.from(raw);
+      final uid = (row['uid']?.toString() ?? '').trim();
+      final normalizedName = (row['displayName'] ?? row['name'] ?? '')
+          .toString()
+          .trim()
+          .toLowerCase();
+
+      if (uid.isNotEmpty) {
+        byUid[uid] = row;
+      } else {
+        final key = normalizedName.isEmpty
+            ? 'anon_${byNameForUidless.length}'
+            : normalizedName;
+        byNameForUidless[key] = row;
+      }
+    }
+
+    leaderboardRows
+      ..clear()
+      ..addAll(byUid.values)
+      ..addAll(byNameForUidless.values);
   }
 
   void _ensureSeedLeaderboardRows() {
@@ -1350,13 +1548,30 @@ class _GameStateBase extends ChangeNotifier {
         .map((row) => (row['uid']?.toString() ?? '').trim())
         .where((id) => id.isNotEmpty)
         .toSet();
+    final existingNames = leaderboardRows
+        .map(
+          (row) => (row['displayName'] ?? row['name'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase(),
+        )
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    // Sunucudan botlar geldiyse yerel seed ekleyip isimleri çoğaltma.
+    if (existingIds.any((id) => id.startsWith('bot_'))) return;
+
     for (var i = 0; i < _seedBotNames.length; i++) {
       final uid = 'bot_${(i + 1).toString().padLeft(2, '0')}';
       if (existingIds.contains(uid)) continue;
+      final seedName = _seedBotNames[i].trim();
+      if (seedName.isNotEmpty &&
+          existingNames.contains(seedName.toLowerCase())) {
+        continue;
+      }
       final power = 180 + (i * 55);
       leaderboardRows.add({
         'uid': uid,
-        'displayName': _seedBotNames[i],
+        'displayName': seedName,
         'power': power,
         'level': max(2, (power / 70).round()),
         'cash': 2600 + (i * 850),
@@ -1372,6 +1587,9 @@ class _GameStateBase extends ChangeNotifier {
         ),
         'online': true,
       });
+      if (seedName.isNotEmpty) {
+        existingNames.add(seedName.toLowerCase());
+      }
       if (leaderboardRows.length >= 20) break;
     }
     _sortLeaderboardRows();
@@ -1409,6 +1627,8 @@ class _GameStateBase extends ChangeNotifier {
       final resolvedGangName = hasGang
           ? (currentGang?['name']?.toString() ?? '')
           : null;
+      final profileStatus = isActionLocked ? actionLockStatus : 'active';
+      final profileStatusUntilEpoch = isActionLocked ? actionLockUntilEpoch : 0;
       await _onlineService.upsertUserProfile(
         uid: userId,
         displayName: playerName,
@@ -1425,6 +1645,8 @@ class _GameStateBase extends ChangeNotifier {
         maxEnergy: maxEnerji,
         attackEnergyCost: attackEnergyCost,
         shieldUntilEpoch: shieldUntilEpoch,
+        status: profileStatus,
+        statusUntilEpoch: profileStatusUntilEpoch,
         online: playerOnline,
         gangId: resolvedGangId,
         gangName: resolvedGangName,
@@ -1604,6 +1826,7 @@ class _GameStateBase extends ChangeNotifier {
     _sessionOfflineReports.clear();
     ownedItems.clear();
     itemLevels.clear();
+    itemDurabilityMap.clear();
     for (final key in equipped.keys.toList()) {
       equipped[key] = '';
     }
@@ -1630,6 +1853,7 @@ class _GameStateBase extends ChangeNotifier {
   }
 
   Map<String, dynamic> _buildSavePayload() {
+    _sanitizeInventoryState();
     final nowEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     if (localUpdatedAtEpoch <= 0) {
       localUpdatedAtEpoch = nowEpoch;
@@ -1680,6 +1904,7 @@ class _GameStateBase extends ChangeNotifier {
       'offlineLogs': offlineLogs,
       'ownedItems': ownedItems,
       'itemLevels': itemLevels,
+      'itemDurabilityMap': itemDurabilityMap,
       'equipped': equipped,
       'ownedBuildings': ownedBuildings,
       'buildingLastCollectEpoch': buildingLastCollectEpoch,
@@ -1852,7 +2077,7 @@ class _GameStateBase extends ChangeNotifier {
       ..clear()
       ..addAll(
         (map['ownedItems'] as Map<String, dynamic>? ?? {}).map(
-          (k, v) => MapEntry(k, v as int),
+          (k, v) => MapEntry(k, (v as num).toInt()),
         ),
       );
 
@@ -1860,7 +2085,15 @@ class _GameStateBase extends ChangeNotifier {
       ..clear()
       ..addAll(
         (map['itemLevels'] as Map<String, dynamic>? ?? {}).map(
-          (k, v) => MapEntry(k, v as int),
+          (k, v) => MapEntry(k, (v as num).toInt()),
+        ),
+      );
+
+    itemDurabilityMap
+      ..clear()
+      ..addAll(
+        (map['itemDurabilityMap'] as Map<String, dynamic>? ?? {}).map(
+          (k, v) => MapEntry(k, (v as num).toInt()),
         ),
       );
 
@@ -1960,6 +2193,7 @@ class _GameStateBase extends ChangeNotifier {
     currentTP = currentTP.clamp(0, maxTP);
     currentEnerji = currentEnerji.clamp(0, maxEnerji);
     _syncLegacyEnergyFields();
+    _sanitizeInventoryState();
 
     // Eski sürümlerde başlangıçta otomatik verilen demo ekipman göçü.
     if (saveVersion < 3) {
@@ -1970,6 +2204,7 @@ class _GameStateBase extends ChangeNotifier {
       if (seededOldLoad) {
         ownedItems.clear();
         itemLevels.clear();
+        itemDurabilityMap.clear();
         for (final key in equipped.keys) {
           equipped[key] = '';
         }
@@ -2001,10 +2236,18 @@ class _GameStateBase extends ChangeNotifier {
       if (looksLikeStarterSeed || looksLikeShowcaseSeed) {
         ownedItems.clear();
         itemLevels.clear();
+        itemDurabilityMap.clear();
         for (final slot in _equipmentSlots) {
           equipped[slot] = '';
         }
       }
+    }
+
+    if (saveVersion < 11) {
+      for (final id in ownedItems.keys) {
+        _ensureOwnedItemDurability(id);
+      }
+      _sanitizeInventoryState();
     }
   }
 

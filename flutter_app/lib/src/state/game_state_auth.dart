@@ -244,6 +244,8 @@ mixin _GameStateAuth on _GameStateBase {
           currentEnergy: currentEnerji,
           maxEnergy: maxEnerji,
           shieldUntilEpoch: shieldUntilEpoch,
+          status: 'active',
+          statusUntilEpoch: 0,
           online: false,
           gangId: currentGang?['id']?.toString() ?? '',
           gangName: currentGang?['name']?.toString() ?? '',

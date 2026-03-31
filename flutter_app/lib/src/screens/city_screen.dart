@@ -10,6 +10,36 @@ import '../widgets/glass_panel.dart';
 class CityScreen extends StatelessWidget {
   const CityScreen({super.key});
 
+  Future<void> _showActionLockedPopup(
+    BuildContext context,
+    GameState state,
+  ) async {
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.actionLockTitle,
+          style: const TextStyle(
+            color: Color(0xFFEF4444),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          state.actionLockMessage,
+          style: const TextStyle(color: Color(0xFFD1D5DB)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Tamam', 'OK')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showCenterNotice(
     BuildContext context, {
     required String title,
@@ -100,6 +130,10 @@ class CityScreen extends StatelessWidget {
         mission: mission,
         res: res,
         onRepeat: () async {
+          if (state.isActionLocked) {
+            await _showActionLockedPopup(context, state);
+            return;
+          }
           Navigator.of(ctx).pop();
           final next = await state.completeMission(mission);
           if (!context.mounted) return;
@@ -166,6 +200,10 @@ class CityScreen extends StatelessWidget {
                   ),
                   FilledButton(
                     onPressed: () {
+                      if (state.isActionLocked) {
+                        _showActionLockedPopup(context, state);
+                        return;
+                      }
                       final amount = state.collectAllBuildingIncome();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -243,6 +281,10 @@ class CityScreen extends StatelessWidget {
                           const SizedBox(width: 8),
                           FilledButton(
                             onPressed: () async {
+                              if (state.isActionLocked) {
+                                await _showActionLockedPopup(context, state);
+                                return;
+                              }
                               final res = await state.completeMission(m);
                               if (!context.mounted) return;
                               await _showMissionResultSheet(
@@ -303,6 +345,10 @@ class CityScreen extends StatelessWidget {
                     if (!owned)
                       FilledButton(
                         onPressed: () async {
+                          if (state.isActionLocked) {
+                            await _showActionLockedPopup(context, state);
+                            return;
+                          }
                           final ok = await state.buyBuilding(b.id);
                           if (!context.mounted) return;
                           await _showCenterNotice(

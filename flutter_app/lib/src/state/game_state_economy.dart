@@ -4,6 +4,9 @@ part of 'game_state.dart';
 
 mixin _GameStateEconomy on _GameStateBase {
   Future<String> buyVipHeal() async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     _applyOfflineRegeneration();
     final snapshot = _premiumSnapshotPlayer();
     final result = _premiumShopService.buyVipHeal(snapshot);
@@ -34,6 +37,9 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<String> buyEnergyRush() async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     _applyOfflineRegeneration();
     final snapshot = _premiumSnapshotPlayer();
     final result = _premiumShopService.buyEnergyRush(snapshot);
@@ -63,6 +69,9 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<String> buyVipShield() async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final snapshot = _premiumSnapshotPlayer();
     final result = _premiumShopService.buyVipShield(snapshot, nowEpoch: now);
@@ -95,21 +104,24 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<String> openSmugglerCrate() async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     const commonPool = <String>[
-      'altipatlar',
-      'uzi',
-      'pompali',
-      'ak47',
-      'celik_yelek',
-      'juggernaut',
-      'el_bombasi',
+      'musta',
+      'caki',
+      'sopa',
+      'pala',
+      'tabanca_9mm',
+      'deri_ceket',
+      'klasik_araba_sv1',
     ];
 
     final snapshot = _premiumSnapshotPlayer();
     final result = _premiumShopService.openSmugglerCrate(
       snapshot,
       commonPool: commonPool,
-      jackpotItemId: 'roketatar',
+      jackpotItemId: 'altipatlar',
     );
 
     if (!result.success) {
@@ -139,6 +151,7 @@ mixin _GameStateEconomy on _GameStateBase {
       } else {
         ownedItems[rewardId] = 1;
         itemLevels[rewardId] = max(2, itemLevels[rewardId] ?? 1);
+        itemDurabilityMap[rewardId] = _GameStateBase._maxItemDurability;
         _autoEquip(rewardItem);
         gotNewItem = true;
       }
@@ -206,6 +219,9 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<String> buyPremiumWeaponDirect() async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     if ((ownedItems['altin_deagle'] ?? 0) > 0) {
       return tt(
         'Altın Çöl Kartalı zaten envanterinde.',
@@ -228,6 +244,7 @@ mixin _GameStateEconomy on _GameStateBase {
     if (rewardItem != null) {
       ownedItems[rewardId] = 1;
       itemLevels[rewardId] = max(3, itemLevels[rewardId] ?? 1);
+      itemDurabilityMap[rewardId] = _GameStateBase._maxItemDurability;
       _autoEquip(rewardItem);
     }
 
@@ -253,6 +270,9 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<String> buyVipWeaponById(String itemId) async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
     final item = _getItem(itemId);
     if (item == null) {
       return tt('Geçersiz eşya.', 'Invalid item.');
@@ -279,6 +299,7 @@ mixin _GameStateEconomy on _GameStateBase {
     gold -= item.costGold;
     ownedItems[item.id] = 1;
     itemLevels[item.id] = max(2, itemLevels[item.id] ?? 1);
+    itemDurabilityMap[item.id] = _GameStateBase._maxItemDurability;
     _autoEquip(item);
 
     _queueEvent('vip_weapon_buy', {
@@ -303,6 +324,7 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<bool> buyItem(String itemId) async {
+    if (isActionLocked) return false;
     final item = _getItem(itemId);
     if (item == null) return false;
     if (level < item.reqLevel) return false;
@@ -320,6 +342,7 @@ mixin _GameStateEconomy on _GameStateBase {
 
     ownedItems[item.id] = 1;
     itemLevels[item.id] = max(1, itemLevels[item.id] ?? 1);
+    itemDurabilityMap[item.id] = _GameStateBase._maxItemDurability;
     _autoEquip(item);
 
     _queueEvent('shop_buy', {'itemId': item.id});
@@ -334,6 +357,7 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<bool> upgradeItem(String itemId) async {
+    if (isActionLocked) return false;
     if ((ownedItems[itemId] ?? 0) <= 0) return false;
     final item = _getItem(itemId);
     if (item == null) return false;
@@ -368,6 +392,7 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<bool> buyBuilding(String buildingId) async {
+    if (isActionLocked) return false;
     final building = StaticData.buildings.firstWhere(
       (b) => b.id == buildingId,
       orElse: () => const BuildingDef(
@@ -408,6 +433,7 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   int collectAllBuildingIncome() {
+    if (isActionLocked) return 0;
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     var total = 0;
 
@@ -437,7 +463,10 @@ mixin _GameStateEconomy on _GameStateBase {
   }
 
   Future<bool> equipOwnedItem(String itemId, {String? preferredSlot}) async {
+    if (isActionLocked) return false;
     if ((ownedItems[itemId] ?? 0) <= 0) return false;
+    _ensureOwnedItemDurability(itemId);
+    if (itemDurabilityPercent(itemId) <= 0) return false;
     final item = _getItem(itemId);
     if (item == null) return false;
 
@@ -468,7 +497,59 @@ mixin _GameStateEconomy on _GameStateBase {
     return true;
   }
 
+  Future<String> repairItemWithGold(String itemId) async {
+    if (isActionLocked) {
+      return actionLockMessage;
+    }
+    final item = _getItem(itemId);
+    if (item == null || (ownedItems[itemId] ?? 0) <= 0) {
+      return tt('Eşya bulunamadı.', 'Item not found.');
+    }
+    _ensureOwnedItemDurability(itemId);
+    final currentDurability = itemDurabilityPercent(itemId);
+    if (currentDurability >= _GameStateBase._maxItemDurability) {
+      return tt(
+        'Bu eşya zaten tam sağlam.',
+        'This item is already fully repaired.',
+      );
+    }
+    final repairCost = repairItemGoldCost(itemId);
+    if (repairCost <= 0) {
+      return tt('Bu eşya tamir edilemez.', 'This item cannot be repaired.');
+    }
+    if (gold < repairCost) {
+      return tt(
+        'Yeterli altın yok. Tamir için $repairCost Altın gerekli.',
+        'Not enough gold. Repair requires $repairCost gold.',
+      );
+    }
+
+    gold -= repairCost;
+    itemDurabilityMap[itemId] = _GameStateBase._maxItemDurability;
+    _queueEvent('item_repaired', {
+      'itemId': itemId,
+      'costGold': repairCost,
+      'fromDurability': currentDurability,
+      'toDurability': _GameStateBase._maxItemDurability,
+    });
+    _addNews(
+      tt('Eşya Tamir Edildi', 'Item Repaired'),
+      tt(
+        '${itemName(item)} tamir edildi (%$currentDurability -> %${_GameStateBase._maxItemDurability}).',
+        '${itemName(item)} repaired (%$currentDurability -> %${_GameStateBase._maxItemDurability}).',
+      ),
+    );
+    await _save();
+    _syncOnlineSoon();
+    notifyListeners();
+    return tt(
+      '🔧 ${itemName(item)} tamir edildi (-$repairCost Altın).',
+      '🔧 ${itemName(item)} repaired (-$repairCost gold).',
+    );
+  }
+
   Future<void> unequipSlot(String slot) async {
+    if (isActionLocked) return;
     if (!equipped.containsKey(slot)) return;
     if ((equipped[slot] ?? '').isEmpty) return;
     equipped[slot] = '';

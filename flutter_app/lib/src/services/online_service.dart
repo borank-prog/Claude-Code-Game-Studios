@@ -320,6 +320,8 @@ class OnlineService {
     int? currentEnergy,
     int? maxEnergy,
     int? shieldUntilEpoch,
+    String? status,
+    int? statusUntilEpoch,
     int? attackEnergyCost,
     bool online = true,
     String? gangId,
@@ -350,6 +352,8 @@ class OnlineService {
       'maxEnergy': maxEnergy ?? 0,
       'attackEnergyCost': attackEnergyCost ?? 20,
       'shieldUntilEpoch': shieldUntilEpoch ?? 0,
+      'status': (status ?? 'active').trim().isEmpty ? 'active' : status,
+      'statusUntilEpoch': statusUntilEpoch ?? 0,
       'avatarId': avatarId ?? '',
       'equippedWeaponId': equippedWeaponId ?? '',
       'equippedKnifeId': equippedKnifeId ?? '',
@@ -453,6 +457,10 @@ class OnlineService {
           'gangWins': (data['gangWins'] as num?)?.toInt() ?? 0,
           'gangName': data['gangName'],
           'online': data['online'] == true,
+          'status': (data['status'] ?? 'active').toString(),
+          'statusUntilEpoch': (data['statusUntilEpoch'] as num?)?.toInt() ?? 0,
+          'shieldUntilEpoch': (data['shieldUntilEpoch'] as num?)?.toInt() ?? 0,
+          'currentTp': (data['currentTp'] as num?)?.toInt() ?? 100,
         };
       }
     }
@@ -624,45 +632,65 @@ class OnlineService {
     required String gangName,
     required int ownerPower,
   }) async {
+    final cleanOwnerUid = ownerUid.trim();
+    final cleanOwnerName = ownerName.trim().isEmpty
+        ? 'Oyuncu'
+        : ownerName.trim();
+    final cleanGangName = gangName.trim();
+    if (cleanOwnerUid.isEmpty || cleanGangName.isEmpty) {
+      throw Exception('Geçerli bir çete adı gerekli.');
+    }
+
     final gangs = FirebaseFirestore.instance.collection('gangs');
     final gangRef = gangs.doc();
-    final membersRef = gangRef.collection('members').doc(ownerUid);
+    final membersRef = gangRef.collection('members').doc(cleanOwnerUid);
     final userRef = FirebaseFirestore.instance
         .collection('users')
-        .doc(ownerUid);
+        .doc(cleanOwnerUid);
+
+    await gangRef
+        .set({
+          'id': gangRef.id,
+          'name': cleanGangName,
+          'ownerId': cleanOwnerUid,
+          'ownerName': cleanOwnerName,
+          'inviteOnly': false,
+          'acceptJoinRequests': true,
+          'gangRank': 1,
+          'respectPoints': 0,
+          'vault': 0,
+          'memberCount': 1,
+          'totalPower': ownerPower,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(_firestoreOpTimeout);
 
     final batch = FirebaseFirestore.instance.batch();
-    batch.set(gangRef, {
-      'id': gangRef.id,
-      'name': gangName,
-      'ownerId': ownerUid,
-      'ownerName': ownerName,
-      'inviteOnly': false,
-      'acceptJoinRequests': true,
-      'gangRank': 1,
-      'respectPoints': 0,
-      'vault': 0,
-      'memberCount': 1,
-      'totalPower': ownerPower,
-      'createdAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
     batch.set(membersRef, {
-      'uid': ownerUid,
-      'displayName': ownerName,
+      'uid': cleanOwnerUid,
+      'displayName': cleanOwnerName,
       'role': 'Lider',
       'power': ownerPower,
       'joinedAt': FieldValue.serverTimestamp(),
     });
     batch.set(userRef, {
       'gangId': gangRef.id,
-      'gangName': gangName,
+      'gangName': cleanGangName,
       'gangRole': 'Lider',
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
-    await batch.commit();
+    try {
+      await batch.commit().timeout(_firestoreOpTimeout);
+    } catch (e) {
+      // Keep data consistent if follower writes fail after gang doc creation.
+      try {
+        await gangRef.delete().timeout(_firestoreOpTimeout);
+      } catch (_) {}
+      rethrow;
+    }
 
-    return {'id': gangRef.id, 'name': gangName, 'role': 'Lider'};
+    return {'id': gangRef.id, 'name': cleanGangName, 'role': 'Lider'};
   }
 
   Future<void> setGangJoinPolicy({

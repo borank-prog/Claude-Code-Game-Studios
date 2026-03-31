@@ -9,6 +9,29 @@ const { getMessaging } = require('firebase-admin/messaging');
 initializeApp();
 const db = getFirestore();
 
+function normalizePenaltyStatus(rawStatus) {
+  const s = String(rawStatus || 'active').trim().toLowerCase();
+  return s === 'hospital' || s === 'prison' ? s : 'active';
+}
+
+function resolvePenaltyStatus(data, nowEpoch = Math.floor(Date.now() / 1000)) {
+  const status = normalizePenaltyStatus(data?.status);
+  const statusUntilEpoch = Math.max(
+    0,
+    Number(
+      data?.statusUntilEpoch ??
+      (data?.statusUntil?.seconds
+        ? data.statusUntil.seconds
+        : 0) ??
+      0,
+    ),
+  );
+  if (statusUntilEpoch > nowEpoch) {
+    return { status, statusUntilEpoch };
+  }
+  return { status: 'active', statusUntilEpoch: 0 };
+}
+
 exports.onAttackCreated = onDocumentCreated(
   'attacks/{attackId}',
   async (event) => {
@@ -170,8 +193,9 @@ exports.executePvpAttack = onCall(async (request) => {
     : null;
   const attackCost = profileAttackCost ?? 20;
 
-  const attackerStatus = attackerData.status || 'active';
-  const targetStatus = targetData.status || 'active';
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const attackerStatus = resolvePenaltyStatus(attackerData, nowEpoch).status;
+  const targetStatus = resolvePenaltyStatus(targetData, nowEpoch).status;
   if (attackerStatus === 'hospital' || attackerStatus === 'prison') {
     throw new HttpsError(
       'failed-precondition',
@@ -184,7 +208,6 @@ exports.executePvpAttack = onCall(async (request) => {
       `Hedef şu an ${targetStatus}'de, saldırılamaz`,
     );
   }
-  const nowEpoch = Math.floor(Date.now() / 1000);
   const targetShieldUntilEpoch = Math.max(0, Number(targetData.shieldUntilEpoch ?? 0));
   if (targetShieldUntilEpoch > nowEpoch) {
     const waitMin = Math.max(1, Math.ceil((targetShieldUntilEpoch - nowEpoch) / 60));
@@ -202,8 +225,9 @@ exports.executePvpAttack = onCall(async (request) => {
   }
 
   const attackerPower = Number(attackerData.power ?? 0);
-  const allowedTargetIds = await buildAllowedTargetIds(attackerId, attackerPower);
-  if (!allowedTargetIds.has(targetId)) {
+  const targetPower = Number(targetData.power ?? 0);
+  const attackWindow = await buildAttackWindow(attackerId, attackerPower);
+  if (!isTargetInAttackWindow(targetId, targetPower, attackerPower, attackWindow)) {
     throw new HttpsError(
       'failed-precondition',
       'Sadece üstündeki 5 ve altındaki 5 oyuncuya saldırabilirsin',
@@ -225,8 +249,9 @@ exports.executePvpAttack = onCall(async (request) => {
     const atkTxData = atkTxSnap.data() || {};
     const targetTxData = targetTxSnap.data() || {};
 
-    const atkTxStatus = atkTxData.status || 'active';
-    const targetTxStatus = targetTxData.status || 'active';
+    const txNowEpoch = Math.floor(Date.now() / 1000);
+    const atkTxStatus = resolvePenaltyStatus(atkTxData, txNowEpoch).status;
+    const targetTxStatus = resolvePenaltyStatus(targetTxData, txNowEpoch).status;
     if (atkTxStatus === 'hospital' || atkTxStatus === 'prison') {
       throw new HttpsError(
         'failed-precondition',
@@ -239,7 +264,6 @@ exports.executePvpAttack = onCall(async (request) => {
         `Hedef şu an ${targetTxStatus}'de, saldırılamaz`,
       );
     }
-    const txNowEpoch = Math.floor(Date.now() / 1000);
     const txTargetShieldUntilEpoch = Math.max(0, Number(targetTxData.shieldUntilEpoch ?? 0));
     if (txTargetShieldUntilEpoch > txNowEpoch) {
       const waitMin = Math.max(1, Math.ceil((txTargetShieldUntilEpoch - txNowEpoch) / 60));
@@ -332,6 +356,7 @@ exports.executePvpAttack = onCall(async (request) => {
         statusUntil: admin.firestore.Timestamp.fromDate(
           penaltyEndDate,
         ),
+        statusUntilEpoch: Math.floor(penaltyEndDate.getTime() / 1000),
         shieldUntilEpoch: penaltyShieldUntilEpoch,
       });
       message =
@@ -347,6 +372,7 @@ exports.executePvpAttack = onCall(async (request) => {
         statusUntil: admin.firestore.Timestamp.fromDate(
           penaltyEndDate,
         ),
+        statusUntilEpoch: Math.floor(penaltyEndDate.getTime() / 1000),
         shieldUntilEpoch: penaltyShieldUntilEpoch,
       });
       message =
@@ -476,7 +502,7 @@ exports.executeGangRaid = onCall(async (request) => {
   const targetData = targetSnap.data() || {};
 
   // Check target is not in hospital/prison
-  const targetStatus = targetData.status || 'active';
+  const targetStatus = resolvePenaltyStatus(targetData).status;
   if (targetStatus === 'hospital' || targetStatus === 'prison') {
     throw new HttpsError(
       'failed-precondition',
@@ -490,7 +516,7 @@ exports.executeGangRaid = onCall(async (request) => {
   for (const snap of memberSnaps) {
     if (!snap.exists) continue;
     const d = snap.data() || {};
-    const st = d.status || 'active';
+    const st = resolvePenaltyStatus(d).status;
     if (st === 'hospital' || st === 'prison') continue;
     totalAttackerPower += Math.max(1, Number(d.power ?? 1));
     validMembers.push({ uid: snap.id, ref: snap.ref, data: d });
@@ -527,6 +553,7 @@ exports.executeGangRaid = onCall(async (request) => {
   const hospitalUntil = admin.firestore.Timestamp.fromDate(
     new Date(nowDate.getTime() + 45 * 60 * 1000),
   );
+  const hospitalUntilEpoch = Math.floor((nowDate.getTime() + 45 * 60 * 1000) / 1000);
   const penaltyShieldUntilEpoch = Math.floor((nowDate.getTime() + 50 * 60 * 1000) / 1000);
 
   const batch = db.batch();
@@ -550,6 +577,7 @@ exports.executeGangRaid = onCall(async (request) => {
       cash: admin.firestore.FieldValue.increment(-totalStolen),
       status: 'prison',
       statusUntil: hospitalUntil,
+      statusUntilEpoch: hospitalUntilEpoch,
       shieldUntilEpoch: penaltyShieldUntilEpoch,
     });
     message = `Çete baskını başarılı! Kişi başı $${stolenCash} kazandınız.`;
@@ -558,6 +586,7 @@ exports.executeGangRaid = onCall(async (request) => {
     batch.update(db.collection('users').doc(leaderId), {
       status: 'hospital',
       statusUntil: hospitalUntil,
+      statusUntilEpoch: hospitalUntilEpoch,
       shieldUntilEpoch: penaltyShieldUntilEpoch,
     });
     message = 'Baskın başarısız! Lider hastaneye kaldırıldı.';
@@ -1029,9 +1058,9 @@ function signedPct(value) {
   return value > 0 ? `+${value}` : `${value}`;
 }
 
-async function buildAllowedTargetIds(attackerId, attackerPower) {
+async function buildAttackWindow(attackerId, attackerPower) {
   const users = db.collection('users');
-  const [strongerSnap, weakerSnap, equalSnap] = await Promise.all([
+  const [strongerSnap, weakerSnap] = await Promise.all([
     users
       .where('power', '>', attackerPower)
       .orderBy('power')
@@ -1042,16 +1071,28 @@ async function buildAllowedTargetIds(attackerId, attackerPower) {
       .orderBy('power', 'desc')
       .limit(5)
       .get(),
-    users.where('power', '==', attackerPower).limit(25).get(),
   ]);
 
+  return {
+    strongerIds: strongerSnap.docs
+      .map((d) => d.id)
+      .filter((id) => id !== attackerId),
+    weakerIds: weakerSnap.docs
+      .map((d) => d.id)
+      .filter((id) => id !== attackerId),
+  };
+}
+
+function isTargetInAttackWindow(targetId, targetPower, attackerPower, window) {
+  const atk = Number(attackerPower ?? 0);
+  const tgt = Number(targetPower ?? 0);
+  if (!Number.isFinite(atk) || !Number.isFinite(tgt)) return false;
+  if (tgt === atk) return true;
   const allowed = new Set([
-    ...strongerSnap.docs.map((d) => d.id),
-    ...weakerSnap.docs.map((d) => d.id),
-    ...equalSnap.docs.map((d) => d.id),
+    ...(Array.isArray(window?.strongerIds) ? window.strongerIds : []),
+    ...(Array.isArray(window?.weakerIds) ? window.weakerIds : []),
   ]);
-  allowed.delete(attackerId);
-  return allowed;
+  return allowed.has(String(targetId ?? '').trim());
 }
 
 function randomInt(maxFloat) {
@@ -1119,6 +1160,8 @@ const BOT_PLAYERS = [
 
 exports.seedBotData = onCall(async (request) => {
   const batch = db.batch();
+  const now = admin.firestore.Timestamp.now();
+  const nowEpoch = Math.floor(Date.now() / 1000);
 
   for (const gang of BOT_GANGS) {
     const botMembers = BOT_PLAYERS.filter(p => p.gangId === gang.id);
@@ -1138,8 +1181,8 @@ exports.seedBotData = onCall(async (request) => {
       vault: Math.floor(totalPower * 40),
       gangRank: 1,
       isBot: true,
-      createdAt: admin.firestore.Timestamp.now(),
-      updatedAt: admin.firestore.Timestamp.now(),
+      createdAt: now,
+      updatedAt: now,
     }, { merge: true });
 
     for (const bot of botMembers) {
@@ -1150,7 +1193,8 @@ exports.seedBotData = onCall(async (request) => {
         role: bot.id === botMembers[0]?.id ? 'Lider' : 'Üye',
         power: bot.power,
         isBot: true,
-        joinedAt: admin.firestore.Timestamp.now(),
+        joinedAt: now,
+        updatedAt: now,
       }, { merge: true });
     }
   }
@@ -1167,12 +1211,25 @@ exports.seedBotData = onCall(async (request) => {
       gangId: bot.gangId,
       gangName: BOT_GANGS.find(g => g.id === bot.gangId)?.name ?? '',
       gangRole: 'Üye',
-      energy: 100,
-      hp: 100,
+      currentEnergy: 100,
+      maxEnergy: 100,
+      attackEnergyCost: 20,
+      currentTp: 100,
+      maxTp: 100,
+      shieldUntilEpoch: 0,
       status: 'active',
+      statusUntilEpoch: 0,
+      statusUntil: null,
+      equippedWeaponId: defaultWeaponIdForPower(bot.power),
+      equippedKnifeId: defaultKnifeIdForPower(bot.power),
+      equippedArmorId: defaultArmorIdForPower(bot.power),
+      equippedVehicleId: defaultVehicleIdForPower(bot.power),
+      combatWeaponId: defaultWeaponIdForPower(bot.power),
+      online: true,
+      lastLoginEpoch: nowEpoch,
       isBot: true,
       score: bot.power * 30 + bot.cash / 100,
-      updatedAt: admin.firestore.Timestamp.now(),
+      updatedAt: now,
     }, { merge: true });
   }
 
@@ -1180,84 +1237,423 @@ exports.seedBotData = onCall(async (request) => {
   return { ok: true, gangs: BOT_GANGS.length, players: BOT_PLAYERS.length };
 });
 
-exports.botActivityLoop = onSchedule('every 10 minutes', async () => {
+function toSimUser(id, data, nowEpoch) {
+  const statusInfo = resolvePenaltyStatus(data, nowEpoch);
+  const level = Math.max(1, Number(data.level ?? 1));
+  const xp = Math.max(Number(data.xp ?? (level * 1000)), 0);
+  const power = Math.max(1, Number(data.power ?? 1));
+  const maxEnergy = Math.max(100, Number(data.maxEnergy ?? 100));
+  const currentEnergy = Math.max(0, Math.min(maxEnergy, Number(data.currentEnergy ?? 100)));
+  const maxTp = Math.max(100, Number(data.maxTp ?? 100));
+  const currentTp = Math.max(0, Math.min(maxTp, Number(data.currentTp ?? 100)));
+  return {
+    id,
+    name: String(data.displayName ?? data.name ?? 'Oyuncu'),
+    isBot: data.isBot === true,
+    gangId: String(data.gangId ?? ''),
+    gangName: String(data.gangName ?? ''),
+    level,
+    xp,
+    power,
+    cash: Math.max(0, Number(data.cash ?? 0)),
+    wins: Math.max(0, Number(data.wins ?? 0)),
+    gangWins: Math.max(0, Number(data.gangWins ?? 0)),
+    currentEnergy,
+    maxEnergy,
+    attackEnergyCost: Math.max(12, Math.min(24, Number(data.attackEnergyCost ?? 20))),
+    currentTp,
+    maxTp,
+    shieldUntilEpoch: Math.max(0, Number(data.shieldUntilEpoch ?? 0)),
+    status: statusInfo.status,
+    statusUntilEpoch: statusInfo.statusUntilEpoch,
+    equippedWeaponId: String(data.equippedWeaponId ?? ''),
+    equippedKnifeId: String(data.equippedKnifeId ?? ''),
+    equippedArmorId: String(data.equippedArmorId ?? ''),
+    equippedVehicleId: String(data.equippedVehicleId ?? ''),
+    combatWeaponId: String(data.combatWeaponId ?? ''),
+  };
+}
+
+function isLocked(user, nowEpoch) {
+  if (!user) return false;
+  if (user.status !== 'hospital' && user.status !== 'prison') return false;
+  return Number(user.statusUntilEpoch ?? 0) > nowEpoch;
+}
+
+function applyPenalty(user, status, nowEpoch, sec) {
+  user.status = status;
+  user.statusUntilEpoch = nowEpoch + sec;
+  if (status === 'hospital') {
+    user.currentTp = 0;
+  } else {
+    user.currentTp = Math.max(12, Math.trunc(user.maxTp * 0.28));
+  }
+}
+
+function levelForXp(xp) {
+  const lv = Math.floor(Math.max(0, Number(xp ?? 0)) / 1000) + 1;
+  return Math.max(1, Math.min(90, lv));
+}
+
+function pickRandom(items) {
+  if (!Array.isArray(items) || items.length === 0) return null;
+  return items[Math.floor(Math.random() * items.length)] || null;
+}
+
+exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
   const now = admin.firestore.Timestamp.now();
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const PENALTY_SEC = 45 * 60;
+
+  const [botSnap, usersSnap] = await Promise.all([
+    db.collection('users').where('isBot', '==', true).get(),
+    db.collection('users').limit(1000).get(),
+  ]);
+
+  if (botSnap.empty) {
+    console.log('No bots found, skipping activity tick.');
+    return;
+  }
+
+  const botMap = new Map();
+  for (const doc of botSnap.docs) {
+    botMap.set(doc.id, toSimUser(doc.id, doc.data() || {}, nowEpoch));
+  }
+
+  const realMap = new Map();
+  for (const doc of usersSnap.docs) {
+    if (botMap.has(doc.id)) continue;
+    const data = doc.data() || {};
+    if (data.isBot === true) continue;
+    realMap.set(doc.id, toSimUser(doc.id, data, nowEpoch));
+  }
+
+  const changedRealIds = new Set();
+  const attackLogs = [];
+  let realTargetedThisTick = 0;
+
+  const botIds = Array.from(botMap.keys()).sort(() => Math.random() - 0.5);
+  for (const botId of botIds) {
+    const bot = botMap.get(botId);
+    if (!bot) continue;
+
+    if (isLocked(bot, nowEpoch)) {
+      if (Math.random() < 0.04) {
+        bot.status = 'active';
+        bot.statusUntilEpoch = 0;
+        bot.currentTp = Math.max(70, bot.currentTp);
+      } else {
+        continue;
+      }
+    }
+
+    bot.currentEnergy = Math.min(bot.maxEnergy, bot.currentEnergy + (8 + randomInt(12)));
+    bot.currentTp = Math.min(bot.maxTp, Math.max(15, bot.currentTp + randomInt(8)));
+
+    const actionRoll = Math.random();
+    const canAttack = bot.currentEnergy >= bot.attackEnergyCost && bot.currentTp > 0;
+    const canMission = bot.currentEnergy >= 10;
+
+    if (actionRoll < 0.52 && canAttack) {
+      const botTargets = Array.from(botMap.values()).filter((u) =>
+        u.id !== bot.id &&
+        !isLocked(u, nowEpoch) &&
+        u.shieldUntilEpoch <= nowEpoch &&
+        u.currentTp > 0,
+      );
+      const realTargets = Array.from(realMap.values()).filter((u) =>
+        !isLocked(u, nowEpoch) &&
+        u.shieldUntilEpoch <= nowEpoch &&
+        u.currentTp > 0,
+      );
+      const realTargetsSoft = Array.from(realMap.values()).filter((u) =>
+        !isLocked(u, nowEpoch) &&
+        u.shieldUntilEpoch <= nowEpoch,
+      );
+
+      let pool = [];
+      // Real users should feel the world is alive: bots prefer attacking real players.
+      if (realTargets.length > 0 && (realTargetedThisTick === 0 || Math.random() < 0.72)) {
+        pool = realTargets;
+      } else if (realTargetsSoft.length > 0 && (realTargetedThisTick === 0 || Math.random() < 0.55)) {
+        pool = realTargetsSoft;
+      } else if (botTargets.length > 0) {
+        pool = botTargets;
+      } else {
+        pool = realTargetsSoft;
+      }
+      const target = pickRandom(pool);
+      if (!target) continue;
+      if (!target.isBot) {
+        realTargetedThisTick += 1;
+      }
+
+      const attackerLoadout = resolveLoadout({
+        combatWeaponId: bot.combatWeaponId,
+        equippedWeaponId: bot.equippedWeaponId,
+        equippedKnifeId: bot.equippedKnifeId,
+        equippedArmorId: bot.equippedArmorId,
+        equippedVehicleId: bot.equippedVehicleId,
+      }, bot.power);
+      const targetLoadout = resolveLoadout({
+        combatWeaponId: target.combatWeaponId,
+        equippedWeaponId: target.equippedWeaponId,
+        equippedKnifeId: target.equippedKnifeId,
+        equippedArmorId: target.equippedArmorId,
+        equippedVehicleId: target.equippedVehicleId,
+      }, target.power);
+      const atkEdge = computeLoadoutMatchup(attackerLoadout, targetLoadout);
+      const defEdge = computeLoadoutMatchup(targetLoadout, attackerLoadout);
+
+      const atkTotal = applyPercent(bot.power, atkEdge.loadoutTotalPct) + randomInt(bot.power / 5);
+      const defTotal =
+        applyPercent(target.power, defEdge.loadoutTotalPct) + randomInt(target.power / 5);
+
+      const diff = Math.abs(atkTotal - defTotal);
+      const drawThreshold = Math.trunc(defTotal * 0.1);
+      let outcome = 'draw';
+      if (diff > drawThreshold) {
+        outcome = atkTotal > defTotal ? 'win' : 'lose';
+      }
+
+      bot.currentEnergy = Math.max(0, bot.currentEnergy - bot.attackEnergyCost);
+      let stolenCash = 0;
+      let xpGained = 0;
+      let message = '';
+
+      if (outcome === 'win') {
+        const stealPct = 0.05 + (Math.random() * 0.10);
+        stolenCash = Math.max(25, Math.min(90000, Math.trunc(target.cash * stealPct)));
+        stolenCash = Math.min(stolenCash, Math.max(0, target.cash));
+        xpGained = 20 + randomInt(22);
+
+        bot.cash += stolenCash;
+        bot.xp += xpGained;
+        bot.wins += 1;
+        if (Math.random() < 0.22) {
+          bot.power += 1 + randomInt(2);
+        }
+
+        target.cash = Math.max(0, target.cash - stolenCash);
+        const targetPenalty = Math.random() < 0.33 ? 'prison' : 'hospital';
+        applyPenalty(target, targetPenalty, nowEpoch, PENALTY_SEC);
+        target.shieldUntilEpoch = nowEpoch + PENALTY_SEC + (5 * 60);
+        if (!target.isBot) {
+          changedRealIds.add(target.id);
+        }
+        if (bot.gangId && target.gangId && bot.gangId !== target.gangId) {
+          bot.gangWins += 1;
+        }
+        message = `${target.name} etkisiz hale getirildi. ${stolenCash}$ ganimet.`;
+      } else if (outcome === 'lose') {
+        xpGained = 6 + randomInt(8);
+        bot.xp += xpGained;
+        applyPenalty(bot, 'hospital', nowEpoch, PENALTY_SEC);
+        bot.shieldUntilEpoch = nowEpoch + PENALTY_SEC + (5 * 60);
+        message = `${target.name} saldırıyı püskürttü, bot hastaneye düştü.`;
+      } else {
+        xpGained = 10 + randomInt(6);
+        bot.xp += xpGained;
+        bot.currentTp = Math.max(10, bot.currentTp - (4 + randomInt(9)));
+        target.currentTp = Math.max(10, target.currentTp - (3 + randomInt(8)));
+        if (!target.isBot) {
+          changedRealIds.add(target.id);
+        }
+        message = `${target.name} ile çatışma berabere bitti.`;
+      }
+
+      bot.level = levelForXp(bot.xp);
+      if (bot.level > 1 && bot.power < (120 + (bot.level * 70))) {
+        bot.power += randomInt(2);
+      }
+
+      attackLogs.push({
+        attackerId: bot.id,
+        attackerName: bot.name,
+        targetId: target.id,
+        targetName: target.name,
+        type: 'quick',
+        outcome,
+        stolenCash,
+        xpGained,
+        message,
+        atkTotal,
+        defTotal,
+        attackerWeaponId: attackerLoadout.weaponId,
+        targetWeaponId: targetLoadout.weaponId,
+        attackerKnifeId: attackerLoadout.knifeId,
+        targetKnifeId: targetLoadout.knifeId,
+        attackerArmorId: attackerLoadout.armorId,
+        targetArmorId: targetLoadout.armorId,
+        attackerVehicleId: attackerLoadout.vehicleId,
+        targetVehicleId: targetLoadout.vehicleId,
+        weaponPowerPct: atkEdge.weaponPowerPct,
+        weaponSpeedPct: atkEdge.weaponSpeedPct,
+        weaponTotalPct: atkEdge.weaponTotalPct,
+        knifePct: atkEdge.knifePct,
+        armorPct: atkEdge.armorPct,
+        vehiclePct: atkEdge.vehiclePct,
+        loadoutTotalPct: atkEdge.loadoutTotalPct,
+        timestamp: now,
+      });
+      continue;
+    }
+
+    if (canMission) {
+      const missionCost = 10 + randomInt(8);
+      bot.currentEnergy = Math.max(0, bot.currentEnergy - missionCost);
+      const missionSuccess = Math.random() < Math.min(0.92, 0.50 + (bot.power / 6000));
+      if (missionSuccess) {
+        const missionCash = 450 + randomInt(1800);
+        const missionXp = 20 + randomInt(35);
+        bot.cash += missionCash;
+        bot.xp += missionXp;
+        if (Math.random() < 0.26) {
+          bot.power += 1 + randomInt(3);
+        }
+      } else {
+        const failPenalty = 120 + randomInt(380);
+        bot.cash = Math.max(0, bot.cash - failPenalty);
+        if (Math.random() < 0.58) {
+          const failStatus = Math.random() < 0.52 ? 'prison' : 'hospital';
+          applyPenalty(bot, failStatus, nowEpoch, PENALTY_SEC);
+          bot.shieldUntilEpoch = nowEpoch + PENALTY_SEC + (5 * 60);
+        }
+      }
+      bot.level = levelForXp(bot.xp);
+      continue;
+    }
+
+    // Passive economy tick
+    bot.cash += 120 + randomInt(420);
+    bot.xp += 2 + randomInt(6);
+    bot.level = levelForXp(bot.xp);
+  }
+
   const batch = db.batch();
 
-  for (const bot of BOT_PLAYERS) {
-    const rnd = Math.random();
-    const cashGain = Math.floor(Math.random() * 800 + 200);
-    const xpGain   = Math.floor(Math.random() * 30 + 5);
-    const powerDelta = Math.random() < 0.1 ? Math.floor(Math.random() * 10 + 1) : 0;
+  for (const [botId, bot] of botMap.entries()) {
+    const userRef = db.collection('users').doc(botId);
+    const botLoadout = resolveLoadout({
+      combatWeaponId: bot.combatWeaponId,
+      equippedWeaponId: bot.equippedWeaponId,
+      equippedKnifeId: bot.equippedKnifeId,
+      equippedArmorId: bot.equippedArmorId,
+      equippedVehicleId: bot.equippedVehicleId,
+    }, bot.power);
+    batch.set(userRef, {
+      uid: bot.id,
+      displayName: bot.name,
+      name: bot.name,
+      isBot: true,
+      gangId: bot.gangId,
+      gangName: bot.gangName,
+      gangRole: 'Üye',
+      level: bot.level,
+      xp: Math.max(0, Math.trunc(bot.xp)),
+      power: Math.max(1, Math.trunc(bot.power)),
+      cash: Math.max(0, Math.trunc(bot.cash)),
+      wins: Math.max(0, Math.trunc(bot.wins)),
+      gangWins: Math.max(0, Math.trunc(bot.gangWins)),
+      currentEnergy: Math.max(0, Math.trunc(bot.currentEnergy)),
+      maxEnergy: Math.max(100, Math.trunc(bot.maxEnergy)),
+      attackEnergyCost: Math.max(12, Math.min(24, Math.trunc(bot.attackEnergyCost))),
+      currentTp: Math.max(0, Math.min(bot.maxTp, Math.trunc(bot.currentTp))),
+      maxTp: Math.max(100, Math.trunc(bot.maxTp)),
+      status: bot.status,
+      statusUntilEpoch: Math.max(0, Math.trunc(bot.statusUntilEpoch)),
+      statusUntil: bot.statusUntilEpoch > nowEpoch
+        ? admin.firestore.Timestamp.fromDate(new Date(bot.statusUntilEpoch * 1000))
+        : null,
+      shieldUntilEpoch: Math.max(0, Math.trunc(bot.shieldUntilEpoch)),
+      equippedWeaponId: botLoadout.weaponId,
+      equippedKnifeId: botLoadout.knifeId,
+      equippedArmorId: botLoadout.armorId,
+      equippedVehicleId: botLoadout.vehicleId,
+      combatWeaponId: botLoadout.weaponId,
+      online: true,
+      score: Math.trunc((bot.power * 12) + (bot.wins * 900) + (bot.gangWins * 1200) + (bot.cash / 2000)),
+      updatedAt: now,
+    }, { merge: true });
+  }
 
-    const userRef = db.collection('users').doc(bot.id);
+  for (const realId of changedRealIds) {
+    const target = realMap.get(realId);
+    if (!target) continue;
+    const userRef = db.collection('users').doc(realId);
+    batch.set(userRef, {
+      cash: Math.max(0, Math.trunc(target.cash)),
+      currentTp: Math.max(0, Math.min(target.maxTp, Math.trunc(target.currentTp))),
+      status: target.status,
+      statusUntilEpoch: Math.max(0, Math.trunc(target.statusUntilEpoch)),
+      statusUntil: target.statusUntilEpoch > nowEpoch
+        ? admin.firestore.Timestamp.fromDate(new Date(target.statusUntilEpoch * 1000))
+        : null,
+      shieldUntilEpoch: Math.max(0, Math.trunc(target.shieldUntilEpoch)),
+      updatedAt: now,
+    }, { merge: true });
+  }
 
-    if (rnd < 0.6) {
-      // Görev yaptı
-      batch.set(userRef, {
-        cash: admin.firestore.FieldValue.increment(cashGain),
-        xp:   admin.firestore.FieldValue.increment(xpGain),
-        power: admin.firestore.FieldValue.increment(powerDelta),
-        score: admin.firestore.FieldValue.increment(cashGain / 10 + xpGain),
-        updatedAt: now,
-      }, { merge: true });
-    } else if (rnd < 0.85) {
-      // Saldırı kaybetti, biraz hasar aldı
-      batch.set(userRef, {
-        updatedAt: now,
-      }, { merge: true });
-    } else {
-      // Saldırı kazandı, nakit çaldı
-      const loot = Math.floor(Math.random() * 300 + 100);
-      batch.set(userRef, {
-        cash:  admin.firestore.FieldValue.increment(loot),
-        score: admin.firestore.FieldValue.increment(loot / 10),
-        updatedAt: now,
-      }, { merge: true });
-
-      // Saldırı kaydı oluştur (gerçek oyunculara görünsün)
-      const realUsers = await db.collection('users')
-        .where('isBot', '==', false)
-        .limit(5)
-        .get();
-      if (!realUsers.empty) {
-        const target = realUsers.docs[Math.floor(Math.random() * realUsers.docs.length)];
-        const atkRef = db.collection('attacks').doc();
-        batch.set(atkRef, {
-          attackerId: bot.id,
-          attackerName: bot.name,
-          targetId: target.id,
-          targetName: target.data().displayName ?? 'Oyuncu',
-          outcome: 'win',
-          type: 'quick',
-          stolenCash: loot,
-          xpGained: xpGain,
-          timestamp: now,
-        });
-      }
+  for (const log of attackLogs) {
+    const attackRef = db.collection('attacks').doc();
+    batch.set(attackRef, log);
+    if (realMap.has(log.targetId)) {
+      const inboxRef = db
+        .collection('users')
+        .doc(log.targetId)
+        .collection('inbox')
+        .doc();
+      batch.set(inboxRef, {
+        type: 'attack_report',
+        attackId: attackRef.id,
+        title: `${log.attackerName} sana saldırdı`,
+        body: log.message,
+        outcome: log.outcome,
+        stolenCash: log.stolenCash,
+        xpGained: log.xpGained,
+        isRead: false,
+        createdAt: now,
+      });
     }
   }
 
-  // Çete güç toplamlarını güncelle
   for (const gang of BOT_GANGS) {
+    const members = Array.from(botMap.values()).filter((u) => u.gangId === gang.id);
+    const totalPower = members.reduce((sum, u) => sum + Math.max(0, Number(u.power ?? 0)), 0);
+    const totalWins = members.reduce((sum, u) => sum + Math.max(0, Number(u.wins ?? 0)), 0);
     const gangRef = db.collection('gangs').doc(gang.id);
-    const botMembers = BOT_PLAYERS.filter(p => p.gangId === gang.id);
-    // Firestore'daki güncel güçleri topla
-    const memberSnaps = await Promise.all(
-      botMembers.map(b => db.collection('users').doc(b.id).get())
-    );
-    const totalPower = memberSnaps.reduce((s, snap) => {
-      return s + ((snap.data()?.power) ?? 0);
-    }, 0);
-    batch.update(gangRef, {
+    batch.set(gangRef, {
+      id: gang.id,
+      name: gang.name,
+      ownerId: members[0]?.id ?? 'bot',
+      ownerName: members[0]?.name ?? 'Bot',
+      inviteOnly: gang.inviteOnly,
+      acceptJoinRequests: gang.acceptJoinRequests,
+      memberCount: members.length,
       totalPower,
-      respectPoints: Math.floor(totalPower * 1.1),
+      respectPoints: Math.floor(totalPower * 1.1) + (totalWins * 25),
+      vault: Math.floor(totalPower * 40),
+      isBot: true,
       updatedAt: now,
-    });
+    }, { merge: true });
+
+    for (const member of members) {
+      const memberRef = gangRef.collection('members').doc(member.id);
+      batch.set(memberRef, {
+        uid: member.id,
+        displayName: member.name,
+        role: member.id === members[0]?.id ? 'Lider' : 'Üye',
+        power: Math.max(1, Math.trunc(member.power)),
+        isBot: true,
+        updatedAt: now,
+      }, { merge: true });
+    }
   }
 
   await batch.commit();
-  console.log('Bot activity loop completed.');
+  console.log(
+    `Bot loop ok: bots=${botMap.size}, realTargeted=${realTargetedThisTick}, realTouched=${changedRealIds.size}, attacks=${attackLogs.length}`,
+  );
 });
 
 async function sendNotification(token, title, body, data = {}) {

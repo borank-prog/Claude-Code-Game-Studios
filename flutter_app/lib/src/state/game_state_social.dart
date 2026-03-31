@@ -3,7 +3,32 @@
 part of 'game_state.dart';
 
 mixin _GameStateSocial on _GameStateBase {
+  Future<bool> _ensureFirebaseReadyForSocial() async {
+    if (firebaseReady) return true;
+    final ok = await _onlineService.initialize();
+    firebaseReady = ok;
+    firebaseStatus = ok
+        ? tt('Firebase bağlı', 'Firebase connected')
+        : _onlineService.initError;
+    if (!ok) {
+      lastAuthError = firebaseStatus.isNotEmpty
+          ? firebaseStatus
+          : tt(
+              'Firebase bağlantısı hazır değil. Lütfen tekrar dene.',
+              'Firebase is not ready. Please try again.',
+            );
+      notifyListeners();
+      return false;
+    }
+    return true;
+  }
+
   Future<bool> sendFriendRequest(String targetUid) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return false;
+    }
     if (!firebaseReady || !online || authMode != 'firebase') return false;
     if (userId.isEmpty ||
         targetUid.trim().isEmpty ||
@@ -33,6 +58,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<void> acceptFriendRequest(String requestId) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
     await _onlineService.acceptFriendRequest(
       myUid: userId,
@@ -43,6 +73,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<void> rejectFriendRequest(String requestId) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
     await _onlineService.rejectFriendRequest(requestId);
     await refreshSocialData();
@@ -50,15 +85,47 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<bool> createGang(String name) async {
-    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
       return false;
-    if (name.trim().isEmpty) return false;
-    if (gangId.isNotEmpty) return false;
+    }
+    lastAuthError = '';
+    final gangName = name.trim();
+    if (gangName.isEmpty) {
+      lastAuthError = tt('Önce bir çete adı yaz.', 'Enter a gang name first.');
+      notifyListeners();
+      return false;
+    }
+    if (gangId.isNotEmpty) {
+      lastAuthError = tt('Zaten bir çetedesin.', 'You are already in a gang.');
+      notifyListeners();
+      return false;
+    }
+    if (!firebaseReady) {
+      final authReady = await _ensureFirebaseReadyForSocial();
+      if (!authReady) return false;
+    }
+    if (authMode != 'firebase') {
+      final onlineUser = _onlineService.currentUser;
+      if (onlineUser != null) {
+        authMode = 'firebase';
+        userId = onlineUser.uid;
+      }
+    }
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) {
+      lastAuthError = tt(
+        'Çete kurmak için e-posta/Google hesabı ile giriş yapmalısın.',
+        'You must sign in with email/Google to create a gang.',
+      );
+      notifyListeners();
+      return false;
+    }
     try {
       final result = await _onlineService.createGang(
         ownerUid: userId,
         ownerName: playerName,
-        gangName: name.trim(),
+        gangName: gangName,
         ownerPower: totalPower,
       );
       currentGang = {
@@ -73,7 +140,7 @@ mixin _GameStateSocial on _GameStateBase {
       await refreshSocialData();
       _addNews(
         tt('Çete', 'Gang'),
-        tt('${name.trim()} kuruldu.', '${name.trim()} created.'),
+        tt('$gangName kuruldu.', '$gangName created.'),
       );
       await _save();
       notifyListeners();
@@ -86,12 +153,46 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<bool> joinGang(String targetGangId) async {
-    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
       return false;
-    if (targetGangId.trim().isEmpty) return false;
-    if (gangId.isNotEmpty) return false;
+    }
+    lastAuthError = '';
+    final normalizedGangId = targetGangId.trim();
+    if (normalizedGangId.isEmpty) {
+      lastAuthError = tt(
+        'Katılmak için bir Çete ID gir.',
+        'Enter a Gang ID to join.',
+      );
+      notifyListeners();
+      return false;
+    }
+    if (gangId.isNotEmpty) {
+      lastAuthError = tt('Zaten bir çetedesin.', 'You are already in a gang.');
+      notifyListeners();
+      return false;
+    }
+    if (!firebaseReady) {
+      final authReady = await _ensureFirebaseReadyForSocial();
+      if (!authReady) return false;
+    }
+    if (authMode != 'firebase') {
+      final onlineUser = _onlineService.currentUser;
+      if (onlineUser != null) {
+        authMode = 'firebase';
+        userId = onlineUser.uid;
+      }
+    }
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) {
+      lastAuthError = tt(
+        'Çeteye katılmak için e-posta/Google hesabı ile giriş yapmalısın.',
+        'You must sign in with email/Google to join a gang.',
+      );
+      notifyListeners();
+      return false;
+    }
     try {
-      final normalizedGangId = targetGangId.trim();
       await _onlineService.sendGangJoinRequest(
         gangId: normalizedGangId,
         fromUid: userId,
@@ -117,6 +218,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<bool> setGangInviteOnly(bool inviteOnly) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return false;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
       return false;
     if (!hasGang || !isGangLeader) return false;
@@ -147,6 +253,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<bool> sendGangInvite(String targetUid) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return false;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
       return false;
     if (!hasGang || !isGangLeader) return false;
@@ -177,6 +288,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<void> acceptGangJoinRequest(String requestId) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
     if (!hasGang || !isGangLeader) return;
     try {
@@ -194,6 +310,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<void> rejectGangJoinRequest(String requestId) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
     if (!hasGang || !isGangLeader) return;
     try {
@@ -211,6 +332,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<void> acceptGangInvite(String inviteId) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
     if (gangId.isNotEmpty) return;
     try {
@@ -235,6 +361,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<void> rejectGangInvite(String inviteId) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return;
+    }
     if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return;
     try {
       await _onlineService.rejectGangInvite(
@@ -250,6 +381,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<void> leaveGang() async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return;
+    }
     if (!firebaseReady ||
         authMode != 'firebase' ||
         userId.isEmpty ||
@@ -282,6 +418,11 @@ mixin _GameStateSocial on _GameStateBase {
   }
 
   Future<bool> donateToGang({int amount = 1000}) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return false;
+    }
     if (!hasGang) return false;
     if (amount <= 0) return false;
     if (cash < amount) return false;

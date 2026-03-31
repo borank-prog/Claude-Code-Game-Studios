@@ -9,6 +9,23 @@ class PvpService {
   final _functions = FirebaseFunctions.instance;
   static const int _attackWindowSize = 5;
 
+  String _normalizeStatus(String rawStatus) {
+    final s = rawStatus.trim().toLowerCase();
+    return (s == 'hospital' || s == 'prison') ? s : 'active';
+  }
+
+  String _effectiveStatus(Map<String, dynamic> data) {
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final status = _normalizeStatus((data['status'] as String?) ?? 'active');
+    final statusUntilEpoch =
+        (data['statusUntilEpoch'] as num?)?.toInt() ??
+        (data['hospitalUntilEpoch'] as num?)?.toInt() ??
+        (data['jailUntilEpoch'] as num?)?.toInt() ??
+        0;
+    if (statusUntilEpoch > now) return status;
+    return 'active';
+  }
+
   Future<String?> canAttack({
     required String attackerId,
     required String targetId,
@@ -23,7 +40,7 @@ class PvpService {
     final attackerData = attacker.data();
     if (attackerData == null) return 'Saldıran oyuncu bulunamadı';
 
-    final attackerStatus = attackerData['status'] as String? ?? 'active';
+    final attackerStatus = _effectiveStatus(attackerData);
     if (attackerStatus == 'hospital' || attackerStatus == 'prison') {
       return "Şu an $attackerStatus durumundasın, saldıramazsın";
     }
@@ -35,10 +52,11 @@ class PvpService {
     final targetData = target.data();
     if (targetData == null) return 'Hedef bulunamadı';
 
-    final status = targetData['status'] as String? ?? 'active';
+    final status = _effectiveStatus(targetData);
     if (status == 'hospital' || status == 'prison') {
       return "Hedef şu an $status'de, saldırılamaz";
     }
+    final targetPower = (targetData['power'] as num?)?.toInt() ?? 0;
     final nowEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     final shieldUntilEpoch =
         (targetData['shieldUntilEpoch'] as num?)?.toInt() ?? 0;
@@ -53,6 +71,7 @@ class PvpService {
       attackerId: attackerId,
       targetId: targetId,
       attackerPower: attackerPower,
+      targetPower: targetPower,
     );
     if (powerWindowBlock != null) return powerWindowBlock;
 
@@ -76,6 +95,7 @@ class PvpService {
     required String attackerId,
     required String targetId,
     required int attackerPower,
+    required int targetPower,
   }) async {
     final users = _db.collection('users');
 
@@ -91,25 +111,16 @@ class PvpService {
         .limit(_attackWindowSize)
         .get()
         .timeout(const Duration(seconds: 6));
-    final equal = await users
-        .where('power', isEqualTo: attackerPower)
-        .limit(25)
-        .get()
-        .timeout(const Duration(seconds: 6));
+
+    if (targetPower == attackerPower) return null;
 
     final allowedTargetIds = <String>{
-      ...stronger.docs.map((d) => d.id),
-      ...weaker.docs.map((d) => d.id),
-      ...equal.docs.map((d) => d.id),
-    }..remove(attackerId);
+      ...stronger.docs.map((d) => d.id).where((id) => id != attackerId),
+      ...weaker.docs.map((d) => d.id).where((id) => id != attackerId),
+    };
+    if (allowedTargetIds.contains(targetId)) return null;
 
-    if (allowedTargetIds.isEmpty) {
-      return 'Şu an saldırılabilir rakip yok';
-    }
-    if (!allowedTargetIds.contains(targetId)) {
-      return 'Sadece üstündeki 5 ve altındaki 5 oyuncuya saldırabilirsin';
-    }
-    return null;
+    return 'Sadece üstündeki 5 ve altındaki 5 oyuncuya saldırabilirsin';
   }
 
   Future<AttackResult> executeAttack({

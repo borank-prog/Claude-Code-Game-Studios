@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../services/notification_service.dart';
 import '../state/game_state.dart';
 import '../widgets/game_background.dart';
 import '../widgets/glass_panel.dart';
+import 'help_screen.dart';
 import 'login_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -243,7 +243,10 @@ class SettingsScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           state.tt('Çıkış Yap', 'Log Out'),
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         content: Text(
           state.tt(
@@ -492,6 +495,28 @@ class SettingsScreen extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
               children: [
+                GlassPanel(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(
+                      Icons.menu_book_rounded,
+                      color: Color(0xFFD1D5DB),
+                    ),
+                    title: Text(state.tt('Oyun Rehberi', 'Game Guide')),
+                    subtitle: Text(
+                      state.tt(
+                        'Savaş mantığı, çapraz tablo ve ipuçları.',
+                        'Combat logic, matchup matrix, and tips.',
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const HelpScreen()),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
                 GlassPanel(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
