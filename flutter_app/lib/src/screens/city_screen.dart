@@ -160,6 +160,113 @@ class CityScreen extends StatelessWidget {
     );
   }
 
+  Widget _difficultySection(
+    BuildContext context, {
+    required GameState state,
+    required String difficulty,
+    required Color titleColor,
+    required List<MissionDef> missions,
+  }) {
+    final unlocked = state.isMissionDifficultyUnlocked(difficulty);
+    final unlockLevel = state.missionDifficultyUnlockLevel(difficulty);
+    final title = state.difficultyName(difficulty);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0x1814213B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x447F8EA8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: titleColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 16,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (!unlocked)
+            Text(
+              state.tt(
+                'Seviye $unlockLevel olduğunda açılır.',
+                'Unlocks at level $unlockLevel.',
+              ),
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+            )
+          else if (missions.isEmpty)
+            Text(
+              state.tt(
+                'Bu zorlukta şu an görev yok.',
+                'No missions available in this tier right now.',
+              ),
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+            )
+          else
+            ...missions.map(
+              (m) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0x2214213B),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x447F8EA8)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            state.missionName(m),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 17,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${state.tt('Enerji', 'Energy')}: ${m.staminaCost}  •  \$${m.rewardMin}-${m.rewardMax}',
+                            style: const TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () async {
+                        if (state.isActionLocked) {
+                          await _showActionLockedPopup(context, state);
+                          return;
+                        }
+                        final res = await state.completeMission(m);
+                        if (!context.mounted) return;
+                        await _showMissionResultSheet(context, state, m, res);
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: titleColor,
+                      ),
+                      child: Text(state.tt('BAŞLA', 'START')),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<GameState>(
@@ -167,63 +274,63 @@ class CityScreen extends StatelessWidget {
         final totalHourly = StaticData.buildings
             .where((b) => (state.ownedBuildings[b.id] ?? 0) > 0)
             .fold<int>(0, (sum, b) => sum + b.hourlyIncome);
-        MissionDef? pickForCity(List<MissionDef> missions, {int shift = 0}) {
-          if (missions.isEmpty) return null;
-          final idx = (state.level ~/ 6 + shift) % missions.length;
-          return missions[idx];
-        }
 
         final easyMissions = state.missionsForDifficulty('easy');
         final mediumMissions = state.missionsForDifficulty('medium');
         final hardMissions = state.missionsForDifficulty('hard');
 
-        final cityMissions = <MissionDef>[];
-        final seenMissionIds = <String>{};
         const targetCityMissionCount = 5;
-
-        for (final mission in <MissionDef?>[
-          pickForCity(easyMissions),
-          pickForCity(mediumMissions),
-          pickForCity(hardMissions),
-        ]) {
-          if (mission == null) continue;
-          if (!seenMissionIds.add(mission.id)) continue;
-          cityMissions.add(mission);
-        }
-
-        if (cityMissions.length < targetCityMissionCount) {
-          final fallbackPool = <MissionDef>[
-            ...easyMissions,
-            ...mediumMissions,
-            ...hardMissions,
-          ];
-          for (final mission in fallbackPool) {
-            if (!seenMissionIds.add(mission.id)) continue;
-            cityMissions.add(mission);
-            if (cityMissions.length >= targetCityMissionCount) break;
+        List<MissionDef> pickGroup(
+          List<MissionDef> source,
+          int count, {
+          int shiftBase = 0,
+        }) {
+          if (source.isEmpty || count <= 0) return const <MissionDef>[];
+          final out = <MissionDef>[];
+          final seenIds = <String>{};
+          for (var i = 0; i < source.length && out.length < count; i++) {
+            final idx = (state.level ~/ 6 + shiftBase + i) % source.length;
+            final mission = source[idx];
+            if (!seenIds.add(mission.id)) continue;
+            out.add(mission);
           }
+          return out;
         }
 
-        if (cityMissions.length < targetCityMissionCount &&
-            easyMissions.isNotEmpty) {
-          for (
-            var shift = 1;
-            cityMissions.length < targetCityMissionCount;
-            shift++
-          ) {
-            final mission = pickForCity(easyMissions, shift: shift);
-            if (mission == null) break;
-            if (!seenMissionIds.add(mission.id)) {
-              if (shift > easyMissions.length + 1) break;
-              continue;
-            }
-            cityMissions.add(mission);
+        var easyQuota = easyMissions.isNotEmpty ? 2 : 0;
+        var mediumQuota = mediumMissions.isNotEmpty ? 2 : 0;
+        var hardQuota = hardMissions.isNotEmpty ? 1 : 0;
+        var allocated = easyQuota + mediumQuota + hardQuota;
+        while (allocated < targetCityMissionCount) {
+          if (easyQuota < easyMissions.length) {
+            easyQuota++;
+            allocated++;
+            continue;
           }
+          if (mediumQuota < mediumMissions.length) {
+            mediumQuota++;
+            allocated++;
+            continue;
+          }
+          if (hardQuota < hardMissions.length) {
+            hardQuota++;
+            allocated++;
+            continue;
+          }
+          break;
         }
 
-        final visibleCityMissions = cityMissions
-            .take(targetCityMissionCount)
-            .toList(growable: false);
+        final easyCityMissions = pickGroup(easyMissions, easyQuota);
+        final mediumCityMissions = pickGroup(
+          mediumMissions,
+          mediumQuota,
+          shiftBase: 1,
+        );
+        final hardCityMissions = pickGroup(
+          hardMissions,
+          hardQuota,
+          shiftBase: 2,
+        );
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
@@ -283,69 +390,27 @@ class CityScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...visibleCityMissions.map((m) {
-                    final diffColor = m.difficulty == 'hard'
-                        ? const Color(0xFFEF4444)
-                        : m.difficulty == 'medium'
-                        ? const Color(0xFFF59E0B)
-                        : const Color(0xFF34D399);
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0x2214213B),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0x447F8EA8)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  state.missionName(m),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${state.tt('Enerji', 'Energy')}: ${m.staminaCost}  •  \$${m.rewardMin}-${m.rewardMax}',
-                                  style: const TextStyle(
-                                    color: Color(0xFF94A3B8),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton(
-                            onPressed: () async {
-                              if (state.isActionLocked) {
-                                await _showActionLockedPopup(context, state);
-                                return;
-                              }
-                              final res = await state.completeMission(m);
-                              if (!context.mounted) return;
-                              await _showMissionResultSheet(
-                                context,
-                                state,
-                                m,
-                                res,
-                              );
-                            },
-                            style: FilledButton.styleFrom(
-                              backgroundColor: diffColor,
-                            ),
-                            child: Text(state.tt('BAŞLA', 'START')),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
+                  _difficultySection(
+                    context,
+                    state: state,
+                    difficulty: 'easy',
+                    titleColor: const Color(0xFF34D399),
+                    missions: easyCityMissions,
+                  ),
+                  _difficultySection(
+                    context,
+                    state: state,
+                    difficulty: 'medium',
+                    titleColor: const Color(0xFFF59E0B),
+                    missions: mediumCityMissions,
+                  ),
+                  _difficultySection(
+                    context,
+                    state: state,
+                    difficulty: 'hard',
+                    titleColor: const Color(0xFFEF4444),
+                    missions: hardCityMissions,
+                  ),
                 ],
               ),
             ),
