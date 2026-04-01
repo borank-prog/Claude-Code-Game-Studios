@@ -151,6 +151,34 @@ class _StreetScreenState extends State<StreetScreen> {
                   ).showSnackBar(SnackBar(content: Text(msg)));
                 },
               ),
+            if (missions.isEmpty)
+              GlassPanel(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      state.tt('Bu zorluk henüz kilitli', 'This tier is locked'),
+                      style: const TextStyle(
+                        color: Color(0xFFFBBF24),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      state.tt(
+                        '${state.difficultyName(difficulty)} görevleri Seviye ${state.missionDifficultyUnlockLevel(difficulty)} ile açılır.',
+                        '${state.difficultyName(difficulty)} missions unlock at Level ${state.missionDifficultyUnlockLevel(difficulty)}.',
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xFFCBD5E1),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ...missions.map((m) => _missionCard(state, m)),
           ],
         );

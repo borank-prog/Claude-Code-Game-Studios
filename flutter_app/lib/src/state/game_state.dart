@@ -744,10 +744,71 @@ class _GameStateBase extends ChangeNotifier {
   int get jailSkipGoldCost => 80;
   int get hospitalSkipGoldCost => 80;
 
+  int missionDifficultyUnlockLevel(String difficulty) {
+    switch (difficulty) {
+      case 'medium':
+        return 4;
+      case 'hard':
+        return 8;
+      case 'easy':
+      default:
+        return 1;
+    }
+  }
+
+  bool isMissionDifficultyUnlocked(String difficulty) =>
+      level >= missionDifficultyUnlockLevel(difficulty);
+
   List<MissionDef> missionsForDifficulty(String difficulty) {
-    return StaticData.missions
+    final all = StaticData.missions
         .where((m) => m.difficulty == difficulty)
-        .toList(growable: false);
+        .toList(growable: false)
+      ..sort((a, b) => a.rewardMax.compareTo(b.rewardMax));
+
+    if (all.isEmpty) return const <MissionDef>[];
+    if (!isMissionDifficultyUnlocked(difficulty)) return const <MissionDef>[];
+
+    int visibleCount;
+    switch (difficulty) {
+      case 'easy':
+        if (level <= 3) {
+          visibleCount = 4;
+        } else if (level <= 7) {
+          visibleCount = 7;
+        } else if (level <= 12) {
+          visibleCount = 10;
+        } else {
+          visibleCount = all.length;
+        }
+        break;
+      case 'medium':
+        if (level <= 7) {
+          visibleCount = 3;
+        } else if (level <= 12) {
+          visibleCount = 5;
+        } else if (level <= 17) {
+          visibleCount = 8;
+        } else {
+          visibleCount = all.length;
+        }
+        break;
+      case 'hard':
+        if (level <= 11) {
+          visibleCount = 2;
+        } else if (level <= 17) {
+          visibleCount = 4;
+        } else if (level <= 23) {
+          visibleCount = 6;
+        } else {
+          visibleCount = all.length;
+        }
+        break;
+      default:
+        visibleCount = all.length;
+    }
+
+    final safeCount = min(max(1, visibleCount), all.length);
+    return all.take(safeCount).toList(growable: false);
   }
 
   // ── Equipment / inventory helpers ──

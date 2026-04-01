@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -167,19 +169,26 @@ class CityScreen extends StatelessWidget {
         final totalHourly = StaticData.buildings
             .where((b) => (state.ownedBuildings[b.id] ?? 0) > 0)
             .fold<int>(0, (sum, b) => sum + b.hourlyIncome);
+        MissionDef? pickForCity(List<MissionDef> missions) {
+          if (missions.isEmpty) return null;
+          final idx = min(missions.length - 1, state.level ~/ 6);
+          return missions[idx];
+        }
+
+        final easyCityMission = pickForCity(
+          state.missionsForDifficulty('easy'),
+        );
+        final mediumCityMission = pickForCity(
+          state.missionsForDifficulty('medium'),
+        );
+        final hardCityMission = pickForCity(
+          state.missionsForDifficulty('hard'),
+        );
+
         final cityMissions = <MissionDef>[
-          ...state
-              .missionsForDifficulty('easy')
-              .where((m) => m.id == 'market_easy')
-              .take(1),
-          ...state
-              .missionsForDifficulty('medium')
-              .where((m) => m.id == 'arac_medium' || m.id == 'depo_medium')
-              .take(1),
-          ...state
-              .missionsForDifficulty('hard')
-              .where((m) => m.id == 'banka_hard' || m.id == 'kuyumcu_hard')
-              .take(1),
+          ?easyCityMission,
+          ?mediumCityMission,
+          ?hardCityMission,
         ];
 
         return ListView(
