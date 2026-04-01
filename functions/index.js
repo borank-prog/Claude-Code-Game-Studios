@@ -1597,7 +1597,8 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
   for (const log of attackLogs) {
     const attackRef = db.collection('attacks').doc();
     batch.set(attackRef, log);
-    if (realMap.has(log.targetId)) {
+    // Only notify real players when attacked by another real player (not bots)
+    if (realMap.has(log.targetId) && !log.attackerId?.startsWith('bot_')) {
       const inboxRef = db
         .collection('users')
         .doc(log.targetId)
