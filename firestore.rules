@@ -9,11 +9,28 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
     function gangOwnerId(gangId) {
-      return get(/databases/$(database)/documents/gangs/$(gangId)).data.ownerId;
+      let path = /databases/$(database)/documents/gangs/$(gangId);
+      return existsAfter(path)
+        ? (getAfter(path).data.ownerId is string ? getAfter(path).data.ownerId : '')
+        : (
+            exists(path) &&
+            get(path).data.ownerId is string
+              ? get(path).data.ownerId
+              : ''
+          );
     }
     function gangAcceptsOpenJoin(gangId) {
-      let gang = get(/databases/$(database)/documents/gangs/$(gangId)).data;
-      return gang.inviteOnly != true && gang.acceptJoinRequests != false;
+      let path = /databases/$(database)/documents/gangs/$(gangId);
+      return existsAfter(path)
+        ? (
+            getAfter(path).data.inviteOnly != true &&
+            getAfter(path).data.acceptJoinRequests != false
+          )
+        : (
+            exists(path) &&
+            get(path).data.inviteOnly != true &&
+            get(path).data.acceptJoinRequests != false
+          );
     }
     function hasGangInvite(gangId, uid) {
       let inviteId = gangId + "_" + uid;
