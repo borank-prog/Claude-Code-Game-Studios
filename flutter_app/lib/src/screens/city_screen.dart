@@ -179,6 +179,7 @@ class CityScreen extends StatelessWidget {
 
         final cityMissions = <MissionDef>[];
         final seenMissionIds = <String>{};
+        const targetCityMissionCount = 5;
 
         for (final mission in <MissionDef?>[
           pickForCity(easyMissions),
@@ -190,7 +191,7 @@ class CityScreen extends StatelessWidget {
           cityMissions.add(mission);
         }
 
-        if (cityMissions.length < 3) {
+        if (cityMissions.length < targetCityMissionCount) {
           final fallbackPool = <MissionDef>[
             ...easyMissions,
             ...mediumMissions,
@@ -199,12 +200,17 @@ class CityScreen extends StatelessWidget {
           for (final mission in fallbackPool) {
             if (!seenMissionIds.add(mission.id)) continue;
             cityMissions.add(mission);
-            if (cityMissions.length >= 3) break;
+            if (cityMissions.length >= targetCityMissionCount) break;
           }
         }
 
-        if (cityMissions.length < 3 && easyMissions.isNotEmpty) {
-          for (var shift = 1; cityMissions.length < 3; shift++) {
+        if (cityMissions.length < targetCityMissionCount &&
+            easyMissions.isNotEmpty) {
+          for (
+            var shift = 1;
+            cityMissions.length < targetCityMissionCount;
+            shift++
+          ) {
             final mission = pickForCity(easyMissions, shift: shift);
             if (mission == null) break;
             if (!seenMissionIds.add(mission.id)) {
@@ -216,7 +222,7 @@ class CityScreen extends StatelessWidget {
         }
 
         final visibleCityMissions = cityMissions
-            .take(3)
+            .take(targetCityMissionCount)
             .toList(growable: false);
 
         return ListView(

@@ -760,10 +760,11 @@ class _GameStateBase extends ChangeNotifier {
       level >= missionDifficultyUnlockLevel(difficulty);
 
   List<MissionDef> missionsForDifficulty(String difficulty) {
-    final all = StaticData.missions
-        .where((m) => m.difficulty == difficulty)
-        .toList(growable: false)
-      ..sort((a, b) => a.rewardMax.compareTo(b.rewardMax));
+    final all =
+        StaticData.missions
+            .where((m) => m.difficulty == difficulty)
+            .toList(growable: false)
+          ..sort((a, b) => a.rewardMax.compareTo(b.rewardMax));
 
     if (all.isEmpty) return const <MissionDef>[];
     if (!isMissionDifficultyUnlocked(difficulty)) return const <MissionDef>[];
@@ -772,7 +773,7 @@ class _GameStateBase extends ChangeNotifier {
     switch (difficulty) {
       case 'easy':
         if (level <= 3) {
-          visibleCount = 4;
+          visibleCount = 5;
         } else if (level <= 7) {
           visibleCount = 7;
         } else if (level <= 12) {
