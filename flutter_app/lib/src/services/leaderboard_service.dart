@@ -104,12 +104,19 @@ class LeaderboardService {
       }
 
       final normalized = byUid.values.toList(growable: false);
-      final merged = _topUpWithSeed(
+      final sortedLive = _sortRowsByCategory(
         category: category,
         rows: normalized,
-        limit: limit,
       );
-      return merged.asMap().entries.map((e) {
+      final shouldUseSeedTopUp = sortedLive.length < 20;
+      final finalRows = shouldUseSeedTopUp
+          ? _topUpWithSeed(
+              category: category,
+              rows: sortedLive,
+              limit: limit,
+            )
+          : sortedLive.take(limit).toList(growable: false);
+      return finalRows.asMap().entries.map((e) {
         return LeaderboardEntry.fromFirestore(e.key + 1, e.value);
       }).toList();
     } catch (_) {
@@ -199,6 +206,16 @@ class LeaderboardService {
       existingIds.add(uid);
     }
 
+    final sorted = _sortRowsByCategory(category: category, rows: out);
+    return sorted.take(limit).toList();
+  }
+
+  List<Map<String, dynamic>> _sortRowsByCategory({
+    required LeaderboardCategory category,
+    required List<Map<String, dynamic>> rows,
+  }) {
+    final out = List<Map<String, dynamic>>.from(rows);
+
     int valueOf(Map<String, dynamic> row) {
       return switch (category) {
         LeaderboardCategory.score => _scoreOf(row),
@@ -209,7 +226,7 @@ class LeaderboardService {
     }
 
     out.sort((a, b) => valueOf(b).compareTo(valueOf(a)));
-    return out.take(limit).toList();
+    return out;
   }
 
   int _scoreOf(Map<String, dynamic> row) {
