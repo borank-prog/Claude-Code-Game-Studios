@@ -8,6 +8,7 @@ Last update: 2026-04-01
 - [x] Functions lint temiz
 - [x] Tek komut smoke script mevcut: `scripts/smoke.ps1`
 - [x] Bot saldırı yoğunluğu düşürüldü (aynı gerçek oyuncuya 4 saat cooldown)
+- [x] Web build + hosting deploy tamamlandı (`https://boran41.web.app`)
 - [ ] Android emulator manuel smoke (giriş, görev, PvP, çete) tekrar turu
 - [ ] Web smoke (kritik akışlar) tekrar turu
 
@@ -53,4 +54,3 @@ Exit kriteri:
 
 ## Çalıştırma
 - Hızlı smoke: `powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1 -WithTests`
-
