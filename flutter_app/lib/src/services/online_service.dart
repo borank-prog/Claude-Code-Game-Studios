@@ -637,6 +637,33 @@ class OnlineService {
         });
   }
 
+  Future<void> removeFriend({
+    required String myUid,
+    required String friendUid,
+  }) async {
+    final cleanMyUid = myUid.trim();
+    final cleanFriendUid = friendUid.trim();
+    if (cleanMyUid.isEmpty || cleanFriendUid.isEmpty) return;
+    if (cleanMyUid == cleanFriendUid) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+    batch.delete(
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(cleanMyUid)
+          .collection('friends')
+          .doc(cleanFriendUid),
+    );
+    batch.delete(
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(cleanFriendUid)
+          .collection('friends')
+          .doc(cleanMyUid),
+    );
+    await batch.commit();
+  }
+
   Future<Map<String, dynamic>> createGang({
     required String ownerUid,
     required String ownerName,

@@ -84,6 +84,37 @@ mixin _GameStateSocial on _GameStateBase {
     notifyListeners();
   }
 
+  Future<bool> removeFriend(String friendUid, {String friendName = ''}) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return false;
+    }
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return false;
+    final cleanFriendUid = friendUid.trim();
+    if (cleanFriendUid.isEmpty || cleanFriendUid == userId) return false;
+    try {
+      await _onlineService.removeFriend(
+        myUid: userId,
+        friendUid: cleanFriendUid,
+      );
+      _addNews(
+        tt('Arkadaş', 'Friend'),
+        tt(
+          '${friendName.trim().isEmpty ? cleanFriendUid : friendName.trim()} arkadaş listesinden çıkarıldı.',
+          '${friendName.trim().isEmpty ? cleanFriendUid : friendName.trim()} was removed from friends.',
+        ),
+      );
+      await refreshSocialData();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> createGang(String name) async {
     if (isActionLocked) {
       lastAuthError = actionLockMessage;

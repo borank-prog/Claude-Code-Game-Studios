@@ -467,13 +467,56 @@ class _SocialScreenState extends State<SocialScreen> {
                     ),
                   ),
                   ...state.friends.map(
-                    (f) => Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text(
-                        '- ${f['displayName'] ?? f['uid']}',
-                        style: const TextStyle(color: Color(0xFF34D399)),
-                      ),
-                    ),
+                    (f) {
+                      final friendUid = (f['uid']?.toString() ?? '').trim();
+                      final friendName =
+                          (f['displayName']?.toString() ?? '').trim().isEmpty
+                          ? friendUid
+                          : (f['displayName']?.toString() ?? '').trim();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '- $friendName',
+                                style: const TextStyle(
+                                  color: Color(0xFF34D399),
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: friendUid.isEmpty
+                                  ? null
+                                  : () async {
+                                      final ok = await state.removeFriend(
+                                        friendUid,
+                                        friendName: friendName,
+                                      );
+                                      _snack(
+                                        ok
+                                            ? state.tt(
+                                                '$friendName arkadaşlıktan çıkarıldı.',
+                                                '$friendName removed from friends.',
+                                              )
+                                            : state.tt(
+                                                'Arkadaş çıkarılamadı.',
+                                                'Could not remove friend.',
+                                              ),
+                                      );
+                                    },
+                              child: Text(
+                                state.tt('Çıkar', 'Remove'),
+                                style: const TextStyle(
+                                  color: Color(0xFFF87171),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                   if (state.friends.isEmpty)
                     Padding(
