@@ -419,11 +419,13 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final gs = GameState();
       await gs.initialize();
+      final baseCost = gs.attackEnergyCost;
       gs.ownedItems['klasik_araba_sv1'] = 1;
       final ok = await gs.equipOwnedItem('klasik_araba_sv1');
       expect(ok, true);
       expect(gs.equipped['vehicle'], 'klasik_araba_sv1');
-      expect(gs.attackEnergyCost, 19);
+      expect(gs.attackEnergyCost, lessThan(baseCost));
+      expect(gs.attackEnergyCost, 25);
     });
   });
 

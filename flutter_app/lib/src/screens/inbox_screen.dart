@@ -90,11 +90,20 @@ class InboxScreen extends StatelessWidget {
               IconData icon = Icons.notifications_rounded;
               Color iconColor = const Color(0xFF94A3B8);
               if (type == 'attack_report') {
-                icon = Icons.gps_fixed_rounded;
+                final direction = (data['direction'] ?? '').toString().trim();
+                icon = direction == 'outgoing'
+                    ? Icons.outbound_rounded
+                    : Icons.gps_fixed_rounded;
                 iconColor = const Color(0xFFFBBF24);
               } else if (type == 'friend_request') {
                 icon = Icons.person_add_alt_1_rounded;
                 iconColor = const Color(0xFF34D399);
+              } else if (type == 'gang_join_request') {
+                icon = Icons.how_to_reg_rounded;
+                iconColor = const Color(0xFF60A5FA);
+              } else if (type == 'gang_invite') {
+                icon = Icons.groups_rounded;
+                iconColor = const Color(0xFFA78BFA);
               }
 
               return GestureDetector(

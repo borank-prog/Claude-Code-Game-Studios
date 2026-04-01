@@ -605,7 +605,8 @@ class _GameStateBase extends ChangeNotifier {
   bool get isHospitalized => currentTP <= 0 || hospitalSecondsLeft > 0;
   bool get isInJail => jailSecondsLeft > 0;
   bool get isActionLocked => isInJail || isHospitalized;
-  int get actionLockSecondsLeft => isInJail ? jailSecondsLeft : hospitalSecondsLeft;
+  int get actionLockSecondsLeft =>
+      isInJail ? jailSecondsLeft : hospitalSecondsLeft;
   String get actionLockStatus => isInJail ? 'prison' : 'hospital';
   int get actionLockUntilEpoch =>
       isInJail ? jailUntilEpoch : hospitalUntilEpoch;
@@ -1401,6 +1402,18 @@ class _GameStateBase extends ChangeNotifier {
       return tt(
         'Ağ bağlantısı yok gibi görünüyor. İnterneti kontrol et.',
         'Network appears unavailable. Check your internet connection.',
+      );
+    if (lower.contains('permission-denied') ||
+        lower.contains('missing or insufficient permissions'))
+      return tt(
+        'Bu işlem için Firebase kural izni yok. Firestore kurallarını güncelle.',
+        'This action is blocked by Firebase security rules. Update Firestore rules.',
+      );
+    if (lower.contains("instance of 'timestamp'") ||
+        lower.contains('converting object to an encodable object failed'))
+      return tt(
+        'Sunucudan gelen veri biçimi hatalı (Timestamp). Uygulamayı güncelleyip tekrar dene.',
+        'Invalid server data format (Timestamp). Update the app and try again.',
       );
     if (lower.contains('channel-error') || lower.contains('internal-error'))
       return tt(

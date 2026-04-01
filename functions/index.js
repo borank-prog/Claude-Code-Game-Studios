@@ -32,10 +32,30 @@ function resolvePenaltyStatus(data, nowEpoch = Math.floor(Date.now() / 1000)) {
   return { status: 'active', statusUntilEpoch: 0 };
 }
 
+function isBotUid(uid) {
+  return String(uid ?? '').trim().startsWith('bot_');
+}
+
+async function writeInboxMessage(uid, payload) {
+  const targetUid = String(uid ?? '').trim();
+  if (!targetUid || isBotUid(targetUid)) return;
+  const now = admin.firestore.Timestamp.now();
+  await db
+    .collection('users')
+    .doc(targetUid)
+    .collection('inbox')
+    .add({
+      ...payload,
+      isRead: false,
+      createdAt: now,
+    });
+}
+
 exports.onAttackCreated = onDocumentCreated(
   'attacks/{attackId}',
   async (event) => {
-    const attack = event.data.data();
+    const attack = event.data?.data();
+    if (!attack) return;
     const attackId = event.params.attackId;
 
     const { attackerId, targetId, outcome, stolenCash, type } = attack;
@@ -62,6 +82,32 @@ exports.onAttackCreated = onDocumentCreated(
       });
     }
 
+    await writeInboxMessage(targetId, {
+      type: 'attack_report',
+      attackId,
+      title: `${attackerName} sana saldırdı`,
+      body: body || attack.message || 'Saldırı raporu hazır.',
+      attackerId,
+      attackerName,
+      outcome: String(outcome ?? 'draw'),
+      stolenCash: Number(stolenCash ?? 0),
+      attackType: String(type ?? 'quick'),
+      direction: 'incoming',
+    });
+
+    await writeInboxMessage(attackerId, {
+      type: 'attack_report',
+      attackId,
+      title: `${targetName} hedefine saldırı tamamlandı`,
+      body: String(attack.message ?? 'Saldırı raporu hazır.'),
+      targetId,
+      targetName,
+      outcome: String(outcome ?? 'draw'),
+      stolenCash: Number(stolenCash ?? 0),
+      attackType: String(type ?? 'quick'),
+      direction: 'outgoing',
+    });
+
     if (outcome === 'lose') {
       const attackerToken = attackerDoc.data()?.fcmToken;
       if (attackerToken) {
@@ -73,6 +119,72 @@ exports.onAttackCreated = onDocumentCreated(
         );
       }
     }
+  },
+);
+
+exports.onFriendRequestCreated = onDocumentCreated(
+  'friend_requests/{requestId}',
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+    const fromName = String(data.fromName ?? 'Bir oyuncu').trim() || 'Bir oyuncu';
+    const toId = String(data.toId ?? '').trim();
+    if (!toId) return;
+    await writeInboxMessage(toId, {
+      type: 'friend_request',
+      title: 'Yeni arkadaşlık isteği',
+      body: `${fromName} sana arkadaşlık isteği gönderdi.`,
+      fromId: String(data.fromId ?? '').trim(),
+      fromName,
+      requestId: event.params.requestId,
+      status: String(data.status ?? 'pending'),
+    });
+  },
+);
+
+exports.onGangJoinRequestCreated = onDocumentCreated(
+  'gang_join_requests/{requestId}',
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+    const leaderId = String(data.leaderId ?? '').trim();
+    if (!leaderId) return;
+    const fromName = String(data.fromName ?? 'Bir oyuncu').trim() || 'Bir oyuncu';
+    const gangName = String(data.gangName ?? 'Çete').trim() || 'Çete';
+    await writeInboxMessage(leaderId, {
+      type: 'gang_join_request',
+      title: 'Yeni çete katılım isteği',
+      body: `${fromName}, ${gangName} çetesine katılmak istiyor.`,
+      gangId: String(data.gangId ?? '').trim(),
+      gangName,
+      fromId: String(data.fromId ?? '').trim(),
+      fromName,
+      requestId: event.params.requestId,
+      status: String(data.status ?? 'pending'),
+    });
+  },
+);
+
+exports.onGangInviteCreated = onDocumentCreated(
+  'gang_invites/{inviteId}',
+  async (event) => {
+    const data = event.data?.data();
+    if (!data) return;
+    const toUid = String(data.toUid ?? '').trim();
+    if (!toUid) return;
+    const gangName = String(data.gangName ?? 'Çete').trim() || 'Çete';
+    const leaderName = String(data.leaderName ?? 'Lider').trim() || 'Lider';
+    await writeInboxMessage(toUid, {
+      type: 'gang_invite',
+      title: 'Çete daveti aldın',
+      body: `${leaderName} seni ${gangName} çetesine davet etti.`,
+      inviteId: event.params.inviteId,
+      gangId: String(data.gangId ?? '').trim(),
+      gangName,
+      leaderId: String(data.leaderId ?? '').trim(),
+      leaderName,
+      status: String(data.status ?? 'pending'),
+    });
   },
 );
 
@@ -1331,6 +1443,9 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
   const changedRealIds = new Set();
   const attackLogs = [];
   let realTargetedThisTick = 0;
+  const realHitsByTarget = new Map();
+  const maxRealHitsPerTargetPerTick = 1;
+  const maxRealTargetsPerTick = 4;
 
   const botIds = Array.from(botMap.keys()).sort(() => Math.random() - 0.5);
   for (const botId of botIds) {
@@ -1364,18 +1479,28 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
       const realTargets = Array.from(realMap.values()).filter((u) =>
         !isLocked(u, nowEpoch) &&
         u.shieldUntilEpoch <= nowEpoch &&
-        u.currentTp > 0,
+        u.currentTp > 0 &&
+        (realHitsByTarget.get(u.id) || 0) < maxRealHitsPerTargetPerTick,
       );
       const realTargetsSoft = Array.from(realMap.values()).filter((u) =>
         !isLocked(u, nowEpoch) &&
-        u.shieldUntilEpoch <= nowEpoch,
+        u.shieldUntilEpoch <= nowEpoch &&
+        (realHitsByTarget.get(u.id) || 0) < maxRealHitsPerTargetPerTick,
       );
 
       let pool = [];
       // Real users should feel the world is alive: bots prefer attacking real players.
-      if (realTargets.length > 0 && (realTargetedThisTick === 0 || Math.random() < 0.72)) {
+      if (
+        realTargets.length > 0 &&
+        realTargetedThisTick < maxRealTargetsPerTick &&
+        (realTargetedThisTick === 0 || Math.random() < 0.72)
+      ) {
         pool = realTargets;
-      } else if (realTargetsSoft.length > 0 && (realTargetedThisTick === 0 || Math.random() < 0.55)) {
+      } else if (
+        realTargetsSoft.length > 0 &&
+        realTargetedThisTick < maxRealTargetsPerTick &&
+        (realTargetedThisTick === 0 || Math.random() < 0.55)
+      ) {
         pool = realTargetsSoft;
       } else if (botTargets.length > 0) {
         pool = botTargets;
@@ -1386,6 +1511,7 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
       if (!target) continue;
       if (!target.isBot) {
         realTargetedThisTick += 1;
+        realHitsByTarget.set(target.id, (realHitsByTarget.get(target.id) || 0) + 1);
       }
 
       const attackerLoadout = resolveLoadout({
@@ -1525,8 +1651,16 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
     }
 
     // Passive economy tick
-    bot.cash += 120 + randomInt(420);
-    bot.xp += 2 + randomInt(6);
+    if (Math.random() < 0.35) {
+      // Rest/maintenance behavior: bots don't always grind aggressively.
+      bot.currentEnergy = Math.min(bot.maxEnergy, bot.currentEnergy + 12 + randomInt(14));
+      bot.currentTp = Math.min(bot.maxTp, bot.currentTp + 8 + randomInt(10));
+      bot.cash += 40 + randomInt(120);
+      bot.xp += 1 + randomInt(3);
+    } else {
+      bot.cash += 120 + randomInt(420);
+      bot.xp += 2 + randomInt(6);
+    }
     bot.level = levelForXp(bot.xp);
   }
 
@@ -1594,14 +1728,21 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
     }, { merge: true });
   }
 
+  const inboxWrittenForRealTarget = new Set();
   for (const log of attackLogs) {
     const attackRef = db.collection('attacks').doc();
     batch.set(attackRef, log);
-    // Only notify real players when attacked by another real player (not bots)
-    if (realMap.has(log.targetId) && !log.attackerId?.startsWith('bot_')) {
+    if (realMap.has(log.targetId)) {
+      const targetId = String(log.targetId ?? '').trim();
+      const attackerIsBot = String(log.attackerId ?? '').startsWith('bot_');
+      const allowBotInbox =
+        !inboxWrittenForRealTarget.has(targetId) && Math.random() < 0.35;
+      if (attackerIsBot && !allowBotInbox) {
+        continue;
+      }
       const inboxRef = db
         .collection('users')
-        .doc(log.targetId)
+        .doc(targetId)
         .collection('inbox')
         .doc();
       batch.set(inboxRef, {
@@ -1612,9 +1753,16 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
         outcome: log.outcome,
         stolenCash: log.stolenCash,
         xpGained: log.xpGained,
+        direction: 'incoming',
+        attackerId: log.attackerId,
+        attackerName: log.attackerName,
+        attackType: log.type,
         isRead: false,
         createdAt: now,
       });
+      if (attackerIsBot) {
+        inboxWrittenForRealTarget.add(targetId);
+      }
     }
   }
 

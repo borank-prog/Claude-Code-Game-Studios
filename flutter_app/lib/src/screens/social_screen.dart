@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../state/game_state.dart';
 import '../widgets/glass_panel.dart';
 import 'attack_confirm_sheet.dart';
-import 'trade_screen.dart';
 import 'gang_leaderboard_screen.dart';
 import 'gang_chat_screen.dart';
 import 'inbox_screen.dart';
@@ -59,6 +58,7 @@ class _SocialScreenState extends State<SocialScreen> {
   Future<void> _showLeaderboardProfile(
     GameState state,
     Map<String, dynamic> row,
+    Set<String> attackWindowIds,
   ) async {
     final uid = (row['uid'] ?? '').toString().trim();
     if (uid.isEmpty || uid == state.userId) return;
@@ -70,7 +70,11 @@ class _SocialScreenState extends State<SocialScreen> {
     final cash = (row['cash'] as num?)?.toInt() ?? 0;
     final gangName = (row['gangName'] ?? '').toString().trim();
     final online = row['online'] == true;
-    final canAttack = state.userId.isNotEmpty && uid.isNotEmpty;
+    final canAttack = _canAttackRow(
+      state,
+      row,
+      attackWindowIds: attackWindowIds,
+    );
 
     final action = await showModalBottomSheet<String>(
       context: context,
@@ -122,14 +126,65 @@ class _SocialScreenState extends State<SocialScreen> {
     }
   }
 
-  bool _canAttackRow(GameState state, Map<String, dynamic> row) {
+  Set<String> _computeAttackWindowIds(
+    GameState state,
+    List<Map<String, dynamic>> rows,
+  ) {
+    final uidRows = rows
+        .where((row) => (row['uid'] ?? '').toString().trim().isNotEmpty)
+        .toList(growable: false);
+    final byPower = List<Map<String, dynamic>>.from(uidRows)
+      ..sort((a, b) {
+        final powerA = (a['power'] as num?)?.toInt() ?? 0;
+        final powerB = (b['power'] as num?)?.toInt() ?? 0;
+        return powerB.compareTo(powerA);
+      });
+
+    final myPower = state.totalPower;
+    var myIndex = byPower.indexWhere(
+      (row) => myPower >= ((row['power'] as num?)?.toInt() ?? 0),
+    );
+    if (myIndex < 0) myIndex = byPower.length;
+
+    final aboveStart = (myIndex - 5).clamp(0, byPower.length).toInt();
+    final above = byPower.sublist(aboveStart, myIndex);
+    final belowEnd = (myIndex + 5).clamp(0, byPower.length).toInt();
+    final below = byPower.sublist(myIndex, belowEnd);
+
+    final ids = <String>{
+      ...above.map((row) => (row['uid'] ?? '').toString().trim()),
+      ...below.map((row) => (row['uid'] ?? '').toString().trim()),
+    }..removeWhere((id) => id.isEmpty || id == state.userId);
+    return ids;
+  }
+
+  bool _canAttackRow(
+    GameState state,
+    Map<String, dynamic> row, {
+    required Set<String> attackWindowIds,
+  }) {
     final uid = (row['uid'] ?? '').toString().trim();
     if (state.userId.isEmpty || uid.isEmpty) return false;
     if (uid == state.userId) return false;
-    return true;
+    final power = (row['power'] as num?)?.toInt() ?? 0;
+    if (power == state.totalPower) return true;
+    return attackWindowIds.contains(uid);
   }
 
-  void _openAttackSheetForRow(GameState state, Map<String, dynamic> row) {
+  void _openAttackSheetForRow(
+    GameState state,
+    Map<String, dynamic> row, {
+    required Set<String> attackWindowIds,
+  }) {
+    if (!_canAttackRow(state, row, attackWindowIds: attackWindowIds)) {
+      _snack(
+        state.tt(
+          'Sadece üstündeki 5 ve altındaki 5 oyuncuya saldırabilirsin.',
+          'You can attack only the top 5 above and bottom 5 below you.',
+        ),
+      );
+      return;
+    }
     final uid = (row['uid'] ?? '').toString().trim();
     if (uid.isEmpty) return;
     final name = (row['displayName'] ?? row['name'] ?? 'Oyuncu')
@@ -176,6 +231,7 @@ class _SocialScreenState extends State<SocialScreen> {
         final rankedRows = List<Map<String, dynamic>>.from(
           rows,
         )..sort((a, b) => _leaderboardScore(b).compareTo(_leaderboardScore(a)));
+        final attackWindowIds = _computeAttackWindowIds(state, rankedRows);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
@@ -185,13 +241,27 @@ class _SocialScreenState extends State<SocialScreen> {
               children: [
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const TradeScreen()),
-                      );
-                    },
-                    icon: const Icon(Icons.swap_horiz, size: 18),
-                    label: Text(state.tt('Takas', 'Trade')),
+                    onPressed: !state.hasGang
+                        ? null
+                        : () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => GangChatScreen(
+                                  roomId: state.gangId,
+                                  roomName:
+                                      state.currentGang?['name']?.toString() ??
+                                      state.tt('Çete', 'Gang'),
+                                  currentUid: state.userId,
+                                  currentName: state.playerName,
+                                ),
+                              ),
+                            );
+                          },
+                    icon: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 18,
+                    ),
+                    label: Text(state.tt('Çete Sohbeti', 'Gang Chat')),
                     style: FilledButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -205,8 +275,7 @@ class _SocialScreenState extends State<SocialScreen> {
                         : () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    InboxScreen(uid: state.userId),
+                                builder: (_) => InboxScreen(uid: state.userId),
                               ),
                             );
                           },
@@ -234,30 +303,30 @@ class _SocialScreenState extends State<SocialScreen> {
                 minimumSize: const Size(double.infinity, 44),
               ),
             ),
-            if (state.hasGang) ...[
-              const SizedBox(height: 8),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => GangChatScreen(
-                        gangId: state.gangId,
-                        gangName: state.currentGang?['name']?.toString() ??
-                            state.tt('Çete', 'Gang'),
-                        currentUid: state.userId,
-                        currentName: state.playerName,
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
-                label: Text(state.tt('Çete Sohbeti', 'Gang Chat')),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 44),
-                  backgroundColor: const Color(0xFF1E3A5F),
-                ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: state.userId.isEmpty
+                  ? null
+                  : () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => GangChatScreen(
+                            roomId: 'global',
+                            roomName: state.tt('Genel Sohbet', 'Global Chat'),
+                            currentUid: state.userId,
+                            currentName: state.playerName,
+                            isGlobal: true,
+                          ),
+                        ),
+                      );
+                    },
+              icon: const Icon(Icons.forum_outlined, size: 18),
+              label: Text(state.tt('Genel Sohbet', 'Global Chat')),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+                backgroundColor: const Color(0xFF1E3A5F),
               ),
-            ],
+            ),
             const SizedBox(height: 8),
             GlassPanel(
               child: Column(
@@ -875,7 +944,8 @@ class _SocialScreenState extends State<SocialScreen> {
             const SizedBox(height: 8),
             ...rankedRows.asMap().entries.map(
               (e) => GestureDetector(
-                onTap: () => _showLeaderboardProfile(state, e.value),
+                onTap: () =>
+                    _showLeaderboardProfile(state, e.value, attackWindowIds),
                 child: GlassPanel(
                   margin: const EdgeInsets.only(bottom: 8),
                   child: Row(
@@ -901,12 +971,19 @@ class _SocialScreenState extends State<SocialScreen> {
                         '${state.tt('Skor', 'Score')}: ${_leaderboardScore(e.value)}  •  ${state.tt('Güç', 'Power')}: ${(e.value['power'] ?? 0)}',
                         style: const TextStyle(color: Color(0xFF34D399)),
                       ),
-                      if (_canAttackRow(state, e.value)) ...[
+                      if (_canAttackRow(
+                        state,
+                        e.value,
+                        attackWindowIds: attackWindowIds,
+                      )) ...[
                         const SizedBox(width: 6),
                         IconButton(
                           tooltip: state.tt('Saldır', 'Attack'),
-                          onPressed: () =>
-                              _openAttackSheetForRow(state, e.value),
+                          onPressed: () => _openAttackSheetForRow(
+                            state,
+                            e.value,
+                            attackWindowIds: attackWindowIds,
+                          ),
                           icon: const Icon(
                             Icons.gps_fixed_rounded,
                             color: Color(0xFFFBBF24),

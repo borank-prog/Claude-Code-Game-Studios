@@ -659,47 +659,68 @@ class OnlineService {
         .collection('users')
         .doc(cleanOwnerUid);
 
-    await gangRef
-        .set({
-          'id': gangRef.id,
-          'name': cleanGangName,
-          'ownerId': cleanOwnerUid,
-          'ownerName': cleanOwnerName,
-          'inviteOnly': false,
-          'acceptJoinRequests': true,
-          'gangRank': 1,
-          'respectPoints': 0,
-          'vault': 0,
-          'memberCount': 1,
-          'totalPower': ownerPower,
-          'createdAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        })
-        .timeout(_firestoreOpTimeout);
-
-    final batch = FirebaseFirestore.instance.batch();
-    batch.set(membersRef, {
-      'uid': cleanOwnerUid,
-      'displayName': cleanOwnerName,
-      'role': 'Lider',
-      'power': ownerPower,
-      'joinedAt': FieldValue.serverTimestamp(),
-    });
-    batch.set(userRef, {
-      'gangId': gangRef.id,
-      'gangName': cleanGangName,
-      'gangRole': 'Lider',
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-    try {
-      await batch.commit().timeout(_firestoreOpTimeout);
-    } catch (e) {
-      // Keep data consistent if follower writes fail after gang doc creation.
-      try {
-        await gangRef.delete().timeout(_firestoreOpTimeout);
-      } catch (_) {}
-      rethrow;
+    // Legacy/stale saves may carry a gangId while the gang doc no longer exists.
+    // Auto-clean that mismatch to avoid false "already in gang" blocks.
+    final userSnap = await userRef.get().timeout(_firestoreOpTimeout);
+    final existingGangId = (userSnap.data()?['gangId'] as String? ?? '').trim();
+    if (existingGangId.isNotEmpty) {
+      final existingGangSnap = await FirebaseFirestore.instance
+          .collection('gangs')
+          .doc(existingGangId)
+          .get()
+          .timeout(_firestoreOpTimeout);
+      if (existingGangSnap.exists) {
+        throw Exception('Zaten bir çetedesin.');
+      }
+      await userRef
+          .set({
+            'gangId': '',
+            'gangName': '',
+            'gangRole': '',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .timeout(_firestoreOpTimeout);
     }
+
+    await FirebaseFirestore.instance
+        .runTransaction((tx) async {
+          final latestUserSnap = await tx.get(userRef);
+          final latestGangId =
+              (latestUserSnap.data()?['gangId'] as String? ?? '').trim();
+          if (latestGangId.isNotEmpty) {
+            throw Exception('Zaten bir çetedesin.');
+          }
+
+          tx.set(gangRef, {
+            'id': gangRef.id,
+            'name': cleanGangName,
+            'ownerId': cleanOwnerUid,
+            'ownerName': cleanOwnerName,
+            'inviteOnly': false,
+            'acceptJoinRequests': true,
+            'gangRank': 1,
+            'respectPoints': 0,
+            'vault': 0,
+            'memberCount': 1,
+            'totalPower': ownerPower,
+            'createdAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          tx.set(membersRef, {
+            'uid': cleanOwnerUid,
+            'displayName': cleanOwnerName,
+            'role': 'Lider',
+            'power': ownerPower,
+            'joinedAt': FieldValue.serverTimestamp(),
+          });
+          tx.set(userRef, {
+            'gangId': gangRef.id,
+            'gangName': cleanGangName,
+            'gangRole': 'Lider',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        })
+        .timeout(const Duration(seconds: 10));
 
     return {'id': gangRef.id, 'name': cleanGangName, 'role': 'Lider'};
   }

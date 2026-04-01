@@ -7,17 +7,19 @@ import '../services/chat_service.dart';
 import '../widgets/game_background.dart';
 
 class GangChatScreen extends StatefulWidget {
-  final String gangId;
-  final String gangName;
+  final String roomId;
+  final String roomName;
   final String currentUid;
   final String currentName;
+  final bool isGlobal;
 
   const GangChatScreen({
     super.key,
-    required this.gangId,
-    required this.gangName,
+    required this.roomId,
+    required this.roomName,
     required this.currentUid,
     required this.currentName,
+    this.isGlobal = false,
   });
 
   @override
@@ -35,7 +37,7 @@ class _GangChatScreenState extends State<GangChatScreen> {
   @override
   void initState() {
     super.initState();
-    _svc.markMessagesRead(widget.gangId, widget.currentUid);
+    _svc.markMessagesRead(widget.roomId, widget.currentUid);
   }
 
   Future<void> _send() async {
@@ -48,10 +50,11 @@ class _GangChatScreenState extends State<GangChatScreen> {
 
     try {
       await _svc.sendMessage(
-        gangId: widget.gangId,
+        roomId: widget.roomId,
         senderId: widget.currentUid,
         senderName: widget.currentName,
         text: text,
+        updateGangMeta: !widget.isGlobal,
       );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scroll.hasClients) {
@@ -93,15 +96,15 @@ class _GangChatScreenState extends State<GangChatScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.gangName,
+              widget.roomName,
               style: const TextStyle(
                 color: Color(0xFFfbbf24),
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const Text(
-              'Çete Sohbeti',
+            Text(
+              widget.isGlobal ? 'Genel Sohbet' : 'Çete Sohbeti',
               style: TextStyle(color: Colors.white38, fontSize: 11),
             ),
           ],
@@ -119,61 +122,58 @@ class _GangChatScreenState extends State<GangChatScreen> {
       body: GameBackground(
         child: Column(
           children: [
-          Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: _svc.watchMessages(widget.gangId),
-              builder: (context, snap) {
-                if (snap.hasData) {
-                  _svc.markMessagesRead(widget.gangId, widget.currentUid);
-                }
-                if (snap.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFFfbbf24),
-                    ),
-                  );
-                }
-                final msgs = snap.data ?? [];
-                if (msgs.isEmpty) {
-                  return const Center(
-                    child: Text(
-                      'Henüz mesaj yok.\nSohbeti sen başlat!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white24, fontSize: 14),
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scroll,
-                  reverse: true,
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  itemCount: msgs.length,
-                  itemBuilder: (_, i) {
-                    final msg = msgs[i];
-                    final isMe = msg.senderId == widget.currentUid;
-                    final showDate = i == msgs.length - 1 ||
-                        !_sameDay(msgs[i].timestamp, msgs[i + 1].timestamp);
-
-                    return Column(
-                      children: [
-                        if (showDate) _DateDivider(msg.timestamp),
-                        if (msg.type == MessageType.system)
-                          _SystemBubble(msg)
-                        else
-                          _ChatBubble(msg: msg, isMe: isMe),
-                      ],
+            Expanded(
+              child: StreamBuilder<List<ChatMessage>>(
+                stream: _svc.watchMessages(widget.roomId),
+                builder: (context, snap) {
+                  if (snap.hasData) {
+                    _svc.markMessagesRead(widget.roomId, widget.currentUid);
+                  }
+                  if (snap.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFfbbf24),
+                      ),
                     );
-                  },
-                );
-              },
+                  }
+                  final msgs = snap.data ?? [];
+                  if (msgs.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'Henüz mesaj yok.\nSohbeti sen başlat!',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white24, fontSize: 14),
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    controller: _scroll,
+                    reverse: true,
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    itemCount: msgs.length,
+                    itemBuilder: (_, i) {
+                      final msg = msgs[i];
+                      final isMe = msg.senderId == widget.currentUid;
+                      final showDate =
+                          i == msgs.length - 1 ||
+                          !_sameDay(msgs[i].timestamp, msgs[i + 1].timestamp);
+
+                      return Column(
+                        children: [
+                          if (showDate) _DateDivider(msg.timestamp),
+                          if (msg.type == MessageType.system)
+                            _SystemBubble(msg)
+                          else
+                            _ChatBubble(msg: msg, isMe: isMe),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-          _InputBar(
-            ctrl: _ctrl,
-            sending: _sending,
-            onSend: _send,
-          ),
+            _InputBar(ctrl: _ctrl, sending: _sending, onSend: _send),
           ],
         ),
       ),
@@ -195,8 +195,9 @@ class _ChatBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
@@ -205,8 +206,9 @@ class _ChatBubble extends StatelessWidget {
           ],
           Flexible(
             child: Column(
-              crossAxisAlignment:
-                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 if (!isMe)
                   Padding(
@@ -224,8 +226,10 @@ class _ChatBubble extends StatelessWidget {
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).size.width * 0.72,
                   ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isMe
                         ? const Color(0xFFfbbf24).withValues(alpha: 0.18)
@@ -255,10 +259,7 @@ class _ChatBubble extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 3, left: 4, right: 4),
                   child: Text(
                     DateFormat('HH:mm').format(msg.timestamp),
-                    style: const TextStyle(
-                      color: Colors.white24,
-                      fontSize: 10,
-                    ),
+                    style: const TextStyle(color: Colors.white24, fontSize: 10),
                   ),
                 ),
               ],
@@ -347,9 +348,7 @@ class _DateDivider extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          const Expanded(
-            child: Divider(color: Colors.white12, thickness: 0.5),
-          ),
+          const Expanded(child: Divider(color: Colors.white12, thickness: 0.5)),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
@@ -357,9 +356,7 @@ class _DateDivider extends StatelessWidget {
               style: const TextStyle(color: Colors.white24, fontSize: 11),
             ),
           ),
-          const Expanded(
-            child: Divider(color: Colors.white12, thickness: 0.5),
-          ),
+          const Expanded(child: Divider(color: Colors.white12, thickness: 0.5)),
         ],
       ),
     );
@@ -408,8 +405,10 @@ class _InputBar extends StatelessWidget {
                 hintStyle: const TextStyle(color: Colors.white24),
                 filled: true,
                 fillColor: Colors.white.withValues(alpha: 0.06),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,

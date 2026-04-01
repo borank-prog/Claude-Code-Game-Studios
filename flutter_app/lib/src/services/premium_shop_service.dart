@@ -30,10 +30,10 @@ class PremiumShopService {
   static const int vipHealGoldCost = 8;
   static const int energyRushGoldCost = 3;
   static const int vipShieldGoldCost = 45;
-  static const int smugglerCrateGoldCost = 240;
+  static const int smugglerCrateGoldCost = 520;
   static const int premiumWeaponGoldCost = 55;
 
-  static const double jackpotChance = 0.012;
+  static const double jackpotChance = 0.006;
 
   PremiumShopResult buyVipHeal(Player player) {
     if (player.gold < vipHealGoldCost) {
