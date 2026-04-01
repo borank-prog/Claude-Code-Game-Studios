@@ -239,6 +239,90 @@ function detectGlobalTopic(rawText, normalizedText) {
   return 'generic';
 }
 
+function isLikelyGameQuestion(normalizedText, rawText) {
+  if (String(rawText ?? '').includes('?')) return true;
+  if (includesAny(normalizedText, ['nasil', 'neden', 'niye', 'nedir', 'ne ise yarar', 'yardim', 'rehber'])) {
+    return true;
+  }
+  return includesAny(normalizedText, [
+    'oyun', 'gorev', 'pvp', 'saldiri', 'enerji', 'rutbe', 'seviye',
+    'ekipman', 'envanter', 'cete', 'arkadas', 'liderlik', 'hapis', 'hastane',
+    'mesaj kutusu', 'genel sohbet', 'cete sohbet',
+  ]);
+}
+
+function buildKnowledgeAnswer(rawText, senderName) {
+  const text = String(rawText ?? '').trim();
+  const n = normalizeTrText(text);
+  const from = String(senderName ?? '').trim() || 'patron';
+
+  if (includesAny(n, ['rehber', 'nasil oynanir', 'baslangic', 'ilk ne yapmali', 'yeni baslayan'])) {
+    return `${from}, hızlı rehber: önce görevle nakit/XP kas, ekipmanda 4 slotu doldur, enerjiyi bitirmeden PvP'ye de pay ayır, hapis/hastane riskini hesaba kat, sonra çete ve sosyal akışa gir.`;
+  }
+
+  if (includesAny(n, ['enerji', 'energy'])) {
+    return `${from}, enerji oyunun temposunu belirler. Enerjin düşükse saldırı ve görev verimin düşer; görev ve PvP arasında dengeli tüketim en iyi yaklaşım.`;
+  }
+
+  if (includesAny(n, ['pvp', 'saldiri', 'baski', 'duello', 'intikam'])) {
+    return `${from}, PvP'de yakın güçte hedef seçmek daha güvenli. Saldırı öncesi ekipman uyumu kritik; ayrıca enerjin yetmiyorsa saldırı planı aksar.`;
+  }
+
+  if (includesAny(n, ['saldiri penceresi', 'ustteki', 'alttaki', 'hedef secimi'])) {
+    return `${from}, hedef seçimi güç penceresine göre olur; amaç adil eşleşme. Yakın güçte üst/alt rakiplerle oynamak en stabil ilerlemeyi verir.`;
+  }
+
+  if (includesAny(n, ['hapis', 'hapishane', 'hastane', 'yakalandim', 'hastanelik'])) {
+    return `${from}, hapis veya hastanede geri sayım bitene kadar işlem yapamazsın: saldırı, görev ve benzeri aksiyonlar kilitlenir. Acil çıkış için altın seçeneği bulunur.`;
+  }
+
+  if (includesAny(n, ['gorev', 'soygun', 'operasyon'])) {
+    return `${from}, görevler erken oyunda para+XP için en güvenli temel akıştır. Zorluk arttıkça ödül/risk de artar; enerjiyi tek noktada sıfırlama.`;
+  }
+
+  if (includesAny(n, ['ekipman', 'envanter', 'slot', 'silah', 'zirh', 'araba'])) {
+    return `${from}, envanter sahip olduğun eşyaları tutar, ekipman ise aktif bonus aldığın loadout'tur. Aktif ekipmanda 4 slotu dolu tutmak savaş performansını ciddi yükseltir.`;
+  }
+
+  if (includesAny(n, ['stat', 'stat puani', 'guc nasil artar', 'rutbe nasil'])) {
+    return `${from}, güç/rütbe artışı için üçlü döngü önemli: düzenli görev, doğru PvP eşleşmesi ve ekipman iyileştirmesi. Stat puanlarını rolüne göre dağıtman fark yaratır.`;
+  }
+
+  if (includesAny(n, ['seviye', 'rutbe', 'xp'])) {
+    return `${from}, XP topladıkça seviye ve rütbe açılır. Düzensiz tek yön oynanış yerine görev+PvP+ekonomi dengesi daha hızlı seviyeletir.`;
+  }
+
+  if (includesAny(n, ['altin', 'nakit', 'para', 'ekonomi', 'sandik', 'kacakci'])) {
+    return `${from}, altın ve nakiti aynı anda yönet: altın kritik durum/yükseltmeler için, nakit ise düzenli güçlenme için. Tüm kaynakları tek hamlede harcamak kırılgan bırakır.`;
+  }
+
+  if (includesAny(n, ['cete', 'cete kur', 'cete katil', 'davet', 'katilim istegi'])) {
+    return `${from}, çete akışı: kur, davet et veya katılım isteği gönder; lider onayladığında üye olursun. Aktif çete koordinasyonu rank ve baskın verimini artırır.`;
+  }
+
+  if (includesAny(n, ['arkadas', 'arkadas ekle', 'arkadas cikar', 'oyuncu uid'])) {
+    return `${from}, oyuncu UID ile arkadaş isteği atabilirsin; kabul sonrası listede görünür. İstediğinde arkadaş listesinden çıkarma işlemi de yapılabilir.`;
+  }
+
+  if (includesAny(n, ['mesaj kutusu', 'inbox', 'bildirim'])) {
+    return `${from}, mesaj kutusunda arkadaşlık istekleri, çete davetleri ve savaş raporları toplanır. Böylece sosyal ve savaş olaylarını tek yerden takip edersin.`;
+  }
+
+  if (includesAny(n, ['genel sohbet', 'cete sohbet', 'sohbet'])) {
+    return `${from}, genel sohbet herkese açıktır; çete sohbeti ise koordinasyon için daha odaklıdır. İki kanalı birlikte kullanmak strateji paylaşımını hızlandırır.`;
+  }
+
+  if (includesAny(n, ['liderlik', 'siralama', 'rank tablosu'])) {
+    return `${from}, liderlik tablosu skor, güç ve performans metriklerine göre güncellenir. Düzenli aksiyon ve istikrarlı ekonomi üst sıralara çıkmanın anahtarıdır.`;
+  }
+
+  if (isLikelyGameQuestion(n, text)) {
+    return `${from}, oyunla ilgili sorunu net cevaplayabilirim. Konuyu yaz: görev, PvP, ekipman, çete, ekonomi, hapis/hastane ya da rütbe sistemi.`;
+  }
+
+  return '';
+}
+
 function baseTopicReply(topic, from) {
   switch (topic) {
     case 'greet':
@@ -289,11 +373,15 @@ function buildGlobalChatReply(rawText, senderName, profile) {
   const normalized = normalizeTrText(text);
   const from = String(senderName ?? '').trim() || 'patron';
   const topic = detectGlobalTopic(text, normalized);
-  const core = baseTopicReply(topic, from);
+  const knowledge = buildKnowledgeAnswer(text, senderName);
+  const core = knowledge || baseTopicReply(topic, from);
   const style = styleForTopic(profile, topic);
   const follow = maybePersonalityFollowUp(profile);
-  const parts = [core, style, follow].filter((p) => String(p ?? '').trim().isNotEmpty);
-  return parts.join(' ');
+  const parts = knowledge
+    ? [core, Math.random() < 0.7 ? style : '', Math.random() < 0.5 ? follow : '']
+    : [core, style, follow];
+  const safeParts = parts.filter((p) => String(p ?? '').trim().isNotEmpty);
+  return safeParts.join(' ');
 }
 
 function buildGlobalBotPrompt(profile, attackLogs) {
@@ -327,8 +415,8 @@ async function maybeReplyInGlobalChat(data) {
   if (!text || text.length < 2) return;
 
   const normalized = normalizeTrText(text);
-  const directHelpAsked = text.includes('?') || includesAny(normalized, [
-    'yardim', 'nasil', 'niye', 'neden', 'bug', 'hata',
+  const directHelpAsked = isLikelyGameQuestion(normalized, text) || includesAny(normalized, [
+    'yardim', 'nasil', 'niye', 'neden', 'bug', 'hata', 'nedir', 'ne ise yarar',
   ]);
   if (!directHelpAsked && Math.random() > 0.72) return;
 
