@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -169,27 +167,57 @@ class CityScreen extends StatelessWidget {
         final totalHourly = StaticData.buildings
             .where((b) => (state.ownedBuildings[b.id] ?? 0) > 0)
             .fold<int>(0, (sum, b) => sum + b.hourlyIncome);
-        MissionDef? pickForCity(List<MissionDef> missions) {
+        MissionDef? pickForCity(List<MissionDef> missions, {int shift = 0}) {
           if (missions.isEmpty) return null;
-          final idx = min(missions.length - 1, state.level ~/ 6);
+          final idx = (state.level ~/ 6 + shift) % missions.length;
           return missions[idx];
         }
 
-        final easyCityMission = pickForCity(
-          state.missionsForDifficulty('easy'),
-        );
-        final mediumCityMission = pickForCity(
-          state.missionsForDifficulty('medium'),
-        );
-        final hardCityMission = pickForCity(
-          state.missionsForDifficulty('hard'),
-        );
+        final easyMissions = state.missionsForDifficulty('easy');
+        final mediumMissions = state.missionsForDifficulty('medium');
+        final hardMissions = state.missionsForDifficulty('hard');
 
-        final cityMissions = <MissionDef>[
-          ?easyCityMission,
-          ?mediumCityMission,
-          ?hardCityMission,
-        ];
+        final cityMissions = <MissionDef>[];
+        final seenMissionIds = <String>{};
+
+        for (final mission in <MissionDef?>[
+          pickForCity(easyMissions),
+          pickForCity(mediumMissions),
+          pickForCity(hardMissions),
+        ]) {
+          if (mission == null) continue;
+          if (!seenMissionIds.add(mission.id)) continue;
+          cityMissions.add(mission);
+        }
+
+        if (cityMissions.length < 3) {
+          final fallbackPool = <MissionDef>[
+            ...easyMissions,
+            ...mediumMissions,
+            ...hardMissions,
+          ];
+          for (final mission in fallbackPool) {
+            if (!seenMissionIds.add(mission.id)) continue;
+            cityMissions.add(mission);
+            if (cityMissions.length >= 3) break;
+          }
+        }
+
+        if (cityMissions.length < 3 && easyMissions.isNotEmpty) {
+          for (var shift = 1; cityMissions.length < 3; shift++) {
+            final mission = pickForCity(easyMissions, shift: shift);
+            if (mission == null) break;
+            if (!seenMissionIds.add(mission.id)) {
+              if (shift > easyMissions.length + 1) break;
+              continue;
+            }
+            cityMissions.add(mission);
+          }
+        }
+
+        final visibleCityMissions = cityMissions
+            .take(3)
+            .toList(growable: false);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
@@ -249,7 +277,7 @@ class CityScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  ...cityMissions.map((m) {
+                  ...visibleCityMissions.map((m) {
                     final diffColor = m.difficulty == 'hard'
                         ? const Color(0xFFEF4444)
                         : m.difficulty == 'medium'
