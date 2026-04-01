@@ -163,14 +163,10 @@ class CityScreen extends StatelessWidget {
   Widget _difficultySection(
     BuildContext context, {
     required GameState state,
-    required String difficulty,
+    required String title,
     required Color titleColor,
     required List<MissionDef> missions,
   }) {
-    final unlocked = state.isMissionDifficultyUnlocked(difficulty);
-    final unlockLevel = state.missionDifficultyUnlockLevel(difficulty);
-    final title = state.difficultyName(difficulty);
-
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(10),
@@ -191,15 +187,7 @@ class CityScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          if (!unlocked)
-            Text(
-              state.tt(
-                'Seviye $unlockLevel olduğunda açılır.',
-                'Unlocks at level $unlockLevel.',
-              ),
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-            )
-          else if (missions.isEmpty)
+          if (missions.isEmpty)
             Text(
               state.tt(
                 'Bu zorlukta şu an görev yok.',
@@ -275,11 +263,22 @@ class CityScreen extends StatelessWidget {
             .where((b) => (state.ownedBuildings[b.id] ?? 0) > 0)
             .fold<int>(0, (sum, b) => sum + b.hourlyIncome);
 
-        final easyMissions = state.missionsForDifficulty('easy');
-        final mediumMissions = state.missionsForDifficulty('medium');
-        final hardMissions = state.missionsForDifficulty('hard');
-
-        const targetCityMissionCount = 5;
+        const missionsPerDifficulty = 4;
+        final easyMissions =
+            StaticData.missions
+                .where((m) => m.difficulty == 'easy')
+                .toList(growable: false)
+              ..sort((a, b) => a.rewardMax.compareTo(b.rewardMax));
+        final mediumMissions =
+            StaticData.missions
+                .where((m) => m.difficulty == 'medium')
+                .toList(growable: false)
+              ..sort((a, b) => a.rewardMax.compareTo(b.rewardMax));
+        final hardMissions =
+            StaticData.missions
+                .where((m) => m.difficulty == 'hard')
+                .toList(growable: false)
+              ..sort((a, b) => a.rewardMax.compareTo(b.rewardMax));
         List<MissionDef> pickGroup(
           List<MissionDef> source,
           int count, {
@@ -297,38 +296,15 @@ class CityScreen extends StatelessWidget {
           return out;
         }
 
-        var easyQuota = easyMissions.isNotEmpty ? 2 : 0;
-        var mediumQuota = mediumMissions.isNotEmpty ? 2 : 0;
-        var hardQuota = hardMissions.isNotEmpty ? 1 : 0;
-        var allocated = easyQuota + mediumQuota + hardQuota;
-        while (allocated < targetCityMissionCount) {
-          if (easyQuota < easyMissions.length) {
-            easyQuota++;
-            allocated++;
-            continue;
-          }
-          if (mediumQuota < mediumMissions.length) {
-            mediumQuota++;
-            allocated++;
-            continue;
-          }
-          if (hardQuota < hardMissions.length) {
-            hardQuota++;
-            allocated++;
-            continue;
-          }
-          break;
-        }
-
-        final easyCityMissions = pickGroup(easyMissions, easyQuota);
+        final easyCityMissions = pickGroup(easyMissions, missionsPerDifficulty);
         final mediumCityMissions = pickGroup(
           mediumMissions,
-          mediumQuota,
+          missionsPerDifficulty,
           shiftBase: 1,
         );
         final hardCityMissions = pickGroup(
           hardMissions,
-          hardQuota,
+          missionsPerDifficulty,
           shiftBase: 2,
         );
 
@@ -393,21 +369,21 @@ class CityScreen extends StatelessWidget {
                   _difficultySection(
                     context,
                     state: state,
-                    difficulty: 'easy',
+                    title: state.difficultyName('easy'),
                     titleColor: const Color(0xFF34D399),
                     missions: easyCityMissions,
                   ),
                   _difficultySection(
                     context,
                     state: state,
-                    difficulty: 'medium',
+                    title: state.difficultyName('medium'),
                     titleColor: const Color(0xFFF59E0B),
                     missions: mediumCityMissions,
                   ),
                   _difficultySection(
                     context,
                     state: state,
-                    difficulty: 'hard',
+                    title: state.difficultyName('hard'),
                     titleColor: const Color(0xFFEF4444),
                     missions: hardCityMissions,
                   ),
