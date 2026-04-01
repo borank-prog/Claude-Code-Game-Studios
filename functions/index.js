@@ -380,7 +380,7 @@ function buildGlobalChatReply(rawText, senderName, profile) {
   const parts = knowledge
     ? [core, Math.random() < 0.7 ? style : '', Math.random() < 0.5 ? follow : '']
     : [core, style, follow];
-  const safeParts = parts.filter((p) => String(p ?? '').trim().isNotEmpty);
+  const safeParts = parts.filter((p) => hasText(p));
   return safeParts.join(' ');
 }
 
@@ -1628,6 +1628,10 @@ function signedPct(value) {
   return value > 0 ? `+${value}` : `${value}`;
 }
 
+function hasText(value) {
+  return String(value ?? '').trim().length > 0;
+}
+
 async function buildAttackWindow(attackerId, attackerPower) {
   const users = db.collection('users');
   const [strongerSnap, weakerSnap] = await Promise.all([
@@ -1703,58 +1707,123 @@ function formatOutcomeTr(outcome, direction) {
   return 'Sonuç: Berabere';
 }
 
+function attackTypeLabelTr(type) {
+  const t = String(type ?? 'quick');
+  if (t === 'planned') return 'Planlı Saldırı';
+  if (t === 'gang') return 'Çete Baskını';
+  return 'Hızlı Saldırı';
+}
+
 function buildAttackReportBody(attack, direction = 'incoming') {
   const dir = direction === 'outgoing' ? 'outgoing' : 'incoming';
+  const isOutgoing = dir === 'outgoing';
   const lines = [];
   lines.push(formatOutcomeTr(attack?.outcome, dir));
+  lines.push(`Tür: ${attackTypeLabelTr(attack?.type)}`);
+
+  const attackerName = hasText(attack?.attackerName)
+    ? String(attack.attackerName).trim()
+    : 'Rakip';
+  const targetName = hasText(attack?.targetName)
+    ? String(attack.targetName).trim()
+    : 'Rakip';
+  const myName = isOutgoing ? attackerName : targetName;
+  const enemyName = isOutgoing ? targetName : attackerName;
+  lines.push(`Taraflar: Sen (${myName}) | Rakip (${enemyName})`);
 
   const atkTotal = Number(attack?.atkTotal ?? NaN);
   const defTotal = Number(attack?.defTotal ?? NaN);
   if (Number.isFinite(atkTotal) && Number.isFinite(defTotal)) {
-    if (dir === 'incoming') {
-      lines.push(`Savaş Gücü: Sen ${defTotal} | Rakip ${atkTotal}`);
-    } else {
-      lines.push(`Savaş Gücü: Sen ${atkTotal} | Rakip ${defTotal}`);
-    }
+    const myTotal = isOutgoing ? atkTotal : defTotal;
+    const enemyTotal = isOutgoing ? defTotal : atkTotal;
+    lines.push(`Savaş Gücü: Sen ${myTotal} | Rakip ${enemyTotal}`);
   }
 
   const stolenCash = Math.max(0, Number(attack?.stolenCash ?? 0));
   if (stolenCash > 0) {
-    const sign = dir === 'incoming' ? '-' : '+';
-    lines.push(`Nakit: ${sign}$${stolenCash.toLocaleString('tr')}`);
+    if (isOutgoing) {
+      lines.push(`Nakit Kazancı: +$${stolenCash.toLocaleString('tr')}`);
+    } else {
+      lines.push(`Nakit Kaybı: -$${stolenCash.toLocaleString('tr')}`);
+    }
   }
 
   const xp = Math.max(0, Number(attack?.xpGained ?? 0));
-  if (xp > 0 && dir === 'outgoing') {
+  if (xp > 0 && isOutgoing) {
     lines.push(`XP: +${xp}`);
   }
 
-  const attackerWeapon = weaponLabelTr(attack?.attackerWeaponId);
-  const targetWeapon = weaponLabelTr(attack?.targetWeaponId);
-  const attackerArmor = armorLabelTr(attack?.attackerArmorId);
-  const targetArmor = armorLabelTr(attack?.targetArmorId);
-  const attackerVehicle = vehicleLabelTr(attack?.attackerVehicleId);
-  const targetVehicle = vehicleLabelTr(attack?.targetVehicleId);
+  const attackerLoadout = {
+    weaponId: String(attack?.attackerWeaponId ?? '').trim(),
+    knifeId: String(attack?.attackerKnifeId ?? '').trim(),
+    armorId: String(attack?.attackerArmorId ?? '').trim(),
+    vehicleId: String(attack?.attackerVehicleId ?? '').trim(),
+  };
+  const targetLoadout = {
+    weaponId: String(attack?.targetWeaponId ?? '').trim(),
+    knifeId: String(attack?.targetKnifeId ?? '').trim(),
+    armorId: String(attack?.targetArmorId ?? '').trim(),
+    vehicleId: String(attack?.targetVehicleId ?? '').trim(),
+  };
+  const myLoadout = isOutgoing ? attackerLoadout : targetLoadout;
+  const enemyLoadout = isOutgoing ? targetLoadout : attackerLoadout;
   const hasLoadout =
-    String(attack?.attackerWeaponId ?? '').trim().isNotEmpty ||
-    String(attack?.targetWeaponId ?? '').trim().isNotEmpty ||
-    String(attack?.attackerArmorId ?? '').trim().isNotEmpty ||
-    String(attack?.targetArmorId ?? '').trim().isNotEmpty ||
-    String(attack?.attackerVehicleId ?? '').trim().isNotEmpty ||
-    String(attack?.targetVehicleId ?? '').trim().isNotEmpty;
+    hasText(attackerLoadout.weaponId) ||
+    hasText(targetLoadout.weaponId) ||
+    hasText(attackerLoadout.knifeId) ||
+    hasText(targetLoadout.knifeId) ||
+    hasText(attackerLoadout.armorId) ||
+    hasText(targetLoadout.armorId) ||
+    hasText(attackerLoadout.vehicleId) ||
+    hasText(targetLoadout.vehicleId);
   if (hasLoadout) {
-    lines.push(`Silah: ${attackerWeapon} vs ${targetWeapon}`);
-    lines.push(`Zırh: ${attackerArmor} vs ${targetArmor}`);
-    lines.push(`Araç: ${attackerVehicle} vs ${targetVehicle}`);
-  }
+    lines.push(
+      `Senin Üstünde: ` +
+      `Silah ${weaponLabelTr(myLoadout.weaponId)} | ` +
+      `Yakın ${weaponLabelTr(myLoadout.knifeId)} | ` +
+      `Zırh ${armorLabelTr(myLoadout.armorId)} | ` +
+      `Araç ${vehicleLabelTr(myLoadout.vehicleId)}`,
+    );
+    lines.push(
+      `Rakibin Üstünde: ` +
+      `Silah ${weaponLabelTr(enemyLoadout.weaponId)} | ` +
+      `Yakın ${weaponLabelTr(enemyLoadout.knifeId)} | ` +
+      `Zırh ${armorLabelTr(enemyLoadout.armorId)} | ` +
+      `Araç ${vehicleLabelTr(enemyLoadout.vehicleId)}`,
+    );
 
-  const loadoutTotalPct = Number(attack?.loadoutTotalPct ?? NaN);
-  if (Number.isFinite(loadoutTotalPct)) {
-    lines.push(`Ekipman Etkisi: %${signedPct(Math.trunc(loadoutTotalPct))}`);
+    const myEdge = computeLoadoutMatchup(myLoadout, enemyLoadout);
+    const enemyEdge = computeLoadoutMatchup(enemyLoadout, myLoadout);
+    lines.push(
+      `Senin Etki: ` +
+      `Silah Güç %${signedPct(myEdge.weaponPowerPct)} | ` +
+      `Silah Hız %${signedPct(myEdge.weaponSpeedPct)} | ` +
+      `Silah Toplam %${signedPct(myEdge.weaponTotalPct)}`,
+    );
+    lines.push(
+      `Senin Etki 2: ` +
+      `Yakın %${signedPct(myEdge.knifePct)} | ` +
+      `Zırh %${signedPct(myEdge.armorPct)} | ` +
+      `Araç %${signedPct(myEdge.vehiclePct)} | ` +
+      `Toplam %${signedPct(myEdge.loadoutTotalPct)}`,
+    );
+    lines.push(
+      `Rakip Etki: ` +
+      `Silah Toplam %${signedPct(enemyEdge.weaponTotalPct)} | ` +
+      `Yakın %${signedPct(enemyEdge.knifePct)} | ` +
+      `Zırh %${signedPct(enemyEdge.armorPct)} | ` +
+      `Araç %${signedPct(enemyEdge.vehiclePct)} | ` +
+      `Toplam %${signedPct(enemyEdge.loadoutTotalPct)}`,
+    );
+  } else {
+    const loadoutTotalPct = Number(attack?.loadoutTotalPct ?? NaN);
+    if (Number.isFinite(loadoutTotalPct)) {
+      lines.push(`Ekipman Etkisi: %${signedPct(Math.trunc(loadoutTotalPct))}`);
+    }
   }
 
   const msg = String(attack?.message ?? '').trim();
-  if (msg.isNotEmpty) {
+  if (hasText(msg)) {
     lines.push(`Rapor: ${msg}`);
   }
   return lines.join('\n');
