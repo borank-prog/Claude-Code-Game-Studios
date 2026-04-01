@@ -45,6 +45,16 @@ service cloud.firestore {
       match /event_queue/{eventId} {
         allow read, write: if isOwner(uid);
       }
+
+      // Inbox sub-collection (notifications, war reports, invites)
+      match /inbox/{messageId} {
+        allow read: if isOwner(uid);
+        // Client can only toggle local read state.
+        allow update: if isOwner(uid) &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isRead']);
+        allow create, delete: if false;
+      }
     }
 
     // ── Cloud saves ──
