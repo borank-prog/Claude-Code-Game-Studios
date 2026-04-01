@@ -36,6 +36,8 @@ function isBotUid(uid) {
   return String(uid ?? '').trim().startsWith('bot_');
 }
 
+const GLOBAL_CHAT_ROOM_ID = 'global';
+
 async function writeInboxMessage(uid, payload) {
   const targetUid = String(uid ?? '').trim();
   if (!targetUid || isBotUid(targetUid)) return;
@@ -48,6 +50,209 @@ async function writeInboxMessage(uid, payload) {
       ...payload,
       isRead: false,
       createdAt: now,
+    });
+}
+
+function normalizeTrText(raw) {
+  return String(raw ?? '')
+    .toLowerCase()
+    .replaceAll('ı', 'i')
+    .replaceAll('ğ', 'g')
+    .replaceAll('ü', 'u')
+    .replaceAll('ş', 's')
+    .replaceAll('ö', 'o')
+    .replaceAll('ç', 'c')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function includesAny(text, keywords) {
+  return keywords.some((k) => text.includes(k));
+}
+
+async function claimGlobalChatSlot(key, minGapMs) {
+  const ref = db.collection('meta').doc('global_chat_bot');
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const lastMs = Number(snap.data()?.[key] ?? 0);
+    const nowMs = Date.now();
+    if ((nowMs - lastMs) < minGapMs) {
+      return false;
+    }
+    tx.set(ref, {
+      [key]: nowMs,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+}
+
+async function claimSenderReplyWindow(senderId, minGapMs) {
+  const uid = String(senderId ?? '').trim();
+  if (!uid) return false;
+  const ref = db
+    .collection('meta')
+    .doc('global_chat_bot')
+    .collection('sender_reply_windows')
+    .doc(uid);
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const lastMs = Number(snap.data()?.lastReplyAtMs ?? 0);
+    const nowMs = Date.now();
+    if ((nowMs - lastMs) < minGapMs) {
+      return false;
+    }
+    tx.set(ref, {
+      lastReplyAtMs: nowMs,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+}
+
+function buildGlobalChatReply(rawText, senderName) {
+  const text = String(rawText ?? '').trim();
+  const n = normalizeTrText(text);
+  const from = String(senderName ?? '').trim() || 'patron';
+
+  const followUps = [
+    'Bu arada sen şu an daha çok görev mi PvP mi oynuyorsun?',
+    'Sence en kritik ekipman hangisi: silah mı zırh mı araba mı?',
+    'Bugün hedefin rank mı nakit mi?',
+    'Çete ile mi solo mu kasıyorsun?',
+  ];
+
+  if (includesAny(n, ['selam', 'merhaba', 'sa', 'hey'])) {
+    return `${from} selam, hoş geldin. Bugün şehirde işler nasıl gidiyor?`;
+  }
+
+  if (includesAny(n, ['enerji', 'energy'])) {
+    return `${from}, enerji bitince saldırı/görev yavaşlar. Enerjiyi görev ve PvP arasında dengeli harcarsan daha hızlı büyürsün.`;
+  }
+
+  if (includesAny(n, ['saldir', 'pvp', 'baski', 'duello', 'intikam'])) {
+    const base = `${from}, PvP'de yakın güçte hedef seçmek en güvenlisi. Önce ekipman uyumunu tamamla, sonra saldır.`;
+    return Math.random() < 0.55 ? `${base} ${pickRandom(followUps)}` : base;
+  }
+
+  if (includesAny(n, ['gorev', 'soygun', 'operasyon', 'market'])) {
+    return `${from}, görevleri peş peşe yaparken enerjiyi sıfırlama; bir kısmını PvP için sakla ki gelir akışın dengede kalsın.`;
+  }
+
+  if (includesAny(n, ['hapis', 'hapishane', 'hastane', 'yakalandin'])) {
+    return `${from}, hapis/hastane süresinde işlem yapamazsın. Altınla çıkış acil durumda iyi ama sürekli kullanırsan ekonomi zorlanır.`;
+  }
+
+  if (includesAny(n, ['altin', 'nakit', 'para', 'sandik', 'kacakci', 'premium'])) {
+    return `${from}, altını erken oyunda savunma ve kilit yükseltmeler için saklamak uzun vadede daha güçlü yapıyor.`;
+  }
+
+  if (includesAny(n, ['ekipman', 'envanter', 'silah', 'zirh', 'araba', 'slot'])) {
+    return `${from}, ekipmanda boş slot kalmasın. 4 slotu doldurup eşyaları seviyene göre güncel tutarsan savaş sonucu ciddi değişiyor.`;
+  }
+
+  if (includesAny(n, ['seviye', 'rutbe', 'xp', 'guc', 'stat'])) {
+    return `${from}, rütbe için temel döngü: görev + PvP + ekipman iyileştirme. XP akışı düzenli olunca rank da hızlanıyor.`;
+  }
+
+  if (includesAny(n, ['cete', 'arkadas', 'liderlik', 'sosyal'])) {
+    return `${from}, aktif çete oyunu ciddi hızlandırır. Çete sohbetinden baskın/yardım koordinasyonu yapınca ilerleme fark ediyor.`;
+  }
+
+  if (text.includes('?')) {
+    return `${from}, güzel soru. Bu konuda en güvenli yöntem dengeli ilerlemek: ekonomi, ekipman ve PvP'yi aynı tempoda götürmek.`;
+  }
+
+  const generic = [
+    `İyi tempo ${from}. Bu gece şehir çok hareketli, herkes rank peşinde.`,
+    `${from}, mini ipucu: tek alana yüklenmek yerine döngüyü dengede tutmak daha kazançlı.`,
+    `Tam gaz devam ${from}. Bir sonraki saldırıdan önce ekipmanı kontrol etmeyi unutma.`,
+    `${from}, genel sohbette aktif kalın, iyi hedef/strateji bilgisi hızlı yayılıyor.`,
+  ];
+  let reply = pickRandom(generic) ?? `Devam ${from}, tempo iyi.`;
+  if (Math.random() < 0.4) {
+    reply += ` ${pickRandom(followUps)}`;
+  }
+  return reply;
+}
+
+function buildGlobalBotPrompt(attackLogs) {
+  const combatPrompts = [
+    'Biraz önce sert bir çatışmadan çıktım, sizce bugün en riskli bölge neresi?',
+    'PvP penceresinde yakın güç hedef kovalamak mı daha iyi, yoksa görev farm mı?',
+    'Hastane/hapis süresi uzayınca altınla çıkıyor musunuz yoksa bekliyor musunuz?',
+    'Ekipman çapraz etkisini en çok hangi kombinasyonda hissediyorsunuz?',
+  ];
+  if (Array.isArray(attackLogs) && attackLogs.length > 0 && Math.random() < 0.55) {
+    const last = pickRandom(attackLogs);
+    if (last?.outcome === 'win') {
+      return `Az önce ${last.targetName} üstünde baskın başarılı geçti. Şimdi siz olsanız ganimeti göreve mi ekipmana mı basarsınız?`;
+    }
+    if (last?.outcome === 'lose') {
+      return `Bir çatışmada hastaneye düştüm. Siz kaybedince hemen rövanş mı alıyorsunuz yoksa güç mü topluyorsunuz?`;
+    }
+    return `Berabere biten savaşlar moral bozuyor. Sizce beraberlikten sonra en iyi hamle görev mi PvP mi?`;
+  }
+  return pickRandom(combatPrompts) ?? 'Bu gece şehirde nabız yüksek, planınız ne?';
+}
+
+async function maybeReplyInGlobalChat(data) {
+  const senderId = String(data?.senderId ?? '').trim();
+  if (!senderId || isBotUid(senderId)) return;
+
+  const text = String(data?.text ?? '').trim();
+  if (!text || text.length < 2) return;
+
+  const normalized = normalizeTrText(text);
+  const directHelpAsked = text.includes('?') || includesAny(normalized, [
+    'yardim', 'nasil', 'niye', 'neden', 'bug', 'hata',
+  ]);
+  if (!directHelpAsked && Math.random() > 0.72) return;
+
+  const senderWindow = await claimSenderReplyWindow(senderId, 45 * 1000);
+  if (!senderWindow) return;
+
+  const slotOk = await claimGlobalChatSlot('lastReplyAtMs', 9 * 1000);
+  if (!slotOk) return;
+
+  const bot = pickRandom(BOT_PLAYERS) ?? { id: 'bot_reis_tuna', name: 'Reis_Tuna' };
+  const senderName = String(data?.senderName ?? '').trim() || 'patron';
+  const replyText = buildGlobalChatReply(text, senderName);
+
+  await db
+    .collection('gang_chats')
+    .doc(GLOBAL_CHAT_ROOM_ID)
+    .collection('messages')
+    .add({
+      senderId: bot.id,
+      senderName: bot.name,
+      text: replyText,
+      type: 'text',
+      isRead: false,
+      isBot: true,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+}
+
+async function maybePostGlobalBotPrompt(attackLogs) {
+  if (Math.random() > 0.65) return;
+  const slotOk = await claimGlobalChatSlot('lastPromptAtMs', 170 * 1000);
+  if (!slotOk) return;
+  const bot = pickRandom(BOT_PLAYERS) ?? { id: 'bot_reis_tuna', name: 'Reis_Tuna' };
+  const text = buildGlobalBotPrompt(attackLogs);
+  await db
+    .collection('gang_chats')
+    .doc(GLOBAL_CHAT_ROOM_ID)
+    .collection('messages')
+    .add({
+      senderId: bot.id,
+      senderName: bot.name,
+      text,
+      type: 'text',
+      isRead: false,
+      isBot: true,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 }
 
@@ -195,6 +400,10 @@ exports.onGangMessageCreated = onDocCreated(
     const { gangId } = event.params;
 
     if (data.type === 'system') return;
+    if (gangId === GLOBAL_CHAT_ROOM_ID) {
+      await maybeReplyInGlobalChat(data);
+      return;
+    }
 
     // Fetch gang members from sub-collection
     const membersSnap = await db
@@ -1800,6 +2009,11 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
   }
 
   await batch.commit();
+  try {
+    await maybePostGlobalBotPrompt(attackLogs);
+  } catch (error) {
+    console.error('Global bot prompt failed:', error);
+  }
   console.log(
     `Bot loop ok: bots=${botMap.size}, realTargeted=${realTargetedThisTick}, realTouched=${changedRealIds.size}, attacks=${attackLogs.length}`,
   );
