@@ -391,6 +391,17 @@ class CityScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
+            GlassPanel(
+              child: Text(
+                state.tt('KARTEL MÜLKLERİ', 'CARTEL PROPERTIES'),
+                style: const TextStyle(
+                  color: Color(0xFFFBBF24),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 22,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             ...StaticData.buildings.map((b) {
               final owned = (state.ownedBuildings[b.id] ?? 0) > 0;
               final costText = b.costGold > 0
