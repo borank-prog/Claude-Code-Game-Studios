@@ -501,16 +501,35 @@ exports.onAttackCreated = onDocumentCreated(
       });
     }
 
+    const incomingBody = buildAttackReportBody(attack, 'incoming');
+    const outgoingBody = buildAttackReportBody(attack, 'outgoing');
+
     await writeInboxMessage(targetId, {
       type: 'attack_report',
       attackId,
       title: `${attackerName} sana saldırdı`,
-      body: body || attack.message || 'Saldırı raporu hazır.',
+      body: incomingBody || body || attack.message || 'Saldırı raporu hazır.',
       attackerId,
       attackerName,
       outcome: String(outcome ?? 'draw'),
       stolenCash: Number(stolenCash ?? 0),
       attackType: String(type ?? 'quick'),
+      atkTotal: Number(attack?.atkTotal ?? 0),
+      defTotal: Number(attack?.defTotal ?? 0),
+      xpGained: Number(attack?.xpGained ?? 0),
+      attackerWeaponId: String(attack?.attackerWeaponId ?? ''),
+      targetWeaponId: String(attack?.targetWeaponId ?? ''),
+      attackerKnifeId: String(attack?.attackerKnifeId ?? ''),
+      targetKnifeId: String(attack?.targetKnifeId ?? ''),
+      attackerArmorId: String(attack?.attackerArmorId ?? ''),
+      targetArmorId: String(attack?.targetArmorId ?? ''),
+      attackerVehicleId: String(attack?.attackerVehicleId ?? ''),
+      targetVehicleId: String(attack?.targetVehicleId ?? ''),
+      weaponTotalPct: Number(attack?.weaponTotalPct ?? 0),
+      knifePct: Number(attack?.knifePct ?? 0),
+      armorPct: Number(attack?.armorPct ?? 0),
+      vehiclePct: Number(attack?.vehiclePct ?? 0),
+      loadoutTotalPct: Number(attack?.loadoutTotalPct ?? 0),
       direction: 'incoming',
     });
 
@@ -518,12 +537,28 @@ exports.onAttackCreated = onDocumentCreated(
       type: 'attack_report',
       attackId,
       title: `${targetName} hedefine saldırı tamamlandı`,
-      body: String(attack.message ?? 'Saldırı raporu hazır.'),
+      body: outgoingBody || String(attack.message ?? 'Saldırı raporu hazır.'),
       targetId,
       targetName,
       outcome: String(outcome ?? 'draw'),
       stolenCash: Number(stolenCash ?? 0),
       attackType: String(type ?? 'quick'),
+      atkTotal: Number(attack?.atkTotal ?? 0),
+      defTotal: Number(attack?.defTotal ?? 0),
+      xpGained: Number(attack?.xpGained ?? 0),
+      attackerWeaponId: String(attack?.attackerWeaponId ?? ''),
+      targetWeaponId: String(attack?.targetWeaponId ?? ''),
+      attackerKnifeId: String(attack?.attackerKnifeId ?? ''),
+      targetKnifeId: String(attack?.targetKnifeId ?? ''),
+      attackerArmorId: String(attack?.attackerArmorId ?? ''),
+      targetArmorId: String(attack?.targetArmorId ?? ''),
+      attackerVehicleId: String(attack?.attackerVehicleId ?? ''),
+      targetVehicleId: String(attack?.targetVehicleId ?? ''),
+      weaponTotalPct: Number(attack?.weaponTotalPct ?? 0),
+      knifePct: Number(attack?.knifePct ?? 0),
+      armorPct: Number(attack?.armorPct ?? 0),
+      vehiclePct: Number(attack?.vehiclePct ?? 0),
+      loadoutTotalPct: Number(attack?.loadoutTotalPct ?? 0),
       direction: 'outgoing',
     });
 
@@ -1657,6 +1692,74 @@ function buildMessage(outcome, attackerName, stolenCash, type) {
   };
 }
 
+function formatOutcomeTr(outcome, direction) {
+  const o = String(outcome ?? 'draw');
+  if (o === 'win') {
+    return direction === 'incoming' ? 'Sonuç: Kaybettin' : 'Sonuç: Kazandın';
+  }
+  if (o === 'lose') {
+    return direction === 'incoming' ? 'Sonuç: Kazandın' : 'Sonuç: Kaybettin';
+  }
+  return 'Sonuç: Berabere';
+}
+
+function buildAttackReportBody(attack, direction = 'incoming') {
+  const dir = direction === 'outgoing' ? 'outgoing' : 'incoming';
+  const lines = [];
+  lines.push(formatOutcomeTr(attack?.outcome, dir));
+
+  const atkTotal = Number(attack?.atkTotal ?? NaN);
+  const defTotal = Number(attack?.defTotal ?? NaN);
+  if (Number.isFinite(atkTotal) && Number.isFinite(defTotal)) {
+    if (dir === 'incoming') {
+      lines.push(`Savaş Gücü: Sen ${defTotal} | Rakip ${atkTotal}`);
+    } else {
+      lines.push(`Savaş Gücü: Sen ${atkTotal} | Rakip ${defTotal}`);
+    }
+  }
+
+  const stolenCash = Math.max(0, Number(attack?.stolenCash ?? 0));
+  if (stolenCash > 0) {
+    const sign = dir === 'incoming' ? '-' : '+';
+    lines.push(`Nakit: ${sign}$${stolenCash.toLocaleString('tr')}`);
+  }
+
+  const xp = Math.max(0, Number(attack?.xpGained ?? 0));
+  if (xp > 0 && dir === 'outgoing') {
+    lines.push(`XP: +${xp}`);
+  }
+
+  const attackerWeapon = weaponLabelTr(attack?.attackerWeaponId);
+  const targetWeapon = weaponLabelTr(attack?.targetWeaponId);
+  const attackerArmor = armorLabelTr(attack?.attackerArmorId);
+  const targetArmor = armorLabelTr(attack?.targetArmorId);
+  const attackerVehicle = vehicleLabelTr(attack?.attackerVehicleId);
+  const targetVehicle = vehicleLabelTr(attack?.targetVehicleId);
+  const hasLoadout =
+    String(attack?.attackerWeaponId ?? '').trim().isNotEmpty ||
+    String(attack?.targetWeaponId ?? '').trim().isNotEmpty ||
+    String(attack?.attackerArmorId ?? '').trim().isNotEmpty ||
+    String(attack?.targetArmorId ?? '').trim().isNotEmpty ||
+    String(attack?.attackerVehicleId ?? '').trim().isNotEmpty ||
+    String(attack?.targetVehicleId ?? '').trim().isNotEmpty;
+  if (hasLoadout) {
+    lines.push(`Silah: ${attackerWeapon} vs ${targetWeapon}`);
+    lines.push(`Zırh: ${attackerArmor} vs ${targetArmor}`);
+    lines.push(`Araç: ${attackerVehicle} vs ${targetVehicle}`);
+  }
+
+  const loadoutTotalPct = Number(attack?.loadoutTotalPct ?? NaN);
+  if (Number.isFinite(loadoutTotalPct)) {
+    lines.push(`Ekipman Etkisi: %${signedPct(Math.trunc(loadoutTotalPct))}`);
+  }
+
+  const msg = String(attack?.message ?? '').trim();
+  if (msg.isNotEmpty) {
+    lines.push(`Rapor: ${msg}`);
+  }
+  return lines.join('\n');
+}
+
 // ── Bot Data ──────────────────────────────────────────────────────────────────
 
 const BOT_GANGS = [
@@ -2176,7 +2279,7 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
         type: 'attack_report',
         attackId: attackRef.id,
         title: `${log.attackerName} sana saldırdı`,
-        body: log.message,
+        body: buildAttackReportBody(log, 'incoming'),
         outcome: log.outcome,
         stolenCash: log.stolenCash,
         xpGained: log.xpGained,
@@ -2184,6 +2287,21 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
         attackerId: log.attackerId,
         attackerName: log.attackerName,
         attackType: log.type,
+        atkTotal: Number(log.atkTotal ?? 0),
+        defTotal: Number(log.defTotal ?? 0),
+        attackerWeaponId: String(log.attackerWeaponId ?? ''),
+        targetWeaponId: String(log.targetWeaponId ?? ''),
+        attackerKnifeId: String(log.attackerKnifeId ?? ''),
+        targetKnifeId: String(log.targetKnifeId ?? ''),
+        attackerArmorId: String(log.attackerArmorId ?? ''),
+        targetArmorId: String(log.targetArmorId ?? ''),
+        attackerVehicleId: String(log.attackerVehicleId ?? ''),
+        targetVehicleId: String(log.targetVehicleId ?? ''),
+        weaponTotalPct: Number(log.weaponTotalPct ?? 0),
+        knifePct: Number(log.knifePct ?? 0),
+        armorPct: Number(log.armorPct ?? 0),
+        vehiclePct: Number(log.vehiclePct ?? 0),
+        loadoutTotalPct: Number(log.loadoutTotalPct ?? 0),
         isRead: false,
         createdAt: now,
       });
