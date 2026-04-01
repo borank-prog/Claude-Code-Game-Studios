@@ -1980,6 +1980,7 @@ function toSimUser(id, data, nowEpoch) {
     equippedArmorId: String(data.equippedArmorId ?? ''),
     equippedVehicleId: String(data.equippedVehicleId ?? ''),
     combatWeaponId: String(data.combatWeaponId ?? ''),
+    lastBotAttackAtEpoch: Math.max(0, Number(data.lastBotAttackAtEpoch ?? 0)),
   };
 }
 
@@ -2013,6 +2014,7 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
   const now = admin.firestore.Timestamp.now();
   const nowEpoch = Math.floor(Date.now() / 1000);
   const PENALTY_SEC = 45 * 60;
+  const BOT_ATTACK_TARGET_COOLDOWN_SEC = 4 * 60 * 60;
 
   const [botSnap, usersSnap] = await Promise.all([
     db.collection('users').where('isBot', '==', true).get(),
@@ -2077,11 +2079,13 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
         !isLocked(u, nowEpoch) &&
         u.shieldUntilEpoch <= nowEpoch &&
         u.currentTp > 0 &&
+        (nowEpoch - Math.max(0, Number(u.lastBotAttackAtEpoch ?? 0))) >= BOT_ATTACK_TARGET_COOLDOWN_SEC &&
         (realHitsByTarget.get(u.id) || 0) < maxRealHitsPerTargetPerTick,
       );
       const realTargetsSoft = Array.from(realMap.values()).filter((u) =>
         !isLocked(u, nowEpoch) &&
         u.shieldUntilEpoch <= nowEpoch &&
+        (nowEpoch - Math.max(0, Number(u.lastBotAttackAtEpoch ?? 0))) >= BOT_ATTACK_TARGET_COOLDOWN_SEC &&
         (realHitsByTarget.get(u.id) || 0) < maxRealHitsPerTargetPerTick,
       );
 
@@ -2107,8 +2111,10 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
       const target = pickRandom(pool);
       if (!target) continue;
       if (!target.isBot) {
+        target.lastBotAttackAtEpoch = nowEpoch;
         realTargetedThisTick += 1;
         realHitsByTarget.set(target.id, (realHitsByTarget.get(target.id) || 0) + 1);
+        changedRealIds.add(target.id);
       }
 
       const attackerLoadout = resolveLoadout({
@@ -2317,6 +2323,7 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
     batch.set(userRef, {
       cash: Math.max(0, Math.trunc(target.cash)),
       currentTp: Math.max(0, Math.min(target.maxTp, Math.trunc(target.currentTp))),
+      lastBotAttackAtEpoch: Math.max(0, Math.trunc(target.lastBotAttackAtEpoch ?? 0)),
       status: target.status,
       statusUntilEpoch: Math.max(0, Math.trunc(target.statusUntilEpoch)),
       statusUntil: target.statusUntilEpoch > nowEpoch
