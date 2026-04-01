@@ -111,90 +111,212 @@ async function claimSenderReplyWindow(senderId, minGapMs) {
   });
 }
 
-function buildGlobalChatReply(rawText, senderName) {
-  const text = String(rawText ?? '').trim();
-  const n = normalizeTrText(text);
-  const from = String(senderName ?? '').trim() || 'patron';
+const BOT_PERSONALITY_KEYS = ['aggressive', 'tactician', 'economist', 'mentor', 'street'];
+const BOT_PERSONALITY_PROFILES = {
+  aggressive: {
+    label: 'Agresif',
+    followUps: [
+      'Bu tur risk alıp üstüne mi gideceksin?',
+      'Rövanşı hemen mi alırsın yoksa güç toplayıp mı dönersin?',
+      'Bugün hedefin daha çok baskın mı?',
+    ],
+    topicAddons: {
+      pvp: 'Temponu düşürme, baskıyı kuran genelde kazanır.',
+      economy: 'Parayı çok bekletme, güce çevirmek daha iyi.',
+      mission: 'Kısa görev döngüsüyle sıcak kal, sonra PvP.',
+      generic: 'Şehirde tereddüt edene yer yok.',
+    },
+    promptStyle: [
+      'Bu gece agresif oynayan topluyor, siz de tempoyu artırıyor musunuz?',
+      'Kısa aralıklarla baskın mı uzun farm mı? Ben baskını seçiyorum.',
+    ],
+  },
+  tactician: {
+    label: 'Taktikçi',
+    followUps: [
+      'Sence önce savunma mı hücum mu yükseltilmeli?',
+      'Saldırı öncesi rakibin ekipmanını kontrol ediyor musun?',
+      'Planlı saldırı mı hızlı saldırı mı daha verimli?',
+    ],
+    topicAddons: {
+      pvp: 'Eşleşme penceresi ve ekipman karşılaştırması sonucu belirliyor.',
+      energy: 'Enerjiyi ikiye böl: biri görev biri PvP için.',
+      equipment: 'Slot uyumu tamamlanmadan zor hedefe girme.',
+      generic: 'Doğru zamanlama ham güçten daha çok iş yapıyor.',
+    },
+    promptStyle: [
+      'Maç öncesi ekipman uyumu kontrolü yapıyor musunuz?',
+      'Bana göre en kritik şey zamanlama, sizce ne?',
+    ],
+  },
+  economist: {
+    label: 'Ekonomist',
+    followUps: [
+      'Bugün altını biriktiriyor musun harcıyor musun?',
+      'Nakit akışını görevle mi PvP ile mi büyütüyorsun?',
+      'Sandık açmayı hangi seviyede mantıklı buluyorsun?',
+    ],
+    topicAddons: {
+      economy: 'Geliri artıran yatırımlar önce gelmeli.',
+      mission: 'Düşük riskli görevlerle sermaye büyütmek güvenli.',
+      pvp: 'Kazancı korumak için saldırı ritmini kontrollü tut.',
+      generic: 'Sürdürülebilir ekonomi oyunun omurgası.',
+    },
+    promptStyle: [
+      'Ganimeti ekipmana mı kasaya mı ayırıyorsunuz?',
+      'Nakit ve altın dengesini nasıl kuruyorsunuz?',
+    ],
+  },
+  mentor: {
+    label: 'Mentor',
+    followUps: [
+      'İstersen build önerisi de çıkarabiliriz, hangi rolü oynuyorsun?',
+      'Yeni başlayanlara göre en zor kısım sence ne?',
+      'Rank için günlük rutinin var mı?',
+    ],
+    topicAddons: {
+      progression: 'Küçük ama düzenli ilerleme en hızlı sonucu verir.',
+      social: 'Çete koordinasyonu yeni oyuncuyu çok hızlandırır.',
+      penalty: 'Hapis/hastane süresini plan için kullan, acele etme.',
+      generic: 'Sistemli oynarsan rank zaten kendiliğinden yükselir.',
+    },
+    promptStyle: [
+      'Yeni başlayanlara tek tavsiyen ne olurdu?',
+      'Bugün birine yardım edecek olsan hangi ipucunu verirdin?',
+    ],
+  },
+  street: {
+    label: 'Sokakçı',
+    followUps: [
+      'Sokakta bugün kimler aktif, sizde durum nasıl?',
+      'Çete mi solo mu gidiyorsun bu saatlerde?',
+      'Bu gece risk alacak mısın?',
+    ],
+    topicAddons: {
+      pvp: 'Sokakta adı yürüyen hedefler genelde iyi ganimet bırakır.',
+      social: 'Muhabbetten gelen istihbarat bazen savaşı kazandırır.',
+      mission: 'Görevle ısın, sonra kalabalığa gir.',
+      generic: 'Şehrin nabzı yüksek, dikkatli ama cesur oyna.',
+    },
+    promptStyle: [
+      'Sokakta hava sert, sizce bu saat görev mi baskın mı?',
+      'Bugün kimler sokakta isim yapar dersiniz?',
+    ],
+  },
+};
 
-  const followUps = [
-    'Bu arada sen şu an daha çok görev mi PvP mi oynuyorsun?',
-    'Sence en kritik ekipman hangisi: silah mı zırh mı araba mı?',
-    'Bugün hedefin rank mı nakit mi?',
-    'Çete ile mi solo mu kasıyorsun?',
-  ];
-
-  if (includesAny(n, ['selam', 'merhaba', 'sa', 'hey'])) {
-    return `${from} selam, hoş geldin. Bugün şehirde işler nasıl gidiyor?`;
+function hashString(input) {
+  const s = String(input ?? '');
+  let hash = 0;
+  for (let i = 0; i < s.length; i += 1) {
+    hash = ((hash << 5) - hash) + s.charCodeAt(i);
+    hash |= 0;
   }
-
-  if (includesAny(n, ['enerji', 'energy'])) {
-    return `${from}, enerji bitince saldırı/görev yavaşlar. Enerjiyi görev ve PvP arasında dengeli harcarsan daha hızlı büyürsün.`;
-  }
-
-  if (includesAny(n, ['saldir', 'pvp', 'baski', 'duello', 'intikam'])) {
-    const base = `${from}, PvP'de yakın güçte hedef seçmek en güvenlisi. Önce ekipman uyumunu tamamla, sonra saldır.`;
-    return Math.random() < 0.55 ? `${base} ${pickRandom(followUps)}` : base;
-  }
-
-  if (includesAny(n, ['gorev', 'soygun', 'operasyon', 'market'])) {
-    return `${from}, görevleri peş peşe yaparken enerjiyi sıfırlama; bir kısmını PvP için sakla ki gelir akışın dengede kalsın.`;
-  }
-
-  if (includesAny(n, ['hapis', 'hapishane', 'hastane', 'yakalandin'])) {
-    return `${from}, hapis/hastane süresinde işlem yapamazsın. Altınla çıkış acil durumda iyi ama sürekli kullanırsan ekonomi zorlanır.`;
-  }
-
-  if (includesAny(n, ['altin', 'nakit', 'para', 'sandik', 'kacakci', 'premium'])) {
-    return `${from}, altını erken oyunda savunma ve kilit yükseltmeler için saklamak uzun vadede daha güçlü yapıyor.`;
-  }
-
-  if (includesAny(n, ['ekipman', 'envanter', 'silah', 'zirh', 'araba', 'slot'])) {
-    return `${from}, ekipmanda boş slot kalmasın. 4 slotu doldurup eşyaları seviyene göre güncel tutarsan savaş sonucu ciddi değişiyor.`;
-  }
-
-  if (includesAny(n, ['seviye', 'rutbe', 'xp', 'guc', 'stat'])) {
-    return `${from}, rütbe için temel döngü: görev + PvP + ekipman iyileştirme. XP akışı düzenli olunca rank da hızlanıyor.`;
-  }
-
-  if (includesAny(n, ['cete', 'arkadas', 'liderlik', 'sosyal'])) {
-    return `${from}, aktif çete oyunu ciddi hızlandırır. Çete sohbetinden baskın/yardım koordinasyonu yapınca ilerleme fark ediyor.`;
-  }
-
-  if (text.includes('?')) {
-    return `${from}, güzel soru. Bu konuda en güvenli yöntem dengeli ilerlemek: ekonomi, ekipman ve PvP'yi aynı tempoda götürmek.`;
-  }
-
-  const generic = [
-    `İyi tempo ${from}. Bu gece şehir çok hareketli, herkes rank peşinde.`,
-    `${from}, mini ipucu: tek alana yüklenmek yerine döngüyü dengede tutmak daha kazançlı.`,
-    `Tam gaz devam ${from}. Bir sonraki saldırıdan önce ekipmanı kontrol etmeyi unutma.`,
-    `${from}, genel sohbette aktif kalın, iyi hedef/strateji bilgisi hızlı yayılıyor.`,
-  ];
-  let reply = pickRandom(generic) ?? `Devam ${from}, tempo iyi.`;
-  if (Math.random() < 0.4) {
-    reply += ` ${pickRandom(followUps)}`;
-  }
-  return reply;
+  return Math.abs(hash);
 }
 
-function buildGlobalBotPrompt(attackLogs) {
-  const combatPrompts = [
+function resolveBotPersonality(bot) {
+  const forcedKey = String(bot?.personality ?? '').trim();
+  if (BOT_PERSONALITY_PROFILES[forcedKey]) {
+    return { key: forcedKey, ...BOT_PERSONALITY_PROFILES[forcedKey] };
+  }
+  const source = String(bot?.id ?? bot?.name ?? 'bot_default');
+  const key = BOT_PERSONALITY_KEYS[hashString(source) % BOT_PERSONALITY_KEYS.length];
+  return { key, ...BOT_PERSONALITY_PROFILES[key] };
+}
+
+function detectGlobalTopic(rawText, normalizedText) {
+  if (includesAny(normalizedText, ['selam', 'merhaba', 'sa', 'hey'])) return 'greet';
+  if (includesAny(normalizedText, ['enerji', 'energy'])) return 'energy';
+  if (includesAny(normalizedText, ['saldir', 'pvp', 'baski', 'duello', 'intikam'])) return 'pvp';
+  if (includesAny(normalizedText, ['gorev', 'soygun', 'operasyon', 'market'])) return 'mission';
+  if (includesAny(normalizedText, ['hapis', 'hapishane', 'hastane', 'yakalandin'])) return 'penalty';
+  if (includesAny(normalizedText, ['altin', 'nakit', 'para', 'sandik', 'kacakci', 'premium'])) return 'economy';
+  if (includesAny(normalizedText, ['ekipman', 'envanter', 'silah', 'zirh', 'araba', 'slot'])) return 'equipment';
+  if (includesAny(normalizedText, ['seviye', 'rutbe', 'xp', 'guc', 'stat'])) return 'progression';
+  if (includesAny(normalizedText, ['cete', 'arkadas', 'liderlik', 'sosyal'])) return 'social';
+  if (String(rawText ?? '').includes('?')) return 'question';
+  return 'generic';
+}
+
+function baseTopicReply(topic, from) {
+  switch (topic) {
+    case 'greet':
+      return `${from} selam, hoş geldin. Bugün şehirde işler nasıl gidiyor?`;
+    case 'energy':
+      return `${from}, enerji bitince saldırı/görev yavaşlar. Enerjiyi görev ve PvP arasında dengeli harca.`;
+    case 'pvp':
+      return `${from}, PvP'de yakın güçte hedef seçmek daha güvenli. Önce ekipmanı tamamla, sonra saldır.`;
+    case 'mission':
+      return `${from}, görevleri peş peşe yaparken enerjiyi sıfırlama; bir kısmını PvP için sakla.`;
+    case 'penalty':
+      return `${from}, hapis/hastane süresinde işlem yapamazsın. Altınla çıkış acil durum için iyi.`;
+    case 'economy':
+      return `${from}, altını erken oyunda kritik yükseltmelere ayırmak uzun vadede daha güçlü yapar.`;
+    case 'equipment':
+      return `${from}, ekipmanda boş slot bırakma. 4 slot dolunca savaş sonucu ciddi değişir.`;
+    case 'progression':
+      return `${from}, rütbe için temel döngü: görev + PvP + ekipman iyileştirme.`;
+    case 'social':
+      return `${from}, aktif çete oyunu ciddi hızlandırır; koordinasyon fark yaratır.`;
+    case 'question':
+      return `${from}, güzel soru. En güvenli yöntem ekonomi, ekipman ve PvP dengesini bozmamak.`;
+    default:
+      return pickRandom([
+        `İyi tempo ${from}. Bu gece şehir çok hareketli.`,
+        `${from}, tek alana yüklenmek yerine döngüyü dengede tutmak daha kazançlı.`,
+        `Tam gaz devam ${from}. Saldırıdan önce ekipmanı kontrol etmeyi unutma.`,
+        `${from}, genel sohbette bilgi akışı iyi, takipte kal.`,
+      ]) ?? `Devam ${from}, tempo iyi.`;
+  }
+}
+
+function styleForTopic(profile, topic) {
+  return (
+    profile?.topicAddons?.[topic] ??
+    profile?.topicAddons?.generic ??
+    'Dengeyi koru, tempo kaybetme.'
+  );
+}
+
+function maybePersonalityFollowUp(profile) {
+  if (Math.random() > 0.55) return '';
+  return String(pickRandom(profile?.followUps ?? []) ?? '').trim();
+}
+
+function buildGlobalChatReply(rawText, senderName, profile) {
+  const text = String(rawText ?? '').trim();
+  const normalized = normalizeTrText(text);
+  const from = String(senderName ?? '').trim() || 'patron';
+  const topic = detectGlobalTopic(text, normalized);
+  const core = baseTopicReply(topic, from);
+  const style = styleForTopic(profile, topic);
+  const follow = maybePersonalityFollowUp(profile);
+  const parts = [core, style, follow].filter((p) => String(p ?? '').trim().isNotEmpty);
+  return parts.join(' ');
+}
+
+function buildGlobalBotPrompt(profile, attackLogs) {
+  const personaPrompts = Array.isArray(profile?.promptStyle)
+    ? profile.promptStyle
+    : [];
+  if (Array.isArray(attackLogs) && attackLogs.length > 0 && Math.random() < 0.58) {
+    const last = pickRandom(attackLogs);
+    if (last?.outcome === 'win') {
+      return `${pickRandom(personaPrompts) ?? 'Az önce baskından çıktım.'} ${last.targetName} üstünde baskın başarılı geçti, siz olsanız ganimeti nereye basarsınız?`;
+    }
+    if (last?.outcome === 'lose') {
+      return `${pickRandom(personaPrompts) ?? 'Bir çatışmada düştüm.'} Kaybedince hemen rövanş mı alıyorsunuz yoksa güç mü topluyorsunuz?`;
+    }
+    return `${pickRandom(personaPrompts) ?? 'Berabere bitti.'} Beraberlikten sonra en iyi hamle sizce görev mi PvP mi?`;
+  }
+  const defaults = [
     'Biraz önce sert bir çatışmadan çıktım, sizce bugün en riskli bölge neresi?',
     'PvP penceresinde yakın güç hedef kovalamak mı daha iyi, yoksa görev farm mı?',
     'Hastane/hapis süresi uzayınca altınla çıkıyor musunuz yoksa bekliyor musunuz?',
     'Ekipman çapraz etkisini en çok hangi kombinasyonda hissediyorsunuz?',
   ];
-  if (Array.isArray(attackLogs) && attackLogs.length > 0 && Math.random() < 0.55) {
-    const last = pickRandom(attackLogs);
-    if (last?.outcome === 'win') {
-      return `Az önce ${last.targetName} üstünde baskın başarılı geçti. Şimdi siz olsanız ganimeti göreve mi ekipmana mı basarsınız?`;
-    }
-    if (last?.outcome === 'lose') {
-      return `Bir çatışmada hastaneye düştüm. Siz kaybedince hemen rövanş mı alıyorsunuz yoksa güç mü topluyorsunuz?`;
-    }
-    return `Berabere biten savaşlar moral bozuyor. Sizce beraberlikten sonra en iyi hamle görev mi PvP mi?`;
-  }
-  return pickRandom(combatPrompts) ?? 'Bu gece şehirde nabız yüksek, planınız ne?';
+  return pickRandom([...personaPrompts, ...defaults]) ?? 'Bu gece şehirde nabız yüksek, planınız ne?';
 }
 
 async function maybeReplyInGlobalChat(data) {
@@ -217,8 +339,9 @@ async function maybeReplyInGlobalChat(data) {
   if (!slotOk) return;
 
   const bot = pickRandom(BOT_PLAYERS) ?? { id: 'bot_reis_tuna', name: 'Reis_Tuna' };
+  const profile = resolveBotPersonality(bot);
   const senderName = String(data?.senderName ?? '').trim() || 'patron';
-  const replyText = buildGlobalChatReply(text, senderName);
+  const replyText = buildGlobalChatReply(text, senderName, profile);
 
   await db
     .collection('gang_chats')
@@ -231,6 +354,7 @@ async function maybeReplyInGlobalChat(data) {
       type: 'text',
       isRead: false,
       isBot: true,
+      botPersonality: profile.key,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 }
@@ -240,7 +364,8 @@ async function maybePostGlobalBotPrompt(attackLogs) {
   const slotOk = await claimGlobalChatSlot('lastPromptAtMs', 170 * 1000);
   if (!slotOk) return;
   const bot = pickRandom(BOT_PLAYERS) ?? { id: 'bot_reis_tuna', name: 'Reis_Tuna' };
-  const text = buildGlobalBotPrompt(attackLogs);
+  const profile = resolveBotPersonality(bot);
+  const text = buildGlobalBotPrompt(profile, attackLogs);
   await db
     .collection('gang_chats')
     .doc(GLOBAL_CHAT_ROOM_ID)
@@ -252,6 +377,7 @@ async function maybePostGlobalBotPrompt(attackLogs) {
       type: 'text',
       isRead: false,
       isBot: true,
+      botPersonality: profile.key,
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
     });
 }
@@ -1521,6 +1647,7 @@ exports.seedBotData = onCall({ invoker: 'public' }, async (request) => {
   }
 
   for (const bot of BOT_PLAYERS) {
+    const profile = resolveBotPersonality(bot);
     const userRef = db.collection('users').doc(bot.id);
     batch.set(userRef, {
       uid: bot.id,
@@ -1549,6 +1676,7 @@ exports.seedBotData = onCall({ invoker: 'public' }, async (request) => {
       online: true,
       lastLoginEpoch: nowEpoch,
       isBot: true,
+      botPersonality: profile.key,
       score: bot.power * 30 + bot.cash / 100,
       updatedAt: now,
     }, { merge: true });
@@ -1877,6 +2005,7 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
 
   for (const [botId, bot] of botMap.entries()) {
     const userRef = db.collection('users').doc(botId);
+    const profile = resolveBotPersonality(bot);
     const botLoadout = resolveLoadout({
       combatWeaponId: bot.combatWeaponId,
       equippedWeaponId: bot.equippedWeaponId,
@@ -1889,6 +2018,7 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
       displayName: bot.name,
       name: bot.name,
       isBot: true,
+      botPersonality: profile.key,
       gangId: bot.gangId,
       gangName: bot.gangName,
       gangRole: 'Üye',
