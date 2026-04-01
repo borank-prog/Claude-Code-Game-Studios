@@ -482,14 +482,62 @@ class _GameStateBase extends ChangeNotifier {
         return tt('Zulayı Topla', 'Collect Stash');
       case 'harac_easy':
         return tt('Dükkan Haraçı', 'Shop Tribute');
+      case 'istihbarat_easy':
+        return tt('Mahalle İstihbaratı', 'Neighborhood Intel');
+      case 'kurye_easy':
+        return tt('Gece Kurye Hattı', 'Night Courier Route');
+      case 'koruma_easy':
+        return tt('Pazar Koruması', 'Bazaar Protection');
+      case 'kasa_easy':
+        return tt('Arka Kasa Toplama', 'Backroom Cash Pickup');
+      case 'rota_easy':
+        return tt('Sokak Rota Temizliği', 'Street Route Sweep');
+      case 'duman_easy':
+        return tt('Dumanlı Kaçış Provası', 'Smoky Escape Drill');
+      case 'etiket_easy':
+        return tt('Semt Etiket Operasyonu', 'Turf Tag Operation');
+      case 'denetim_easy':
+        return tt('Depo Denetim Kaçağı', 'Warehouse Inspection Evasion');
       case 'arac_medium':
         return tt('Araç Hırsızlığı', 'Car Theft');
       case 'depo_medium':
         return tt('Depo Baskını', 'Warehouse Raid');
+      case 'tahsilat_medium':
+        return tt('Bölge Tahsilatı', 'District Collection');
+      case 'liman_medium':
+        return tt('Liman Çıkış Baskısı', 'Port Exit Pressure');
+      case 'kontrat_medium':
+        return tt('Kontrat Takibi', 'Contract Trail');
+      case 'kasa_medium':
+        return tt('Gece Kasa Taşıma', 'Night Safe Transfer');
+      case 'sabotaj_medium':
+        return tt('Rakip Hat Sabotajı', 'Rival Line Sabotage');
+      case 'koridor_medium':
+        return tt('Gümrük Koridoru', 'Customs Corridor');
+      case 'konvoy_medium':
+        return tt('Konvoy Gözetleme', 'Convoy Surveillance');
+      case 'kod_medium':
+        return tt('Şifreli Evrak Operasyonu', 'Encrypted Dossier Operation');
+      case 'baski_medium':
+        return tt('Semt Baskı Turu', 'Turf Pressure Run');
+      case 'hiz_medium':
+        return tt('Kaçış Aracı Transferi', 'Getaway Vehicle Transfer');
       case 'kuyumcu_hard':
         return tt('Kuyumcu Baskını', 'Jewelry Raid');
       case 'banka_hard':
         return tt('Banka Vurgunu', 'Bank Heist');
+      case 'kule_hard':
+        return tt('Kule İletişim Çökertme', 'Tower Comms Blackout');
+      case 'konsey_hard':
+        return tt('Konsey Toplantısı Baskını', 'Council Meeting Raid');
+      case 'merkez_hard':
+        return tt('Merkez Kasa Operasyonu', 'Central Vault Operation');
+      case 'hat_hard':
+        return tt('Ana Hat Kesme', 'Mainline Cutoff');
+      case 'limuzin_hard':
+        return tt('Zırhlı Limuzin Pususu', 'Armored Limousine Ambush');
+      case 'karartma_hard':
+        return tt('Şehir Karartma Planı', 'City Blackout Plan');
       default:
         return m.name;
     }
