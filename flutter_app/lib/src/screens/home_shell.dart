@@ -884,14 +884,24 @@ class _HomeShellState extends State<HomeShell> {
                                       'Mesaj Kutusu',
                                       'Inbox',
                                     ),
-                                    icon: Icon(
-                                      _inboxUnreadCount > 0
-                                          ? Icons.mark_email_unread_rounded
-                                          : Icons.mark_email_read_outlined,
-                                      size: 19,
-                                      color: _inboxUnreadCount > 0
-                                          ? const Color(0xFFF87171)
-                                          : const Color(0xFFFBBF24),
+                                    icon: Container(
+                                      width: 24,
+                                      height: 24,
+                                      decoration: BoxDecoration(
+                                        color: _inboxUnreadCount > 0
+                                            ? const Color(0x55EF4444)
+                                            : const Color(0x33FBBF24),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        _inboxUnreadCount > 0
+                                            ? Icons.mail_rounded
+                                            : Icons.mark_email_read_rounded,
+                                        size: 16,
+                                        color: _inboxUnreadCount > 0
+                                            ? Colors.white
+                                            : const Color(0xFFFBBF24),
+                                      ),
                                     ),
                                     onPressed: () {
                                       final uid = state.userId.trim();
