@@ -624,19 +624,12 @@ class _GameStateBase extends ChangeNotifier {
     }
   }
 
-  /// Görev başarısızlığında hapis mi hastane mi olacağını belirler.
+  /// Görev başarısızlığında ceza tipini belirler.
   ///
-  /// Kural: Sadece doğrudan soygun/baskın tipi görevlerde hapis uygulanır.
-  /// Diğer görev türleri başarısızlıkta hastaneye düşürür.
+  /// Oyun kuralı: Görevlerde hastane cezası yoktur; ceza uygulanacaksa
+  /// sadece hapis uygulanır.
   bool missionFailureLeadsToJail(MissionDef mission) {
-    final missionId = mission.id.toLowerCase();
-    return missionId.contains('market') ||
-        missionId.contains('kuyumcu') ||
-        missionId.contains('banka') ||
-        missionId.contains('depo') ||
-        missionId.contains('soygun') ||
-        missionId.contains('vurgun') ||
-        missionId.contains('baskin');
+    return true;
   }
 
   String gangRoleName(String role) {
