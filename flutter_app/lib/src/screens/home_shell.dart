@@ -305,6 +305,11 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> _handleBackNavigation() async {
     if (!mounted) return;
+    final rootNav = Navigator.of(context, rootNavigator: true);
+    if (rootNav.canPop()) {
+      await rootNav.maybePop();
+      return;
+    }
     if (tab != 0) {
       setState(() => tab = 0);
       return;
@@ -689,6 +694,8 @@ class _HomeShellState extends State<HomeShell> {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        final route = ModalRoute.of(context);
+        if (route != null && !route.isCurrent) return;
         await _handleBackNavigation();
       },
       child: AttackBannerWrapper(
