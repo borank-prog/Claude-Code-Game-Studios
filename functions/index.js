@@ -14,6 +14,16 @@ const HOSPITAL_PENALTY_MINUTES = 10;
 const PRISON_PENALTY_MINUTES = 10;
 const HOSPITAL_PENALTY_SEC = HOSPITAL_PENALTY_MINUTES * 60;
 const PRISON_PENALTY_SEC = PRISON_PENALTY_MINUTES * 60;
+const GANG_WAR_PARTICIPANT_LIMIT = 5;
+const GANG_WAR_MIN_PARTICIPANTS = 3;
+const GANG_WAR_DURATION_MINUTES = 30;
+const GANG_WAR_PAIR_COOLDOWN_MINUTES = 30;
+const GANG_WAR_WIN_XP = 80;
+const GANG_WAR_LOSE_XP = 35;
+const GANG_WAR_DRAW_XP = 45;
+const GANG_WAR_WIN_RESPECT = 120;
+const GANG_WAR_LOSE_RESPECT = 60;
+const GANG_WAR_DRAW_RESPECT = 20;
 const MALAMADRE_UID = 'herTAikcrQOKmnM2aYSjwGqliPl2';
 const MALAMADRE_MIN_GOLD = 2000000;
 const GOLD_OVERRIDE_BY_UID = Object.freeze({
@@ -104,6 +114,11 @@ function normalizeGangRole(raw, fallback = 'Üye') {
     default:
       return fallback;
   }
+}
+
+function isGangWarCommander(role) {
+  const normalized = normalizeGangRole(role, 'Üye');
+  return normalized === 'Lider' || normalized === 'Sağ Kol';
 }
 
 function hasOwn(obj, key) {
@@ -2109,6 +2124,830 @@ exports.executeGangRaid = onCall({ invoker: 'public' }, async (request) => {
   };
 });
 
+function gangWarPairKey(attackerGangId, defenderGangId) {
+  const a = safeText(attackerGangId, '', 64);
+  const b = safeText(defenderGangId, '', 64);
+  if (!a || !b) return '';
+  return [a, b].sort().join('__');
+}
+
+function gangWarParticipantDocId(warId, uid) {
+  return `${String(warId ?? '').trim()}_${String(uid ?? '').trim()}`;
+}
+
+function sumGangWarPower(rows) {
+  return rows.reduce((sum, row) => sum + Math.max(1, asInt(row.powerSnapshot, 1)), 0);
+}
+
+function asEpochSecFromTimestamp(value, fallback = 0) {
+  if (value instanceof admin.firestore.Timestamp) {
+    return asInt(value.seconds, fallback);
+  }
+  if (value && typeof value.seconds === 'number') {
+    return asInt(value.seconds, fallback);
+  }
+  if (value instanceof Date) {
+    return Math.floor(value.getTime() / 1000);
+  }
+  return asInt(value, fallback);
+}
+
+async function fetchGangWarEligibleRoster(gangId, limit = GANG_WAR_PARTICIPANT_LIMIT) {
+  const cleanGangId = safeText(gangId, '', 64);
+  if (!cleanGangId) return [];
+
+  const memberSnap = await db
+    .collection('gangs')
+    .doc(cleanGangId)
+    .collection('members')
+    .limit(40)
+    .get();
+  if (memberSnap.empty) return [];
+
+  const memberRows = memberSnap.docs
+    .map((doc) => {
+      const data = doc.data() || {};
+      const uid = safeText(data.uid ?? doc.id, '', 64);
+      return {
+        uid,
+        displayName: safeText(data.displayName, 'Oyuncu', 32),
+        role: normalizeGangRole(data.role, 'Üye'),
+        power: Math.max(0, asInt(data.power, 0)),
+      };
+    })
+    .filter((row) => row.uid.length > 0);
+
+  if (memberRows.length === 0) return [];
+
+  const userSnaps = await Promise.all(
+    memberRows.map((m) => db.collection('users').doc(m.uid).get()),
+  );
+  const userByUid = new Map();
+  for (const snap of userSnaps) {
+    if (!snap.exists) continue;
+    userByUid.set(snap.id, snap.data() || {});
+  }
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const eligible = [];
+  for (const member of memberRows) {
+    const user = userByUid.get(member.uid);
+    if (!user) continue;
+    const userGangId = safeText(user.gangId, '', 64);
+    if (userGangId !== cleanGangId) continue;
+
+    const penalty = resolvePenaltyStatus(user, nowEpoch);
+    if (penalty.status !== 'active') continue;
+
+    const powerSnapshot = Math.max(1, asInt(user.power, member.power));
+    const loadout = resolveLoadout(user, powerSnapshot);
+    eligible.push({
+      uid: member.uid,
+      displayName: safeText(user.displayName ?? user.name, member.displayName, 32),
+      gangId: cleanGangId,
+      gangRole: normalizeGangRole(user.gangRole ?? member.role, 'Üye'),
+      powerSnapshot,
+      weaponId: safeText(loadout.weaponId, '', 64),
+      armorId: safeText(loadout.armorId, '', 64),
+      knifeId: safeText(loadout.knifeId, '', 64),
+      vehicleId: safeText(loadout.vehicleId, '', 64),
+    });
+  }
+
+  eligible.sort((a, b) => b.powerSnapshot - a.powerSnapshot);
+  return eligible.slice(0, Math.max(1, asInt(limit, GANG_WAR_PARTICIPANT_LIMIT)));
+}
+
+function computeGangWarOutcome(attackerParticipants, defenderParticipants) {
+  const attackerRows = [...attackerParticipants].sort((a, b) => b.powerSnapshot - a.powerSnapshot);
+  const defenderRows = [...defenderParticipants].sort((a, b) => b.powerSnapshot - a.powerSnapshot);
+  const duelCount = Math.min(
+    GANG_WAR_PARTICIPANT_LIMIT,
+    attackerRows.length,
+    defenderRows.length,
+  );
+
+  let attackerScore = 0;
+  let defenderScore = 0;
+  const rounds = [];
+
+  for (let i = 0; i < duelCount; i++) {
+    const attacker = attackerRows[i];
+    const defender = defenderRows[i];
+    const attackerPower = Math.max(1, asInt(attacker.powerSnapshot, 1));
+    const defenderPower = Math.max(1, asInt(defender.powerSnapshot, 1));
+
+    const attackerLoadout = {
+      weaponId: String(attacker.weaponId ?? '').trim(),
+      knifeId: String(attacker.knifeId ?? '').trim(),
+      armorId: String(attacker.armorId ?? '').trim(),
+      vehicleId: String(attacker.vehicleId ?? '').trim(),
+    };
+    const defenderLoadout = {
+      weaponId: String(defender.weaponId ?? '').trim(),
+      knifeId: String(defender.knifeId ?? '').trim(),
+      armorId: String(defender.armorId ?? '').trim(),
+      vehicleId: String(defender.vehicleId ?? '').trim(),
+    };
+
+    const attackerMatchup = computeLoadoutMatchup(attackerLoadout, defenderLoadout);
+    const defenderMatchup = computeLoadoutMatchup(defenderLoadout, attackerLoadout);
+    const attackerTotal =
+      applyPercent(attackerPower, attackerMatchup.loadoutTotalPct) + randomInt(attackerPower / 6);
+    const defenderTotal =
+      applyPercent(defenderPower, defenderMatchup.loadoutTotalPct) + randomInt(defenderPower / 6);
+
+    const diff = Math.abs(attackerTotal - defenderTotal);
+    const drawThreshold = Math.max(1, Math.trunc(Math.max(attackerTotal, defenderTotal) * 0.08));
+    let roundResult = 'draw';
+
+    if (diff <= drawThreshold) {
+      attackerScore += 1;
+      defenderScore += 1;
+      roundResult = 'draw';
+    } else if (attackerTotal > defenderTotal) {
+      attackerScore += 3;
+      roundResult = 'attacker';
+    } else {
+      defenderScore += 3;
+      roundResult = 'defender';
+    }
+
+    rounds.push({
+      turn: i + 1,
+      attackerUid: attacker.uid,
+      attackerName: safeText(attacker.displayName, attacker.uid, 24),
+      defenderUid: defender.uid,
+      defenderName: safeText(defender.displayName, defender.uid, 24),
+      attackerTotal,
+      defenderTotal,
+      result: roundResult,
+      attackerWeapon: weaponLabelTr(attackerLoadout.weaponId),
+      defenderWeapon: weaponLabelTr(defenderLoadout.weaponId),
+      attackerArmor: armorLabelTr(attackerLoadout.armorId),
+      defenderArmor: armorLabelTr(defenderLoadout.armorId),
+      attackerVehicle: vehicleLabelTr(attackerLoadout.vehicleId),
+      defenderVehicle: vehicleLabelTr(defenderLoadout.vehicleId),
+      attackerEdgePct: attackerMatchup.loadoutTotalPct,
+      defenderEdgePct: defenderMatchup.loadoutTotalPct,
+    });
+  }
+
+  return { attackerScore, defenderScore, rounds };
+}
+
+async function resolveGangWarInternal({ warId, actorUid = '', force = false }) {
+  const cleanWarId = safeText(warId, '', 96);
+  if (!cleanWarId) {
+    throw new HttpsError('invalid-argument', 'Geçersiz kartel savaşı ID.');
+  }
+
+  const warRef = db.collection('gang_wars').doc(cleanWarId);
+  const participantsQuery = db.collection('gang_war_participants').where('warId', '==', cleanWarId);
+  const gangsRef = db.collection('gangs');
+
+  return db.runTransaction(async (tx) => {
+    const warSnap = await tx.get(warRef);
+    if (!warSnap.exists) {
+      throw new HttpsError('not-found', 'Kartel savaşı bulunamadı.');
+    }
+    const war = warSnap.data() || {};
+    const status = String(war.status ?? 'recruiting').trim();
+
+    if (status === 'resolved' || status === 'cancelled') {
+      return {
+        ok: true,
+        alreadyResolved: true,
+        warId: cleanWarId,
+        status,
+        result: String(war.result ?? 'pending'),
+        winnerGangId: safeText(war.winnerGangId, '', 64),
+      };
+    }
+
+    const attackerGangId = safeText(war.attackerGangId, '', 64);
+    const defenderGangId = safeText(war.defenderGangId, '', 64);
+    if (!attackerGangId || !defenderGangId) {
+      throw new HttpsError('failed-precondition', 'Kartel savaşı taraf bilgisi eksik.');
+    }
+
+    if (actorUid) {
+      const actorRef = db.collection('users').doc(actorUid);
+      const actorSnap = await tx.get(actorRef);
+      if (!actorSnap.exists) {
+        throw new HttpsError('failed-precondition', 'Profil bulunamadı.');
+      }
+      const actorData = actorSnap.data() || {};
+      const actorGangId = safeText(actorData.gangId, '', 64);
+      if (actorGangId !== attackerGangId && actorGangId !== defenderGangId) {
+        throw new HttpsError('permission-denied', 'Sadece taraf karteller savaşı çözebilir.');
+      }
+      if (!isGangWarCommander(actorData.gangRole)) {
+        throw new HttpsError('permission-denied', 'Bu işlem için liderlik yetkisi gerekir.');
+      }
+    }
+
+    const now = new Date();
+    const nowEpoch = Math.floor(now.getTime() / 1000);
+    const durationMinutes = Math.max(10, asInt(war.durationMinutes, GANG_WAR_DURATION_MINUTES));
+    const startsAtEpoch = asEpochSecFromTimestamp(war.startsAt, nowEpoch);
+    const endsAtEpoch = asEpochSecFromTimestamp(
+      war.endsAt,
+      startsAtEpoch + (durationMinutes * 60),
+    );
+
+    if (!force && status === 'active' && endsAtEpoch > nowEpoch) {
+      const waitMin = Math.max(1, Math.ceil((endsAtEpoch - nowEpoch) / 60));
+      throw new HttpsError(
+        'failed-precondition',
+        `Savaş henüz bitmedi. Yaklaşık ${waitMin} dakika kaldı.`,
+      );
+    }
+
+    const participantSnap = await tx.get(participantsQuery);
+    const participantRows = participantSnap.docs
+      .map((doc) => doc.data() || {})
+      .filter((row) => String(row.status ?? 'active').trim() === 'active');
+
+    const attackerParticipants = participantRows
+      .filter((row) => String(row.side ?? '').trim() === 'attacker')
+      .map((row) => ({
+        uid: safeText(row.uid, '', 64),
+        displayName: safeText(row.displayName, 'Oyuncu', 24),
+        gangId: safeText(row.gangId, attackerGangId, 64),
+        powerSnapshot: Math.max(1, asInt(row.powerSnapshot, 1)),
+        weaponId: safeText(row.weaponId, '', 64),
+        knifeId: safeText(row.knifeId, '', 64),
+        armorId: safeText(row.armorId, '', 64),
+        vehicleId: safeText(row.vehicleId, '', 64),
+      }))
+      .filter((row) => row.uid.length > 0);
+
+    const defenderParticipants = participantRows
+      .filter((row) => String(row.side ?? '').trim() === 'defender')
+      .map((row) => ({
+        uid: safeText(row.uid, '', 64),
+        displayName: safeText(row.displayName, 'Oyuncu', 24),
+        gangId: safeText(row.gangId, defenderGangId, 64),
+        powerSnapshot: Math.max(1, asInt(row.powerSnapshot, 1)),
+        weaponId: safeText(row.weaponId, '', 64),
+        knifeId: safeText(row.knifeId, '', 64),
+        armorId: safeText(row.armorId, '', 64),
+        vehicleId: safeText(row.vehicleId, '', 64),
+      }))
+      .filter((row) => row.uid.length > 0);
+
+    const minParticipants = Math.max(2, asInt(war.minParticipants, GANG_WAR_MIN_PARTICIPANTS));
+    if (
+      attackerParticipants.length < minParticipants ||
+      defenderParticipants.length < minParticipants
+    ) {
+      tx.set(
+        warRef,
+        {
+          status: 'cancelled',
+          result: 'draw',
+          winnerGangId: '',
+          resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      tx.set(db.collection('gang_war_events').doc(), {
+        warId: cleanWarId,
+        turn: 0,
+        type: 'war_cancelled',
+        side: 'system',
+        actorUid: actorUid || 'system',
+        actorName: actorUid ? 'Komutan' : 'Sistem',
+        payload: {
+          reason: 'insufficient_participants',
+          attackerCount: attackerParticipants.length,
+          defenderCount: defenderParticipants.length,
+        },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return {
+        ok: true,
+        warId: cleanWarId,
+        status: 'cancelled',
+        result: 'draw',
+        reason: 'insufficient_participants',
+      };
+    }
+
+    const { attackerScore, defenderScore, rounds } = computeGangWarOutcome(
+      attackerParticipants,
+      defenderParticipants,
+    );
+
+    let result = 'draw';
+    let winnerGangId = '';
+    if (attackerScore > defenderScore) {
+      result = 'attackerWin';
+      winnerGangId = attackerGangId;
+    } else if (defenderScore > attackerScore) {
+      result = 'defenderWin';
+      winnerGangId = defenderGangId;
+    }
+
+    const attackerGangRef = gangsRef.doc(attackerGangId);
+    const defenderGangRef = gangsRef.doc(defenderGangId);
+    const [attackerGangSnap, defenderGangSnap] = await Promise.all([
+      tx.get(attackerGangRef),
+      tx.get(defenderGangRef),
+    ]);
+
+    const attackerGangData = attackerGangSnap.data() || {};
+    const defenderGangData = defenderGangSnap.data() || {};
+    const attackerGangName = safeText(
+      war.attackerGangName ?? attackerGangData.name,
+      'Saldıran Kartel',
+      48,
+    );
+    const defenderGangName = safeText(
+      war.defenderGangName ?? defenderGangData.name,
+      'Savunan Kartel',
+      48,
+    );
+
+    const attackerVault = Math.max(0, asInt(attackerGangData.vault, 0));
+    const defenderVault = Math.max(0, asInt(defenderGangData.vault, 0));
+    const attackerRespect = Math.max(0, asInt(attackerGangData.respectPoints, 0));
+    const defenderRespect = Math.max(0, asInt(defenderGangData.respectPoints, 0));
+
+    let loot = 0;
+    if (result === 'attackerWin') {
+      const baseLoot = clamp(Math.trunc(defenderVault * 0.12), 1000, 25000);
+      loot = Math.max(0, Math.min(defenderVault, baseLoot));
+      tx.set(
+        attackerGangRef,
+        {
+          vault: attackerVault + loot,
+          respectPoints: attackerRespect + GANG_WAR_WIN_RESPECT,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      tx.set(
+        defenderGangRef,
+        {
+          vault: Math.max(0, defenderVault - loot),
+          respectPoints: Math.max(0, defenderRespect - GANG_WAR_LOSE_RESPECT),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } else if (result === 'defenderWin') {
+      const baseLoot = clamp(Math.trunc(attackerVault * 0.12), 1000, 25000);
+      loot = Math.max(0, Math.min(attackerVault, baseLoot));
+      tx.set(
+        defenderGangRef,
+        {
+          vault: defenderVault + loot,
+          respectPoints: defenderRespect + GANG_WAR_WIN_RESPECT,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      tx.set(
+        attackerGangRef,
+        {
+          vault: Math.max(0, attackerVault - loot),
+          respectPoints: Math.max(0, attackerRespect - GANG_WAR_LOSE_RESPECT),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } else {
+      tx.set(
+        attackerGangRef,
+        {
+          respectPoints: attackerRespect + GANG_WAR_DRAW_RESPECT,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      tx.set(
+        defenderGangRef,
+        {
+          respectPoints: defenderRespect + GANG_WAR_DRAW_RESPECT,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+
+    const allParticipants = [...attackerParticipants, ...defenderParticipants];
+    const winnerCount = Math.max(
+      1,
+      allParticipants.filter((p) => winnerGangId && p.gangId === winnerGangId).length,
+    );
+    const winnerCashShare = loot > 0 ? Math.max(250, Math.trunc(loot / winnerCount)) : 1000;
+    const loserCashShare = 250;
+    const drawCashShare = 600;
+
+    const topRounds = rounds.slice(0, 5);
+    for (const p of allParticipants) {
+      const userRef = db.collection('users').doc(p.uid);
+      const viewerWon = winnerGangId && p.gangId === winnerGangId;
+      const xpDelta = result === 'draw'
+        ? GANG_WAR_DRAW_XP
+        : (viewerWon ? GANG_WAR_WIN_XP : GANG_WAR_LOSE_XP);
+      const cashDelta = result === 'draw'
+        ? drawCashShare
+        : (viewerWon ? winnerCashShare : loserCashShare);
+
+      const title = result === 'draw'
+        ? 'Kartel Savaşı Berabere'
+        : (viewerWon ? 'Kartel Savaşı Kazanıldı' : 'Kartel Savaşı Kaybedildi');
+      const summary =
+        `${attackerGangName} ${attackerScore} - ${defenderScore} ${defenderGangName}` +
+        (loot > 0 ? ` • Kasa transferi: $${loot.toLocaleString('tr')}` : '');
+
+      const patch = {
+        xp: admin.firestore.FieldValue.increment(xpDelta),
+        cash: admin.firestore.FieldValue.increment(cashDelta),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      if (viewerWon) {
+        patch.gangWins = admin.firestore.FieldValue.increment(1);
+      }
+      tx.set(userRef, patch, { merge: true });
+
+      tx.set(
+        db.collection('gang_war_reports').doc(gangWarParticipantDocId(cleanWarId, p.uid)),
+        {
+          warId: cleanWarId,
+          viewerUid: p.uid,
+          gangId: p.gangId,
+          result,
+          title,
+          summary,
+          attackerScore,
+          defenderScore,
+          cashDelta,
+          xpDelta,
+          rounds: topRounds,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      tx.set(db.collection('users').doc(p.uid).collection('inbox').doc(), {
+        type: 'attack_report',
+        attackType: 'gang_war',
+        isGangRaid: true,
+        direction: p.gangId == attackerGangId ? 'outgoing' : 'incoming',
+        title,
+        body: summary,
+        attackerName: attackerGangName,
+        targetName: defenderGangName,
+        atkTotal: attackerScore,
+        defTotal: defenderScore,
+        stolenCash: loot,
+        xpGained: xpDelta,
+        isRead: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    for (const round of rounds) {
+      tx.set(db.collection('gang_war_events').doc(), {
+        warId: cleanWarId,
+        turn: round.turn,
+        type: 'duel_resolved',
+        side: round.result,
+        actorUid: round.attackerUid,
+        actorName: round.attackerName,
+        payload: round,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    tx.set(
+      warRef,
+      {
+        status: 'resolved',
+        result,
+        winnerGangId,
+        attackerScore,
+        defenderScore,
+        attackerCount: attackerParticipants.length,
+        defenderCount: defenderParticipants.length,
+        attackerPowerSnapshot: sumGangWarPower(attackerParticipants),
+        defenderPowerSnapshot: sumGangWarPower(defenderParticipants),
+        resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    tx.set(db.collection('gang_war_events').doc(), {
+      warId: cleanWarId,
+      turn: rounds.length + 1,
+      type: 'war_resolved',
+      side: 'system',
+      actorUid: actorUid || 'system',
+      actorName: actorUid ? 'Komutan' : 'Sistem',
+      payload: {
+        result,
+        winnerGangId,
+        attackerScore,
+        defenderScore,
+        loot,
+        attackerGangName,
+        defenderGangName,
+      },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      ok: true,
+      warId: cleanWarId,
+      status: 'resolved',
+      result,
+      winnerGangId,
+      attackerScore,
+      defenderScore,
+      loot,
+    };
+  });
+}
+
+exports.createGangWar = onCall({ invoker: 'public' }, async (request) => {
+  const actorUid = String(request.auth?.uid ?? '').trim();
+  if (!actorUid) {
+    throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor.');
+  }
+
+  const targetGangId = safeText(request.data?.targetGangId, '', 64);
+  if (!targetGangId) {
+    throw new HttpsError('invalid-argument', 'Hedef kartel bulunamadı.');
+  }
+
+  const actorRef = db.collection('users').doc(actorUid);
+  const actorSnap = await actorRef.get();
+  if (!actorSnap.exists) {
+    throw new HttpsError('failed-precondition', 'Profil bulunamadı.');
+  }
+  const actor = actorSnap.data() || {};
+  const attackerGangId = safeText(actor.gangId, '', 64);
+  if (!attackerGangId) {
+    throw new HttpsError('failed-precondition', 'Önce bir kartelde olmalısın.');
+  }
+  if (attackerGangId === targetGangId) {
+    throw new HttpsError('invalid-argument', 'Kendi karteline savaş açamazsın.');
+  }
+  if (!isGangWarCommander(actor.gangRole)) {
+    throw new HttpsError('permission-denied', 'Savaşı sadece lider veya sağ kol açabilir.');
+  }
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const actorPenalty = resolvePenaltyStatus(actor, nowEpoch);
+  if (actorPenalty.status !== 'active') {
+    throw new HttpsError('failed-precondition', 'Hapiste veya hastanedeyken savaş açılamaz.');
+  }
+
+  const [attackerGangSnap, defenderGangSnap] = await Promise.all([
+    db.collection('gangs').doc(attackerGangId).get(),
+    db.collection('gangs').doc(targetGangId).get(),
+  ]);
+
+  if (!attackerGangSnap.exists) {
+    throw new HttpsError('failed-precondition', 'Kendi kartelin bulunamadı.');
+  }
+  if (!defenderGangSnap.exists) {
+    throw new HttpsError('not-found', 'Hedef kartel bulunamadı.');
+  }
+
+  const pairKey = gangWarPairKey(attackerGangId, targetGangId);
+  const pairWarSnap = await db
+    .collection('gang_wars')
+    .where('pairKey', '==', pairKey)
+    .limit(25)
+    .get();
+
+  let maxCooldownUntil = 0;
+  for (const doc of pairWarSnap.docs) {
+    const data = doc.data() || {};
+    const status = String(data.status ?? '').trim();
+    if (status === 'recruiting' || status === 'ready' || status === 'active') {
+      throw new HttpsError(
+        'failed-precondition',
+        'Bu iki kartel arasında zaten aktif bir savaş var.',
+      );
+    }
+    const cooldownUntil = asInt(data.pairCooldownUntilEpoch, 0);
+    if (cooldownUntil > maxCooldownUntil) {
+      maxCooldownUntil = cooldownUntil;
+    }
+  }
+  if (maxCooldownUntil > nowEpoch) {
+    const waitMin = Math.max(1, Math.ceil((maxCooldownUntil - nowEpoch) / 60));
+    throw new HttpsError(
+      'failed-precondition',
+      `Aynı kartelle tekrar savaşmak için ${waitMin} dakika bekle.`,
+    );
+  }
+
+  const [attackerRoster, defenderRoster] = await Promise.all([
+    fetchGangWarEligibleRoster(attackerGangId, GANG_WAR_PARTICIPANT_LIMIT),
+    fetchGangWarEligibleRoster(targetGangId, GANG_WAR_PARTICIPANT_LIMIT),
+  ]);
+
+  if (attackerRoster.length < GANG_WAR_MIN_PARTICIPANTS) {
+    throw new HttpsError(
+      'failed-precondition',
+      `Kartel savaşına girmek için en az ${GANG_WAR_MIN_PARTICIPANTS} aktif üye gerekli.`,
+    );
+  }
+  if (defenderRoster.length < GANG_WAR_MIN_PARTICIPANTS) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Hedef kartelde yeterli aktif üye yok.',
+    );
+  }
+
+  const attackerGang = attackerGangSnap.data() || {};
+  const defenderGang = defenderGangSnap.data() || {};
+  const attackerGangName = safeText(
+    attackerGang.name ?? actor.gangName,
+    'Saldıran Kartel',
+    48,
+  );
+  const defenderGangName = safeText(defenderGang.name, 'Savunan Kartel', 48);
+
+  const now = new Date();
+  const startsAt = admin.firestore.Timestamp.fromDate(now);
+  const endsAt = admin.firestore.Timestamp.fromDate(
+    new Date(now.getTime() + (GANG_WAR_DURATION_MINUTES * 60 * 1000)),
+  );
+  const pairCooldownUntilEpoch = Math.floor(
+    (now.getTime() + (GANG_WAR_PAIR_COOLDOWN_MINUTES * 60 * 1000)) / 1000,
+  );
+
+  const warRef = db.collection('gang_wars').doc();
+  const batch = db.batch();
+  batch.set(warRef, {
+    attackerGangId,
+    attackerGangName,
+    defenderGangId: targetGangId,
+    defenderGangName,
+    createdByUid: actorUid,
+    createdByRole: normalizeGangRole(actor.gangRole, 'Lider'),
+    participantLimit: GANG_WAR_PARTICIPANT_LIMIT,
+    minParticipants: GANG_WAR_MIN_PARTICIPANTS,
+    attackerCount: attackerRoster.length,
+    defenderCount: defenderRoster.length,
+    attackerPowerSnapshot: sumGangWarPower(attackerRoster),
+    defenderPowerSnapshot: sumGangWarPower(defenderRoster),
+    durationMinutes: GANG_WAR_DURATION_MINUTES,
+    pairCooldownUntilEpoch,
+    pairKey,
+    status: 'active',
+    result: 'pending',
+    winnerGangId: '',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    startsAt,
+    endsAt,
+    resolvedAt: null,
+    version: 1,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  attackerRoster.forEach((member, idx) => {
+    const docId = gangWarParticipantDocId(warRef.id, member.uid);
+    batch.set(db.collection('gang_war_participants').doc(docId), {
+      warId: warRef.id,
+      uid: member.uid,
+      displayName: member.displayName,
+      gangId: attackerGangId,
+      gangRole: member.gangRole,
+      side: 'attacker',
+      status: 'active',
+      powerSnapshot: member.powerSnapshot,
+      weaponId: member.weaponId,
+      armorId: member.armorId,
+      knifeId: member.knifeId,
+      vehicleId: member.vehicleId,
+      ready: true,
+      turnOrder: idx,
+      joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  defenderRoster.forEach((member, idx) => {
+    const docId = gangWarParticipantDocId(warRef.id, member.uid);
+    batch.set(db.collection('gang_war_participants').doc(docId), {
+      warId: warRef.id,
+      uid: member.uid,
+      displayName: member.displayName,
+      gangId: targetGangId,
+      gangRole: member.gangRole,
+      side: 'defender',
+      status: 'active',
+      powerSnapshot: member.powerSnapshot,
+      weaponId: member.weaponId,
+      armorId: member.armorId,
+      knifeId: member.knifeId,
+      vehicleId: member.vehicleId,
+      ready: true,
+      turnOrder: idx,
+      joinedAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+
+  batch.set(db.collection('gang_war_events').doc(), {
+    warId: warRef.id,
+    turn: 0,
+    type: 'war_created',
+    side: 'system',
+    actorUid,
+    actorName: safeText(actor.displayName ?? actor.name, 'Komutan', 24),
+    payload: {
+      attackerGangId,
+      attackerGangName,
+      defenderGangId: targetGangId,
+      defenderGangName,
+      attackerCount: attackerRoster.length,
+      defenderCount: defenderRoster.length,
+      durationMinutes: GANG_WAR_DURATION_MINUTES,
+    },
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  await batch.commit();
+
+  return {
+    ok: true,
+    warId: warRef.id,
+    status: 'active',
+    attackerGangId,
+    defenderGangId: targetGangId,
+    attackerCount: attackerRoster.length,
+    defenderCount: defenderRoster.length,
+    startsAtEpoch: Math.floor(now.getTime() / 1000),
+    endsAtEpoch: Math.floor(endsAt.toDate().getTime() / 1000),
+  };
+});
+
+exports.resolveGangWar = onCall({ invoker: 'public' }, async (request) => {
+  const actorUid = String(request.auth?.uid ?? '').trim();
+  if (!actorUid) {
+    throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor.');
+  }
+  const warId = safeText(request.data?.warId, '', 96);
+  if (!warId) {
+    throw new HttpsError('invalid-argument', 'Savaş ID gerekli.');
+  }
+  return resolveGangWarInternal({
+    warId,
+    actorUid,
+    force: false,
+  });
+});
+
+exports.resolveExpiredGangWars = onSchedule('every 5 minutes', async () => {
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const activeSnap = await db
+    .collection('gang_wars')
+    .where('status', '==', 'active')
+    .limit(100)
+    .get();
+
+  let resolved = 0;
+  let skipped = 0;
+  for (const doc of activeSnap.docs) {
+    const data = doc.data() || {};
+    const endsAtEpoch = asEpochSecFromTimestamp(
+      data.endsAt,
+      asEpochSecFromTimestamp(data.startsAt, nowEpoch) +
+        (Math.max(10, asInt(data.durationMinutes, GANG_WAR_DURATION_MINUTES)) * 60),
+    );
+    if (endsAtEpoch > nowEpoch) {
+      skipped += 1;
+      continue;
+    }
+    try {
+      await resolveGangWarInternal({
+        warId: doc.id,
+        actorUid: '',
+        force: true,
+      });
+      resolved += 1;
+    } catch (err) {
+      console.error(`resolveExpiredGangWars failed for ${doc.id}:`, err?.message || err);
+    }
+  }
+
+  console.log(
+    `Gang war scheduler done: active=${activeSnap.size}, resolved=${resolved}, skipped=${skipped}`,
+  );
+});
+
 // ══════════════════════════════════════════════════════════════════
 // Trade — Server-authoritative item/cash trading
 // ══════════════════════════════════════════════════════════════════
@@ -2611,6 +3450,7 @@ function attackTypeLabelTr(type) {
   const t = String(type ?? 'quick');
   if (t === 'planned') return 'Planlı Saldırı';
   if (t === 'gang') return 'Çete Baskını';
+  if (t === 'gang_war') return 'Kartel Savaşı';
   return 'Hızlı Saldırı';
 }
 

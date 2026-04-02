@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/gang_war.dart';
 import '../models/gang_war_event.dart';
@@ -12,9 +13,11 @@ class GangWarService {
   static const int defaultPairCooldownMinutes = 30;
 
   final FirebaseFirestore _db;
+  final FirebaseFunctions _functions;
 
   GangWarService({FirebaseFirestore? db})
-      : _db = db ?? FirebaseFirestore.instance;
+      : _db = db ?? FirebaseFirestore.instance,
+        _functions = FirebaseFunctions.instance;
 
   CollectionReference<Map<String, dynamic>> get _wars =>
       _db.collection('gang_wars');
@@ -24,6 +27,49 @@ class GangWarService {
       _db.collection('gang_war_events');
   CollectionReference<Map<String, dynamic>> get _reports =>
       _db.collection('gang_war_reports');
+
+  Map<String, dynamic> _asMap(dynamic raw) {
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return <String, dynamic>{};
+  }
+
+  Future<Map<String, dynamic>> createWarByTargetGang({
+    required String targetGangId,
+  }) async {
+    final cleanTargetGangId = targetGangId.trim();
+    if (cleanTargetGangId.isEmpty) {
+      throw Exception('Hedef kartel bulunamadı.');
+    }
+    try {
+      final response = await _functions
+          .httpsCallable('createGangWar')
+          .call(<String, dynamic>{'targetGangId': cleanTargetGangId});
+      return _asMap(response.data);
+    } on FirebaseFunctionsException catch (e) {
+      throw Exception(e.message ?? 'Kartel savaşı başlatılamadı.');
+    } catch (_) {
+      throw Exception('Sunucuya ulaşılamadı, tekrar dene.');
+    }
+  }
+
+  Future<Map<String, dynamic>> resolveWar({
+    required String warId,
+  }) async {
+    final cleanWarId = warId.trim();
+    if (cleanWarId.isEmpty) {
+      throw Exception('Savaş bulunamadı.');
+    }
+    try {
+      final response = await _functions
+          .httpsCallable('resolveGangWar')
+          .call(<String, dynamic>{'warId': cleanWarId});
+      return _asMap(response.data);
+    } on FirebaseFunctionsException catch (e) {
+      throw Exception(e.message ?? 'Kartel savaşı çözümlenemedi.');
+    } catch (_) {
+      throw Exception('Sunucuya ulaşılamadı, tekrar dene.');
+    }
+  }
 
   String participantDocId(String warId, String uid) => '${warId}_$uid';
 
@@ -325,5 +371,24 @@ class GangWarService {
     final list = byId.values.toList();
     list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return list.take(limit).toList(growable: false);
+  }
+
+  Stream<List<GangWarReport>> watchMyReports({
+    required String uid,
+    int limit = 20,
+  }) {
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return const Stream<List<GangWarReport>>.empty();
+    return _reports
+        .where('viewerUid', isEqualTo: cleanUid)
+        .limit(limit)
+        .snapshots()
+        .map((snap) {
+          final rows = snap.docs
+              .map((d) => GangWarReport.fromFirestore(d.id, d.data()))
+              .toList(growable: true);
+          rows.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return rows;
+        });
   }
 }
