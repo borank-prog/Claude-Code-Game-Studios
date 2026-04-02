@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui' show ImageFilter;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:math' as math;
@@ -14,6 +15,7 @@ import 'profile_screen.dart';
 import 'social_screen.dart';
 import 'street_screen.dart';
 import 'settings_screen.dart';
+import 'inbox_screen.dart';
 import '../widgets/game_background.dart';
 import '../widgets/format.dart';
 import '../widgets/attack_banner.dart';
@@ -32,6 +34,11 @@ class _HomeShellState extends State<HomeShell> {
   bool _hospitalPromptVisible = false;
   int _hospitalPromptForUntil = 0;
   Timer? _ticker;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _inboxUnreadSub;
+  String _watchingInboxUid = '';
+  int _inboxUnreadCount = 0;
+  int _lastKnownUnread = 0;
+  bool _inboxWatchPrimed = false;
 
   @override
   void initState() {
@@ -43,6 +50,7 @@ class _HomeShellState extends State<HomeShell> {
       _showOfflineReportsIfAny();
       _maybeShowPenaltyPopup();
       context.read<GameState>().addListener(_onGameStateChanged);
+      _ensureInboxWatcher();
     });
   }
 
@@ -83,8 +91,89 @@ class _HomeShellState extends State<HomeShell> {
     if (mounted) {
       try { context.read<GameState>().removeListener(_onGameStateChanged); } catch (_) {}
     }
+    _inboxUnreadSub?.cancel();
+    _inboxUnreadSub = null;
     _ticker?.cancel();
     super.dispose();
+  }
+
+  void _ensureInboxWatcher() {
+    if (!mounted) return;
+    final state = context.read<GameState>();
+    final uid = state.userId.trim();
+    if (uid.isEmpty) {
+      _inboxUnreadSub?.cancel();
+      _inboxUnreadSub = null;
+      _watchingInboxUid = '';
+      _inboxUnreadCount = 0;
+      _lastKnownUnread = 0;
+      _inboxWatchPrimed = false;
+      return;
+    }
+    if (_watchingInboxUid == uid && _inboxUnreadSub != null) return;
+
+    _inboxUnreadSub?.cancel();
+    _watchingInboxUid = uid;
+    _inboxUnreadCount = 0;
+    _lastKnownUnread = 0;
+    _inboxWatchPrimed = false;
+
+    _inboxUnreadSub = FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('inbox')
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .listen((snap) {
+          if (!mounted) return;
+          final unread = snap.docs.length;
+          if (_inboxWatchPrimed && unread > _lastKnownUnread) {
+            final incoming = unread - _lastKnownUnread;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                behavior: SnackBarBehavior.floating,
+                backgroundColor: const Color(0xFF0B223E),
+                duration: const Duration(seconds: 3),
+                content: Row(
+                  children: [
+                    const Icon(
+                      Icons.mark_email_unread_rounded,
+                      color: Color(0xFFFBBF24),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        state.tt(
+                          'Mesaj kutuna $incoming yeni bildirim geldi.',
+                          '$incoming new inbox notification(s).',
+                        ),
+                        style: const TextStyle(
+                          color: Color(0xFFE5E7EB),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                action: SnackBarAction(
+                  label: state.tt('Aç', 'Open'),
+                  textColor: const Color(0xFFFBBF24),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => InboxScreen(uid: uid)),
+                    );
+                  },
+                ),
+              ),
+            );
+          }
+          _inboxWatchPrimed = true;
+          _lastKnownUnread = unread;
+          if (mounted) {
+            setState(() => _inboxUnreadCount = unread);
+          }
+        });
   }
 
   Future<void> _showOfflineReportsIfAny() async {
@@ -500,6 +589,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<GameState>();
+    _ensureInboxWatcher();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _maybeShowPenaltyPopup(),
     );
@@ -765,6 +855,91 @@ class _HomeShellState extends State<HomeShell> {
                                   tapTargetSize:
                                       MaterialTapTargetSize.shrinkWrap,
                                 ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Inbox button
+                        Positioned(
+                          top: 200,
+                          right: 8,
+                          child: Semantics(
+                            container: true,
+                            button: true,
+                            label: state.tt('Mesaj Kutusu', 'Inbox'),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: const Color(0xCC14233F),
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: _inboxUnreadCount > 0
+                                      ? const Color(0xAAEF4444)
+                                      : const Color(0x55FBBF24),
+                                ),
+                              ),
+                              child: Stack(
+                                children: [
+                                  IconButton(
+                                    tooltip: state.tt(
+                                      'Mesaj Kutusu',
+                                      'Inbox',
+                                    ),
+                                    icon: Icon(
+                                      _inboxUnreadCount > 0
+                                          ? Icons.mark_email_unread_rounded
+                                          : Icons.mark_email_read_outlined,
+                                      size: 19,
+                                      color: _inboxUnreadCount > 0
+                                          ? const Color(0xFFF87171)
+                                          : const Color(0xFFFBBF24),
+                                    ),
+                                    onPressed: () {
+                                      final uid = state.userId.trim();
+                                      if (uid.isEmpty) return;
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => InboxScreen(uid: uid),
+                                        ),
+                                      );
+                                    },
+                                    style: IconButton.styleFrom(
+                                      minimumSize: const Size(42, 42),
+                                      padding: EdgeInsets.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+                                  ),
+                                  if (_inboxUnreadCount > 0)
+                                    Positioned(
+                                      top: 4,
+                                      right: 4,
+                                      child: Container(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 16,
+                                          minHeight: 16,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 3,
+                                        ),
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFFEF4444),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            _inboxUnreadCount > 99
+                                                ? '99+'
+                                                : '$_inboxUnreadCount',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ),
