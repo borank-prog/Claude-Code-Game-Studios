@@ -1261,20 +1261,27 @@ class _AttackReportSheet extends StatelessWidget {
           ),
           _ReportRow(
             label: _t('Silah Eşleşmesi', 'Weapon Matchup'),
-            value: '${report.attackerWeaponName} vs ${report.targetWeaponName}',
+            value:
+                '${_t('Sen', 'You')}: ${report.attackerWeaponName}\n${_t('Rakip', 'Rival')}: ${report.targetWeaponName}',
+            multilineValue: true,
           ),
           _ReportRow(
             label: _t('Yakın Dövüş', 'Melee Matchup'),
-            value: '${report.attackerKnifeName} vs ${report.targetKnifeName}',
+            value:
+                '${_t('Sen', 'You')}: ${report.attackerKnifeName}\n${_t('Rakip', 'Rival')}: ${report.targetKnifeName}',
+            multilineValue: true,
           ),
           _ReportRow(
             label: _t('Zırh Eşleşmesi', 'Armor Matchup'),
-            value: '${report.attackerArmorName} vs ${report.targetArmorName}',
+            value:
+                '${_t('Sen', 'You')}: ${report.attackerArmorName}\n${_t('Rakip', 'Rival')}: ${report.targetArmorName}',
+            multilineValue: true,
           ),
           _ReportRow(
             label: _t('Araç Eşleşmesi', 'Vehicle Matchup'),
             value:
-                '${report.attackerVehicleName} vs ${report.targetVehicleName}',
+                '${_t('Sen', 'You')}: ${report.attackerVehicleName}\n${_t('Rakip', 'Rival')}: ${report.targetVehicleName}',
+            multilineValue: true,
           ),
           _ReportRow(
             label: _t('Silah Güç Etkisi', 'Weapon Power Effect'),
@@ -1367,11 +1374,17 @@ class _AttackReportSheet extends StatelessWidget {
 }
 
 class _ReportRow extends StatelessWidget {
-  const _ReportRow({required this.label, required this.value, this.valueColor});
+  const _ReportRow({
+    required this.label,
+    required this.value,
+    this.valueColor,
+    this.multilineValue = false,
+  });
 
   final String label;
   final String value;
   final Color? valueColor;
+  final bool multilineValue;
 
   @override
   Widget build(BuildContext context) {
@@ -1384,6 +1397,9 @@ class _ReportRow extends StatelessWidget {
         border: Border.all(color: Colors.white12),
       ),
       child: Row(
+        crossAxisAlignment: multilineValue
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Text(
@@ -1398,12 +1414,12 @@ class _ReportRow extends StatelessWidget {
           Flexible(
             child: Text(
               value,
-              maxLines: 1,
+              maxLines: multilineValue ? 3 : 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
               style: TextStyle(
                 color: valueColor ?? Colors.white,
-                fontSize: 12,
+                fontSize: multilineValue ? 11 : 12,
                 fontWeight: FontWeight.w800,
               ),
             ),

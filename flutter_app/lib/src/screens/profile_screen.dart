@@ -6,9 +6,17 @@ import '../data/game_models.dart';
 import '../state/game_state.dart';
 import '../widgets/format.dart';
 import '../widgets/glass_panel.dart';
+import '../widgets/item_asset_image.dart';
+import 'gang_chat_screen.dart';
+import 'gang_leaderboard_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+
+  void _snack(BuildContext context, String text) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
 
   Future<void> _showActionLockedPopup(
     BuildContext context,
@@ -37,6 +45,61 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _copyPlayerId(BuildContext context, GameState state) async {
+    final id = state.userId.trim();
+    if (id.isEmpty) {
+      _snack(
+        context,
+        state.tt('Oyuncu ID bulunamadı.', 'Player ID not found.'),
+      );
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: id));
+    if (!context.mounted) return;
+    _snack(context, state.tt('Oyuncu ID kopyalandı.', 'Player ID copied.'));
+  }
+
+  Future<void> _promptAddFriend(BuildContext context, GameState state) async {
+    final ctrl = TextEditingController();
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.tt('Arkadaş Ekle', 'Add Friend'),
+          style: const TextStyle(color: Color(0xFFFBBF24)),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: state.tt('Oyuncu UID gir', 'Enter player UID'),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Vazgeç', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+            child: Text(state.tt('Ekle', 'Add')),
+          ),
+        ],
+      ),
+    );
+    final uid = entered?.trim() ?? '';
+    if (uid.isEmpty) return;
+    final ok = await state.sendFriendRequest(uid);
+    if (!context.mounted) return;
+    _snack(
+      context,
+      ok
+          ? state.tt('Arkadaş isteği gönderildi.', 'Friend request sent.')
+          : state.tt('İstek gönderilemedi.', 'Request failed.'),
     );
   }
 
@@ -181,11 +244,16 @@ class ProfileScreen extends StatelessWidget {
                             isThreeLine: true,
                             leading: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                item.iconAsset,
+                              child: ItemAssetImage(
+                                candidates: itemAssetCandidates(item),
                                 width: 36,
                                 height: 36,
                                 fit: BoxFit.cover,
+                                placeholder: const Icon(
+                                  Icons.inventory_2_outlined,
+                                  color: Color(0xFF4B5563),
+                                  size: 22,
+                                ),
                               ),
                             ),
                             title: Text(
@@ -307,6 +375,10 @@ class ProfileScreen extends StatelessWidget {
 
             // ── Envanter ─────────────────────────────────────────────
             _buildInventory(context, state),
+            const SizedBox(height: 10),
+            _buildFriendsSection(context, state),
+            const SizedBox(height: 10),
+            _buildCartelSection(context, state),
           ],
         );
       },
@@ -568,7 +640,10 @@ class ProfileScreen extends StatelessWidget {
                 );
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(8),
@@ -586,7 +661,11 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    const Icon(Icons.copy_rounded, size: 13, color: Color(0xFF94A3B8)),
+                    const Icon(
+                      Icons.copy_rounded,
+                      size: 13,
+                      color: Color(0xFF94A3B8),
+                    ),
                   ],
                 ),
               ),
@@ -1024,16 +1103,15 @@ class ProfileScreen extends StatelessWidget {
                           Expanded(
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.asset(
-                                item.iconAsset,
+                              child: ItemAssetImage(
+                                candidates: itemAssetCandidates(item),
                                 fit: BoxFit.contain,
                                 width: double.infinity,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(
-                                      Icons.inventory_2_outlined,
-                                      color: Color(0xFF4B5563),
-                                      size: 28,
-                                    ),
+                                placeholder: const Icon(
+                                  Icons.inventory_2_outlined,
+                                  color: Color(0xFF4B5563),
+                                  size: 28,
+                                ),
                               ),
                             ),
                           ),
@@ -1154,14 +1232,13 @@ class ProfileScreen extends StatelessWidget {
                         border: Border.all(color: const Color(0xFFFBBF24)),
                         color: const Color(0xFF0F1B33),
                       ),
-                      child: Image.asset(
-                        item.iconAsset,
+                      child: ItemAssetImage(
+                        candidates: itemAssetCandidates(item),
                         fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const Icon(
-                              Icons.inventory_2_outlined,
-                              color: Color(0xFF4B5563),
-                            ),
+                        placeholder: const Icon(
+                          Icons.inventory_2_outlined,
+                          color: Color(0xFF4B5563),
+                        ),
                       ),
                     ),
                   ),
@@ -1187,6 +1264,372 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  // ── Arkadaşlar (Profilde) ────────────────────────────────────────────────
+  Widget _buildFriendsSection(BuildContext context, GameState state) {
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.people_alt_outlined,
+                color: Color(0xFFFBBF24),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                state.tt('ARKADAŞLAR', 'FRIENDS'),
+                style: const TextStyle(
+                  color: Color(0xFFFBBF24),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () => _copyPlayerId(context, state),
+                icon: const Icon(Icons.copy_rounded, size: 15),
+                label: Text(state.tt('ID Kopyala', 'Copy ID')),
+              ),
+            ],
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFF334155)),
+            ),
+            child: Text(
+              'Oyuncu ID: ${state.userId.isEmpty ? '-' : state.userId}',
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _promptAddFriend(context, state),
+              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+              label: Text(state.tt('Arkadaş Ekle', 'Add Friend')),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            state.tt('Gelen İstekler', 'Incoming Requests'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (state.incomingRequests.isEmpty)
+            Text(
+              state.tt('Bekleyen istek yok.', 'No pending requests.'),
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+            )
+          else
+            ...state.incomingRequests.map((r) {
+              final rid = r['id']?.toString() ?? '';
+              final from =
+                  r['fromName']?.toString() ?? r['fromId']?.toString() ?? '-';
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        from,
+                        style: const TextStyle(color: Color(0xFFD1D5DB)),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        await state.acceptFriendRequest(rid);
+                        if (!context.mounted) return;
+                        _snack(
+                          context,
+                          state.tt('Arkadaş eklendi.', 'Friend added.'),
+                        );
+                      },
+                      child: Text(state.tt('Kabul', 'Accept')),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        await state.rejectFriendRequest(rid);
+                        if (!context.mounted) return;
+                        _snack(
+                          context,
+                          state.tt('İstek reddedildi.', 'Request rejected.'),
+                        );
+                      },
+                      child: Text(state.tt('Red', 'Reject')),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          const SizedBox(height: 10),
+          Text(
+            state.tt('Arkadaş Listesi', 'Friend List'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (state.friends.isEmpty)
+            Text(
+              state.tt('Henüz arkadaşın yok.', 'You have no friends yet.'),
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+            )
+          else
+            ...state.friends.map((f) {
+              final friendUid = (f['uid']?.toString() ?? '').trim();
+              final friendName = (f['displayName']?.toString() ?? '').trim();
+              final display = friendName.isEmpty ? friendUid : friendName;
+              return Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '- $display',
+                        style: const TextStyle(color: Color(0xFF34D399)),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: friendUid.isEmpty
+                          ? null
+                          : () async {
+                              final ok = await state.removeFriend(
+                                friendUid,
+                                friendName: display,
+                              );
+                              if (!context.mounted) return;
+                              _snack(
+                                context,
+                                ok
+                                    ? state.tt(
+                                        '$display arkadaşlıktan çıkarıldı.',
+                                        '$display removed from friends.',
+                                      )
+                                    : state.tt(
+                                        'Arkadaş çıkarılamadı.',
+                                        'Could not remove friend.',
+                                      ),
+                              );
+                            },
+                      child: Text(
+                        state.tt('Çıkar', 'Remove'),
+                        style: const TextStyle(
+                          color: Color(0xFFF87171),
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  // ── Kartel (Profilde) ────────────────────────────────────────────────────
+  Widget _buildCartelSection(BuildContext context, GameState state) {
+    final hasCartel =
+        state.gangId.trim().isNotEmpty ||
+        ((state.currentGang?['name']?.toString() ?? '').trim().isNotEmpty);
+    if (!hasCartel) {
+      return GlassPanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.groups_rounded,
+                  color: Color(0xFFFBBF24),
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  state.tt('KARTEL', 'CARTEL'),
+                  style: const TextStyle(
+                    color: Color(0xFFFBBF24),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              state.tt(
+                'Henüz bir kartelde değilsin.',
+                'You are not in a cartel yet.',
+              ),
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final gangName =
+        (state.currentGang?['name']?.toString() ?? '').trim().isEmpty
+        ? state.tt('Çete', 'Gang')
+        : state.currentGang!['name'].toString().trim();
+
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.groups_rounded,
+                color: Color(0xFFFBBF24),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                state.tt('KARTEL', 'CARTEL'),
+                style: const TextStyle(
+                  color: Color(0xFFFBBF24),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () async {
+                  final gangId = state.gangId.trim();
+                  if (gangId.isEmpty) return;
+                  await Clipboard.setData(ClipboardData(text: gangId));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        state.tt('Kartel ID kopyalandı.', 'Cartel ID copied.'),
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.copy_rounded, size: 15),
+                label: Text(state.tt('ID Kopyala', 'Copy ID')),
+              ),
+            ],
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0x2214213B),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0x557F8EA8)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  gangName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${state.tt('Rütbe', 'Rank')}: ${state.gangRank}   •   ${state.tt('Toplam Güç', 'Total Power')}: ${state.totalGangPower}',
+                  style: const TextStyle(
+                    color: Color(0xFFFBBF24),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${state.tt('Kasa', 'Vault')}: \$${state.gangVault}   •   ${state.tt('Saygınlık', 'Respect')}: ${state.gangRespectPoints}',
+                  style: const TextStyle(
+                    color: Color(0xFF34D399),
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${state.tt('Aktif Üye', 'Online Members')}: ${state.onlineGangMembers}/${state.gangMembers.length}',
+                  style: const TextStyle(
+                    color: Color(0xFF94A3B8),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => GangChatScreen(
+                          roomId: state.gangId,
+                          roomName: gangName,
+                          currentUid: state.userId,
+                          currentName: state.playerName,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+                  label: Text(state.tt('Kartel Sohbeti', 'Cartel Chat')),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const GangLeaderboardScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.emoji_events_outlined, size: 18),
+                  label: Text(state.tt('Kartel Sırası', 'Cartel Rank')),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: state.leaveGang,
+              child: Text(
+                state.tt('Kartelden Ayrıl', 'Leave Cartel'),
+                style: const TextStyle(color: Color(0xFFF87171)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _inventoryItemCard(GameState state, ItemDef item) {
     return Container(
       padding: const EdgeInsets.all(6),
@@ -1198,11 +1641,11 @@ class ProfileScreen extends StatelessWidget {
       child: Column(
         children: [
           Expanded(
-            child: Image.asset(
-              item.iconAsset,
+            child: ItemAssetImage(
+              candidates: itemAssetCandidates(item),
               fit: BoxFit.contain,
               width: double.infinity,
-              errorBuilder: (context, error, stackTrace) => const Icon(
+              placeholder: const Icon(
                 Icons.inventory_2_outlined,
                 color: Color(0xFF4B5563),
               ),

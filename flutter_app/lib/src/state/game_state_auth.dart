@@ -48,16 +48,26 @@ mixin _GameStateAuth on _GameStateBase {
       loggedIn = true;
       authMode = 'firebase';
       userId = u.uid;
-      playerName = u.displayName ?? u.email?.split('@').first ?? playerName;
+      await _runAuthPostStep(
+        '[EmailLogin] cloud save attach',
+        _pullOrCreateCloudSaveAfterAuth,
+      );
+      final fallbackName =
+          u.displayName?.trim().isNotEmpty == true
+          ? u.displayName!.trim()
+          : (u.email?.split('@').first.trim() ?? '');
+      if (!_isCustomPlayerName(playerName) && fallbackName.isNotEmpty) {
+        playerName = fallbackName;
+      }
       onboardingCompleted = _isCustomPlayerName(playerName);
       avatarLocked = onboardingCompleted;
       nicknameChosen = onboardingCompleted;
       _handlePlayerLogin();
       await _runAuthPostStep(
-        '[EmailLogin] cloud save attach',
-        _pullOrCreateCloudSaveAfterAuth,
+        '[EmailLogin] post warmup',
+        _postLoginWarmup,
+        timeout: const Duration(seconds: 6),
       );
-      unawaited(_runAuthPostStep('[EmailLogin] post warmup', _postLoginWarmup));
       await _save();
       notifyListeners();
       return true;
@@ -116,8 +126,10 @@ mixin _GameStateAuth on _GameStateBase {
         '[EmailRegister] cloud save attach',
         _pullOrCreateCloudSaveAfterAuth,
       );
-      unawaited(
-        _runAuthPostStep('[EmailRegister] post warmup', _postLoginWarmup),
+      await _runAuthPostStep(
+        '[EmailRegister] post warmup',
+        _postLoginWarmup,
+        timeout: const Duration(seconds: 6),
       );
       await _save();
       notifyListeners();
@@ -147,18 +159,26 @@ mixin _GameStateAuth on _GameStateBase {
       loggedIn = true;
       authMode = 'firebase';
       userId = u.uid;
-      playerName = u.displayName ?? u.email?.split('@').first ?? playerName;
+      await _runAuthPostStep(
+        '[GoogleLogin] cloud save attach',
+        _pullOrCreateCloudSaveAfterAuth,
+      );
+      final fallbackName =
+          u.displayName?.trim().isNotEmpty == true
+          ? u.displayName!.trim()
+          : (u.email?.split('@').first.trim() ?? '');
+      if (!_isCustomPlayerName(playerName) && fallbackName.isNotEmpty) {
+        playerName = fallbackName;
+      }
       onboardingCompleted = _isCustomPlayerName(playerName);
       avatarLocked = onboardingCompleted;
       // Google'dan gelen ad sadece öneri; nick seçimini bir kez zorunlu tut.
       nicknameChosen = false;
       _handlePlayerLogin();
       await _runAuthPostStep(
-        '[GoogleLogin] cloud save attach',
-        _pullOrCreateCloudSaveAfterAuth,
-      );
-      unawaited(
-        _runAuthPostStep('[GoogleLogin] post warmup', _postLoginWarmup),
+        '[GoogleLogin] post warmup',
+        _postLoginWarmup,
+        timeout: const Duration(seconds: 6),
       );
       await _save();
       notifyListeners();
@@ -193,9 +213,10 @@ mixin _GameStateAuth on _GameStateBase {
   Future<void> _runAuthPostStep(
     String label,
     Future<void> Function() step,
+    {Duration? timeout}
   ) async {
     try {
-      await step().timeout(_GameStateBase._authPostStepTimeout);
+      await step().timeout(timeout ?? _GameStateBase._authPostStepTimeout);
     } catch (e) {
       debugPrint('$label failed => $e');
     }

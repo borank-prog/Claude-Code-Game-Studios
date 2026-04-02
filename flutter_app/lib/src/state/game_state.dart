@@ -100,6 +100,8 @@ class _GameStateBase extends ChangeNotifier {
   final OnlineService _onlineService = OnlineService();
   Timer? _cloudSaveDebounce;
   bool _cloudSaveInFlight = false;
+  bool _socialGangSeedInFlight = false;
+  int _lastSocialGangSeedAttemptMs = 0;
 
   bool initialized = false;
   bool loggedIn = false;
@@ -1557,76 +1559,170 @@ class _GameStateBase extends ChangeNotifier {
 
   // ── Online sync (shared across mixins) ──
 
+  bool _canAttemptGangSeedNow() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_socialGangSeedInFlight) return false;
+    // En fazla 45 sn'de bir seed dene.
+    if (now - _lastSocialGangSeedAttemptMs < 45000) return false;
+    _lastSocialGangSeedAttemptMs = now;
+    return true;
+  }
+
+  Future<void> _seedAndReloadDiscoverableGangs() async {
+    if (!_canAttemptGangSeedNow()) return;
+    _socialGangSeedInFlight = true;
+    try {
+      await _onlineService.seedBotData();
+      final seeded = await _onlineService.fetchGangs(limit: 20);
+      if (seeded.isNotEmpty) {
+        discoverableGangs
+          ..clear()
+          ..addAll(seeded);
+        notifyListeners();
+      }
+    } catch (_) {
+      // Sessiz devam; ekran mevcut veriyle çalışsın.
+    } finally {
+      _socialGangSeedInFlight = false;
+    }
+  }
+
   Future<void> refreshSocialData() async {
     if (!firebaseReady || !online || authMode != 'firebase' || userId.isEmpty) {
       _ensureSeedLeaderboardRows();
       notifyListeners();
       return;
     }
+    Future<T?> safeFetch<T>(Future<T> Function() task) async {
+      try {
+        return await task();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    var gangStateChanged = false;
     try {
-      final me = await _onlineService.fetchUserProfile(userId);
+      // İlk boyama gecikmesin diye mevcut leaderboard boşsa seed hemen göster.
+      if (leaderboardRows.isEmpty) {
+        _ensureSeedLeaderboardRows();
+      }
+
+      // Temel sosyal verileri paralel çek.
+      final meFuture = safeFetch(() => _onlineService.fetchUserProfile(userId));
+      final friendsFuture = safeFetch(
+        () => _onlineService.fetchFriends(userId),
+      );
+      final incomingReqFuture = safeFetch(
+        () => _onlineService.fetchIncomingRequests(userId),
+      );
+      final incomingInvitesFuture = safeFetch(
+        () => _onlineService.fetchIncomingGangInvites(userId),
+      );
+      final leaderboardFuture = safeFetch(
+        () => _onlineService.fetchLeaderboard(limit: 100),
+      );
+      final gangsFuture = safeFetch(() => _onlineService.fetchGangs(limit: 20));
+
+      final me = await meFuture;
       final meGangId = (me?['gangId']?.toString() ?? '').trim();
       final meGangName = (me?['gangName']?.toString() ?? '').trim();
       final meGangRole = (me?['gangRole']?.toString() ?? '').trim();
       final currentGangId = (currentGang?['id']?.toString() ?? '').trim();
-      if (currentGangId.isEmpty && meGangId.isNotEmpty) {
+      if (meGangId.isNotEmpty && meGangId != currentGangId) {
         currentGang = {
           'id': meGangId,
           'name': meGangName.isEmpty ? tt('Çete', 'Gang') : meGangName,
           'role': meGangRole.isEmpty ? 'Üye' : meGangRole,
         };
+        gangStateChanged = true;
+      } else if (meGangId.isEmpty && currentGangId.isNotEmpty) {
+        currentGang = null;
+        gangMembers.clear();
+        gangJoinRequests.clear();
+        gangStateChanged = true;
       }
 
-      friends
-        ..clear()
-        ..addAll(await _onlineService.fetchFriends(userId));
-      incomingRequests
-        ..clear()
-        ..addAll(await _onlineService.fetchIncomingRequests(userId));
-      incomingGangInvites
-        ..clear()
-        ..addAll(await _onlineService.fetchIncomingGangInvites(userId));
-      leaderboardRows
-        ..clear()
-        ..addAll(await _onlineService.fetchLeaderboard(limit: 100));
+      final fetchedFriends = await friendsFuture;
+      if (fetchedFriends != null) {
+        friends
+          ..clear()
+          ..addAll(fetchedFriends);
+      }
+
+      final fetchedIncomingReq = await incomingReqFuture;
+      if (fetchedIncomingReq != null) {
+        incomingRequests
+          ..clear()
+          ..addAll(fetchedIncomingReq);
+      }
+
+      final fetchedIncomingInvites = await incomingInvitesFuture;
+      if (fetchedIncomingInvites != null) {
+        incomingGangInvites
+          ..clear()
+          ..addAll(fetchedIncomingInvites);
+      }
+
+      final fetchedLeaderboard = await leaderboardFuture;
+      if (fetchedLeaderboard != null && fetchedLeaderboard.isNotEmpty) {
+        leaderboardRows
+          ..clear()
+          ..addAll(fetchedLeaderboard);
+      }
       _dedupeLeaderboardRows();
       _ensureSeedLeaderboardRows();
       _sortLeaderboardRows();
-      discoverableGangs
-        ..clear()
-        ..addAll(await _onlineService.fetchGangs(limit: 20));
-      if (discoverableGangs.isEmpty) {
-        // Bot çeteleri Firestore'a yaz, sonra tekrar çek
-        unawaited(_onlineService.seedBotData());
-        await Future.delayed(const Duration(seconds: 2));
+
+      final fetchedGangs = await gangsFuture;
+      if (fetchedGangs != null) {
         discoverableGangs
           ..clear()
-          ..addAll(await _onlineService.fetchGangs(limit: 20));
+          ..addAll(fetchedGangs);
+      }
+      if (discoverableGangs.isEmpty) {
+        // UI'ı bloke etmeden arka planda seed dene.
+        unawaited(_seedAndReloadDiscoverableGangs());
       }
 
+      // İlk yüklenen verileri hemen göster.
+      notifyListeners();
+
+      // Çete detayı ikinci aşamada gelir (hızlı ilk render için ayrı).
       final gId = currentGang?['id']?.toString() ?? '';
       if (gId.isNotEmpty) {
-        final gang = await _onlineService.fetchGang(gId);
+        final gangFuture = safeFetch(() => _onlineService.fetchGang(gId));
+        final membersFuture = safeFetch(
+          () => _onlineService.fetchGangMembers(gId),
+        );
+
+        final gang = await gangFuture;
         if (gang != null) {
           currentGang = {'id': gId, ...gang};
           gangRank = (gang['gangRank'] as num?)?.toInt() ?? gangRank;
           gangRespectPoints =
               (gang['respectPoints'] as num?)?.toInt() ?? gangRespectPoints;
           gangVault = (gang['vault'] as num?)?.toInt() ?? gangVault;
+          gangStateChanged = true;
+        }
+
+        final fetchedMembers = await membersFuture;
+        if (fetchedMembers != null) {
           gangMembers
             ..clear()
-            ..addAll(await _onlineService.fetchGangMembers(gId));
-          if (isGangLeader) {
+            ..addAll(fetchedMembers);
+        }
+
+        if (isGangLeader) {
+          final fetchedJoinReq = await safeFetch(
+            () => _onlineService.fetchGangJoinRequestsForLeader(userId),
+          );
+          if (fetchedJoinReq != null) {
             gangJoinRequests
               ..clear()
-              ..addAll(
-                await _onlineService.fetchGangJoinRequestsForLeader(userId),
-              );
-          } else {
-            gangJoinRequests.clear();
+              ..addAll(fetchedJoinReq);
           }
         } else {
-          gangMembers.clear();
           gangJoinRequests.clear();
         }
       } else {
@@ -1637,6 +1733,9 @@ class _GameStateBase extends ChangeNotifier {
       lastAuthError = _sanitizeError(e);
       _ensureSeedLeaderboardRows();
       _dedupeLeaderboardRows();
+    }
+    if (gangStateChanged) {
+      unawaited(_save());
     }
     notifyListeners();
   }
@@ -1749,12 +1848,36 @@ class _GameStateBase extends ChangeNotifier {
     if (!firebaseReady || !online || authMode != 'firebase' || userId.isEmpty)
       return;
     try {
-      final resolvedGangId = hasGang
+      String? resolvedGangId = hasGang
           ? (currentGang?['id']?.toString() ?? '')
           : null;
-      final resolvedGangName = hasGang
+      String? resolvedGangName = hasGang
           ? (currentGang?['name']?.toString() ?? '')
           : null;
+      var hydratedGangFromRemote = false;
+      if ((resolvedGangId == null || resolvedGangId.trim().isEmpty) &&
+          userId.trim().isNotEmpty) {
+        try {
+          final remoteMe = await _onlineService.fetchUserProfile(userId);
+          final remoteGangId = (remoteMe?['gangId']?.toString() ?? '').trim();
+          if (remoteGangId.isNotEmpty) {
+            final remoteGangName = (remoteMe?['gangName']?.toString() ?? '')
+                .trim();
+            final remoteGangRole = (remoteMe?['gangRole']?.toString() ?? '')
+                .trim();
+            currentGang = {
+              'id': remoteGangId,
+              'name': remoteGangName.isEmpty
+                  ? tt('Çete', 'Gang')
+                  : remoteGangName,
+              'role': remoteGangRole.isEmpty ? 'Üye' : remoteGangRole,
+            };
+            resolvedGangId = remoteGangId;
+            resolvedGangName = remoteGangName;
+            hydratedGangFromRemote = true;
+          }
+        } catch (_) {}
+      }
       final profileStatus = isActionLocked ? actionLockStatus : 'active';
       final profileStatusUntilEpoch = isActionLocked ? actionLockUntilEpoch : 0;
       await _onlineService.upsertUserProfile(
@@ -1785,6 +1908,10 @@ class _GameStateBase extends ChangeNotifier {
         equippedVehicleId: equippedVehicleId,
         combatWeaponId: equippedCombatWeaponId,
       );
+      if (hydratedGangFromRemote) {
+        unawaited(_save());
+        notifyListeners();
+      }
     } catch (e) {
       debugPrint('[ProfileSync] upsert failed => $e');
     }
@@ -1903,8 +2030,6 @@ class _GameStateBase extends ChangeNotifier {
           saveOwnerUid = currentUid;
           playerOnline = true;
           _handlePlayerLogin();
-        } else {
-          await _pushCloudSave();
         }
         return;
       }

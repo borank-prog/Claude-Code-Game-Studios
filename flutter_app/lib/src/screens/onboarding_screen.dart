@@ -350,6 +350,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                                       fit: BoxFit.cover,
                                                       alignment:
                                                           Alignment.center,
+                                                      errorBuilder:
+                                                          (context, error, stackTrace) =>
+                                                              Container(
+                                                                color: const Color(
+                                                                  0xFF0E1A30,
+                                                                ),
+                                                                child: const Icon(
+                                                                  Icons.person,
+                                                                  color: Color(
+                                                                    0xFF4B5563,
+                                                                  ),
+                                                                  size: 42,
+                                                                ),
+                                                              ),
                                                     );
                                                   },
                                             ),

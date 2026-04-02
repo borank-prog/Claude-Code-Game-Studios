@@ -14,14 +14,12 @@ import 'src/services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase ve background handler'ı paralel başlat
-  final firebaseFuture = _initializeFirebase();
   final gameState = GameState();
-  // UI'ı hemen göster, Firebase arka planda tamamlansın
-  runApp(CartelHoodFlutterApp(gameState: gameState));
-  await firebaseFuture;
+  // Login akışı başlamadan önce state tamamen hazır olsun.
+  await _initializeFirebase();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await gameState.initialize();
+  runApp(CartelHoodFlutterApp(gameState: gameState));
 }
 
 Future<void> _initializeFirebase() async {

@@ -90,12 +90,12 @@ class AchievementsScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _summaryItem(
-                      state.tt('Acilan', 'Unlocked'),
+                      state.tt('Açılan', 'Unlocked'),
                       '${state.claimedAchievements.length + state.unlockedAchievements.length}/${AchievementData.all.length}',
                       const Color(0xFFFBBF24),
                     ),
                     _summaryItem(
-                      state.tt('Bekleyen Odul', 'Pending'),
+                      state.tt('Alınabilir Ödül', 'Claimable Rewards'),
                       '${state.unclaimedAchievementCount}',
                       const Color(0xFF34D399),
                     ),

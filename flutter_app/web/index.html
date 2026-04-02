@@ -74,10 +74,37 @@
       border-radius: inherit;
     }
   </style>
+  <script>
+    // One-time cleanup for legacy Flutter service worker caches.
+    window.__cartelhoodClearLegacyWorker = async function () {
+      try {
+        if ("serviceWorker" in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((reg) => reg.unregister()));
+        }
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      } catch (_) {
+        // Best effort cleanup; app should still start if this fails.
+      }
+    };
+  </script>
 </head>
 <body>
   <div id="flutter-app-container">
-    <script src="flutter_bootstrap.js" async></script>
+    <script>
+      (async function () {
+        if (window.__cartelhoodClearLegacyWorker) {
+          await window.__cartelhoodClearLegacyWorker();
+        }
+        const script = document.createElement("script");
+        script.src = "flutter_bootstrap.js?v=20260402-assetfix-1";
+        script.async = true;
+        document.getElementById("flutter-app-container").appendChild(script);
+      })();
+    </script>
   </div>
 </body>
 </html>

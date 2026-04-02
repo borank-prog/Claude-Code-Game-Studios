@@ -175,7 +175,8 @@ class _AttackResultSheetState extends State<AttackResultSheet>
                           _StatRow(
                             icon: Icons.tune_rounded,
                             label: 'Silah Üstünlüğü',
-                            value: '%${_fmtSigned(widget.result.weaponTotalPct!)}',
+                            value:
+                                '%${_fmtSigned(widget.result.weaponTotalPct!)}',
                             color: (widget.result.weaponTotalPct ?? 0) >= 0
                                 ? const Color(0xFF34d399)
                                 : const Color(0xFFf87171),
@@ -220,36 +221,43 @@ class _AttackResultSheetState extends State<AttackResultSheet>
                           _StatRow(
                             icon: Icons.auto_graph_rounded,
                             label: 'Toplam Ekipman Etkisi',
-                            value: '%${_fmtSigned(widget.result.loadoutTotalPct!)}',
+                            value:
+                                '%${_fmtSigned(widget.result.loadoutTotalPct!)}',
                             color: (widget.result.loadoutTotalPct ?? 0) >= 0
                                 ? const Color(0xFF34d399)
                                 : const Color(0xFFf87171),
                           ),
-                        if ((widget.result.attackerWeaponName ?? '').isNotEmpty &&
+                        if ((widget.result.attackerWeaponName ?? '')
+                                .isNotEmpty &&
                             (widget.result.targetWeaponName ?? '').isNotEmpty)
                           _StatRow(
                             icon: Icons.gavel_rounded,
                             label: 'Eşleşme',
                             value:
-                                '${widget.result.attackerWeaponName} vs ${widget.result.targetWeaponName}',
+                                'Sen: ${widget.result.attackerWeaponName}\nRakip: ${widget.result.targetWeaponName}',
+                            multilineValue: true,
                             color: const Color(0xFF60a5fa),
                           ),
-                        if ((widget.result.attackerArmorName ?? '').isNotEmpty &&
+                        if ((widget.result.attackerArmorName ?? '')
+                                .isNotEmpty &&
                             (widget.result.targetArmorName ?? '').isNotEmpty)
                           _StatRow(
                             icon: Icons.security_rounded,
                             label: 'Zırh vs Zırh',
                             value:
-                                '${widget.result.attackerArmorName} vs ${widget.result.targetArmorName}',
+                                'Sen: ${widget.result.attackerArmorName}\nRakip: ${widget.result.targetArmorName}',
+                            multilineValue: true,
                             color: const Color(0xFF60a5fa),
                           ),
-                        if ((widget.result.attackerVehicleName ?? '').isNotEmpty &&
+                        if ((widget.result.attackerVehicleName ?? '')
+                                .isNotEmpty &&
                             (widget.result.targetVehicleName ?? '').isNotEmpty)
                           _StatRow(
                             icon: Icons.route_rounded,
                             label: 'Araç vs Araç',
                             value:
-                                '${widget.result.attackerVehicleName} vs ${widget.result.targetVehicleName}',
+                                'Sen: ${widget.result.attackerVehicleName}\nRakip: ${widget.result.targetVehicleName}',
+                            multilineValue: true,
                             color: const Color(0xFF60a5fa),
                           ),
                         if (widget.result.outcome == AttackOutcome.lose)
@@ -321,16 +329,25 @@ class _StatRow extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final bool multilineValue;
 
   const _StatRow({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
+    this.multilineValue = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final labelStyle = const TextStyle(color: Colors.white54, fontSize: 13);
+    final valueStyle = TextStyle(
+      color: color,
+      fontWeight: FontWeight.bold,
+      fontSize: multilineValue ? 12 : 14,
+    );
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -339,30 +356,35 @@ class _StatRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: 10),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white54, fontSize: 13),
-          ),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
-              ),
+      child: multilineValue
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(icon, color: color, size: 18),
+                    const SizedBox(width: 10),
+                    Text(label, style: labelStyle),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  value,
+                  textAlign: TextAlign.left,
+                  softWrap: true,
+                  style: valueStyle,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Icon(icon, color: color, size: 18),
+                const SizedBox(width: 10),
+                Text(label, style: labelStyle),
+                const Spacer(),
+                Text(value, textAlign: TextAlign.right, style: valueStyle),
+              ],
             ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -5,6 +5,7 @@ import '../data/game_models.dart';
 import '../state/game_state.dart';
 import '../widgets/format.dart';
 import '../widgets/glass_panel.dart';
+import '../widgets/item_asset_image.dart';
 
 class _StatLine {
   final String label;
@@ -278,11 +279,16 @@ class MarketScreen extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.asset(
-                        item.iconAsset,
+                      child: ItemAssetImage(
+                        candidates: itemAssetCandidates(item),
                         width: 58,
                         height: 58,
                         fit: BoxFit.cover,
+                        placeholder: const Icon(
+                          Icons.inventory_2_outlined,
+                          color: Color(0xFF4B5563),
+                          size: 28,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -366,8 +372,8 @@ class MarketScreen extends StatelessWidget {
     final Color barColor = dur > 60
         ? const Color(0xFF34D399)
         : dur > 30
-            ? const Color(0xFFFBBF24)
-            : const Color(0xFFEF4444);
+        ? const Color(0xFFFBBF24)
+        : const Color(0xFFEF4444);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
@@ -517,10 +523,10 @@ class MarketScreen extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      item.iconAsset,
+                    child: ItemAssetImage(
+                      candidates: itemAssetCandidates(item),
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Icon(
+                      placeholder: Icon(
                         Icons.inventory_2_outlined,
                         color: const Color(0xFF34D399),
                         size: 48,
@@ -835,9 +841,12 @@ class MarketScreen extends StatelessWidget {
     final rewardName = rewardItem != null
         ? state.itemName(rewardItem)
         : state.tt('Bilinmeyen Ödül', 'Unknown Reward');
-    final imageAsset =
-        rewardItem?.iconAsset ??
-        'assets/art/items/equipment_icons/altin_deagle.png';
+    final imageCandidates = rewardItem != null
+        ? itemAssetCandidates(rewardItem)
+        : itemAssetCandidatesById(
+            'altin_deagle',
+            'assets/art/items/equipment_icons/altin_deagle.png',
+          );
 
     await showDialog<void>(
       context: context,
@@ -885,7 +894,15 @@ class MarketScreen extends StatelessWidget {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(imageAsset, fit: BoxFit.cover),
+                    child: ItemAssetImage(
+                      candidates: imageCandidates,
+                      fit: BoxFit.cover,
+                      placeholder: const Icon(
+                        Icons.card_giftcard_rounded,
+                        color: Color(0xFF9CA3AF),
+                        size: 44,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
