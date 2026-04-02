@@ -348,11 +348,13 @@ class _GameStateBase extends ChangeNotifier {
     if (ownerId.isNotEmpty) return ownerId == userId.trim();
     return role == 'lider' || role == 'leader';
   }
+
   bool get isGangRightHand {
     final role = myGangRole.trim().toLowerCase();
     return role == 'sağ kol' || role == 'sag kol' || role == 'right hand';
   }
-  bool get canAssignGangRoles => isGangLeader || isGangRightHand;
+
+  bool get canAssignGangRoles => isGangLeader;
 
   bool get gangInviteOnly => currentGang?['inviteOnly'] == true;
   bool get gangAcceptJoinRequests =>

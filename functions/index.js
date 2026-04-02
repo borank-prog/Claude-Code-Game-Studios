@@ -601,7 +601,6 @@ exports.assignGangMemberRole = onCall({ invoker: 'public' }, async (request) => 
   }
 
   const gangRef = db.collection('gangs').doc(gangId);
-  const actorMemberRef = gangRef.collection('members').doc(actorUid);
   const targetMemberRef = gangRef.collection('members').doc(targetUid);
   const targetUserRef = db.collection('users').doc(targetUid);
 
@@ -617,19 +616,7 @@ exports.assignGangMemberRole = onCall({ invoker: 'public' }, async (request) => 
     }
 
     const isOwner = ownerId === actorUid;
-    let actorRole = 'Üye';
     if (!isOwner) {
-      const actorMemberSnap = await tx.get(actorMemberRef);
-      if (!actorMemberSnap.exists) {
-        throw new HttpsError('permission-denied', 'Bu kartelde yetkin yok');
-      }
-      actorRole = normalizeGangRole(actorMemberSnap.data()?.role, 'Üye');
-    } else {
-      actorRole = 'Lider';
-    }
-
-    const canManage = isOwner || actorRole === 'Sağ Kol';
-    if (!canManage) {
       throw new HttpsError('permission-denied', 'Bu işlem için yetkin yok');
     }
 
@@ -642,17 +629,6 @@ exports.assignGangMemberRole = onCall({ invoker: 'public' }, async (request) => 
     const targetIsOwner = targetUid === ownerId || currentRole === 'Lider';
     if (targetIsOwner) {
       throw new HttpsError('failed-precondition', 'Lider rütbesi değiştirilemez');
-    }
-
-    if (!isOwner) {
-      const allowedByRightHand = ['Kaptan', 'Tetikçi', 'Asker', 'Üye'];
-      if (!allowedByRightHand.includes(currentRole) ||
-          !allowedByRightHand.includes(requestedRole)) {
-        throw new HttpsError(
-          'permission-denied',
-          'Sağ Kol yalnızca orta ve alt rütbeleri yönetebilir',
-        );
-      }
     }
 
     if (currentRole === requestedRole) {
