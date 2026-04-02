@@ -57,6 +57,69 @@ mixin _GameStateSocial on _GameStateBase {
     }
   }
 
+  Future<String?> sendDirectMessage({
+    required String toUid,
+    required String text,
+    String toName = '',
+  }) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return lastAuthError;
+    }
+    if (!firebaseReady) {
+      final authReady = await _ensureFirebaseReadyForSocial();
+      if (!authReady) return lastAuthError;
+    }
+    if (authMode != 'firebase' || userId.isEmpty) {
+      final msg = tt(
+        'Mesaj göndermek için giriş yapman gerekiyor.',
+        'You need to sign in to send messages.',
+      );
+      lastAuthError = msg;
+      notifyListeners();
+      return msg;
+    }
+    final target = toUid.trim();
+    final body = text.trim();
+    if (target.isEmpty || body.isEmpty) {
+      final msg = tt(
+        'Boş mesaj gönderemezsin.',
+        'You cannot send an empty message.',
+      );
+      lastAuthError = msg;
+      notifyListeners();
+      return msg;
+    }
+    if (target == userId) {
+      final msg = tt(
+        'Kendine mesaj gönderemezsin.',
+        'You cannot send a message to yourself.',
+      );
+      lastAuthError = msg;
+      notifyListeners();
+      return msg;
+    }
+    try {
+      await _onlineService.sendInboxDirectMessage(toUid: target, text: body);
+      _addNews(
+        tt('Mesaj', 'Message'),
+        tt(
+          '${toName.trim().isEmpty ? target : toName.trim()} oyuncusuna mesaj gönderildi.',
+          'Message sent to ${toName.trim().isEmpty ? target : toName.trim()}.',
+        ),
+      );
+      lastAuthError = '';
+      await _save();
+      notifyListeners();
+      return null;
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+      return lastAuthError;
+    }
+  }
+
   Future<void> acceptFriendRequest(String requestId) async {
     if (isActionLocked) {
       lastAuthError = actionLockMessage;
@@ -399,7 +462,10 @@ mixin _GameStateSocial on _GameStateBase {
       return msg;
     }
     if (!hasGang) {
-      final msg = tt('Önce bir kartelde olmalısın.', 'You must be in a cartel.');
+      final msg = tt(
+        'Önce bir kartelde olmalısın.',
+        'You must be in a cartel.',
+      );
       lastAuthError = msg;
       notifyListeners();
       return msg;

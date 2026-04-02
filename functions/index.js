@@ -715,6 +715,105 @@ async function writeInboxMessage(uid, payload) {
     });
 }
 
+exports.sendInboxDirectMessage = onCall({ invoker: 'public' }, async (request) => {
+  const fromId = String(request.auth?.uid ?? '').trim();
+  if (!fromId) {
+    throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor.');
+  }
+
+  const toId = safeText(request.data?.toUid, '', 64);
+  const rawText = safeText(request.data?.text, '', 400);
+  if (!toId) {
+    throw new HttpsError('invalid-argument', 'Geçerli bir oyuncu seç.');
+  }
+  if (toId === fromId) {
+    throw new HttpsError('invalid-argument', 'Kendine mesaj gönderemezsin.');
+  }
+  if (!rawText) {
+    throw new HttpsError('invalid-argument', 'Mesaj boş olamaz.');
+  }
+  if (isBotUid(fromId) || isBotUid(toId)) {
+    throw new HttpsError('failed-precondition', 'Bu oyuncuya mesaj gönderemezsin.');
+  }
+
+  const fromUserRef = db.collection('users').doc(fromId);
+  const toUserRef = db.collection('users').doc(toId);
+  const fromFriendRef = fromUserRef.collection('friends').doc(toId);
+  const toFriendRef = toUserRef.collection('friends').doc(fromId);
+
+  const [fromUserSnap, toUserSnap, fromFriendSnap, toFriendSnap] = await Promise.all([
+    fromUserRef.get(),
+    toUserRef.get(),
+    fromFriendRef.get(),
+    toFriendRef.get(),
+  ]);
+
+  if (!fromUserSnap.exists) {
+    throw new HttpsError('failed-precondition', 'Profilin bulunamadı.');
+  }
+  if (!toUserSnap.exists) {
+    throw new HttpsError('not-found', 'Oyuncu bulunamadı.');
+  }
+  if (toUserSnap.data()?.isBot === true) {
+    throw new HttpsError('failed-precondition', 'Bot oyunculara mesaj gönderemezsin.');
+  }
+
+  const areFriends = fromFriendSnap.exists || toFriendSnap.exists;
+  if (!areFriends) {
+    throw new HttpsError('failed-precondition', 'Sadece arkadaşına mesaj gönderebilirsin.');
+  }
+
+  const fromName = safeText(
+    fromUserSnap.data()?.displayName ?? fromUserSnap.data()?.name,
+    'Oyuncu',
+    32,
+  );
+  const toName = safeText(
+    toUserSnap.data()?.displayName ?? toUserSnap.data()?.name,
+    'Oyuncu',
+    32,
+  );
+  const threadId = [fromId, toId].sort().join('__');
+  const now = admin.firestore.Timestamp.now();
+
+  const receiverRef = toUserRef.collection('inbox').doc();
+  const senderRef = fromUserRef.collection('inbox').doc();
+
+  const receiverPayload = {
+    type: 'direct_message',
+    threadId,
+    title: fromName,
+    body: rawText,
+    fromId,
+    fromName,
+    toId,
+    toName,
+    direction: 'incoming',
+    isRead: false,
+    createdAt: now,
+  };
+  const senderPayload = {
+    type: 'direct_message',
+    threadId,
+    title: toName,
+    body: rawText,
+    fromId,
+    fromName,
+    toId,
+    toName,
+    direction: 'outgoing',
+    isRead: true,
+    createdAt: now,
+  };
+
+  const batch = db.batch();
+  batch.set(receiverRef, receiverPayload);
+  batch.set(senderRef, senderPayload);
+  await batch.commit();
+
+  return { ok: true, toId, toName };
+});
+
 function normalizeTrText(raw) {
   return String(raw ?? '')
     .toLowerCase()

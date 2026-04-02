@@ -110,6 +110,227 @@ class _InboxScreenState extends State<InboxScreen> {
     }
   }
 
+  String _normalizeLookup(String raw) {
+    return raw.trim().toLowerCase();
+  }
+
+  String _findFriendUidByName(GameState state, String name) {
+    final key = _normalizeLookup(name);
+    if (key.isEmpty) return '';
+    for (final row in state.friends) {
+      final friendName = _normalizeLookup(
+        (row['displayName'] ?? row['name'] ?? '').toString(),
+      );
+      if (friendName == key) {
+        return (row['uid'] ?? '').toString().trim();
+      }
+    }
+    return '';
+  }
+
+  String _messagePeerUid(GameState state, Map<String, dynamic> data) {
+    final myUid = state.userId.trim();
+    final fromId = (data['fromId'] ?? '').toString().trim();
+    final toId = (data['toId'] ?? '').toString().trim();
+    if (fromId.isNotEmpty && fromId != myUid) return fromId;
+    if (toId.isNotEmpty && toId != myUid) return toId;
+    final fromName = (data['fromName'] ?? '').toString().trim();
+    if (fromName.isNotEmpty) {
+      final found = _findFriendUidByName(state, fromName);
+      if (found.isNotEmpty) return found;
+    }
+    final title = (data['title'] ?? '').toString().trim();
+    if (title.isNotEmpty) {
+      final found = _findFriendUidByName(state, title);
+      if (found.isNotEmpty) return found;
+    }
+    return '';
+  }
+
+  String _messagePeerName(GameState state, Map<String, dynamic> data) {
+    final myUid = state.userId.trim();
+    final fromId = (data['fromId'] ?? '').toString().trim();
+    final toId = (data['toId'] ?? '').toString().trim();
+    final fromName = (data['fromName'] ?? '').toString().trim();
+    final toName = (data['toName'] ?? '').toString().trim();
+    final title = (data['title'] ?? '').toString().trim();
+
+    if (fromId == myUid && toName.isNotEmpty) return toName;
+    if (toId == myUid && fromName.isNotEmpty) return fromName;
+    if (title.isNotEmpty) return title;
+    if (fromName.isNotEmpty) return fromName;
+    if (toName.isNotEmpty) return toName;
+    return state.tt('Oyuncu', 'Player');
+  }
+
+  Future<void> _openMessageReplySheet(
+    BuildContext context,
+    GameState state,
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+  ) async {
+    final data = doc.data();
+    final peerUid = _messagePeerUid(state, data);
+    final peerName = _messagePeerName(state, data);
+    final initialBody = (data['body'] ?? '').toString().trim();
+    final canReply = peerUid.isNotEmpty;
+
+    final controller = TextEditingController();
+    var sending = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F1B33),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetContext) {
+        final viewInsets = MediaQuery.of(sheetContext).viewInsets.bottom;
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(14, 14, 14, 14 + viewInsets),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.mail_outline_rounded,
+                          color: Color(0xFFFBBF24),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            peerName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0x334B5563)),
+                      ),
+                      child: Text(
+                        initialBody.isEmpty
+                            ? state.tt(
+                                'Mesaj içeriği yok.',
+                                'No message content.',
+                              )
+                            : initialBody,
+                        style: const TextStyle(
+                          color: Color(0xFFD1D5DB),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      maxLength: 400,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.newline,
+                      decoration: InputDecoration(
+                        hintText: state.tt(
+                          'Cevabını yaz...',
+                          'Write your reply...',
+                        ),
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.05),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: Color(0x334B5563),
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: Color(0x334B5563),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: (!canReply || sending)
+                            ? null
+                            : () async {
+                                final text = controller.text.trim();
+                                if (text.isEmpty) return;
+                                setSheetState(() => sending = true);
+                                final error = await state.sendDirectMessage(
+                                  toUid: peerUid,
+                                  text: text,
+                                  toName: peerName,
+                                );
+                                if (!context.mounted) return;
+                                if (error == null) {
+                                  if (ctx.mounted) Navigator.of(ctx).pop();
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        state.tt(
+                                          'Mesaj gönderildi.',
+                                          'Message sent.',
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  setSheetState(() => sending = false);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(error)),
+                                  );
+                                }
+                              },
+                        child: sending
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                canReply
+                                    ? state.tt('Cevap Gönder', 'Send Reply')
+                                    : state.tt(
+                                        'Bu mesaja cevap verilemiyor',
+                                        'Cannot reply to this message',
+                                      ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+  }
+
   Future<void> _handleFriendRequestAction(
     GameState state,
     QueryDocumentSnapshot<Map<String, dynamic>> doc, {
@@ -325,6 +546,10 @@ class _InboxScreenState extends State<InboxScreen> {
       onTap: () async {
         if (!isRead) {
           await _markRead(doc.reference);
+        }
+        if (_activeTab == _InboxTab.messages) {
+          if (!context.mounted) return;
+          await _openMessageReplySheet(context, state, doc);
         }
       },
       child: GlassPanel(

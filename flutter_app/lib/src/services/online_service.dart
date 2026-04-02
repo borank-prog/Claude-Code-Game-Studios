@@ -686,6 +686,21 @@ class OnlineService {
         });
   }
 
+  Future<void> sendInboxDirectMessage({
+    required String toUid,
+    required String text,
+  }) async {
+    final targetUid = toUid.trim();
+    final body = text.trim();
+    if (targetUid.isEmpty || body.isEmpty) {
+      throw Exception('Geçerli bir mesaj ve alıcı gerekli.');
+    }
+    await FirebaseFunctions.instance
+        .httpsCallable('sendInboxDirectMessage')
+        .call({'toUid': targetUid, 'text': body})
+        .timeout(_firestoreOpTimeout);
+  }
+
   Future<void> removeFriend({
     required String myUid,
     required String friendUid,
