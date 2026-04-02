@@ -20,6 +20,9 @@ class SocialScreen extends StatefulWidget {
 class _SocialScreenState extends State<SocialScreen> {
   final TextEditingController _newGangCtrl = TextEditingController();
   final TextEditingController _joinGangCtrl = TextEditingController();
+  static const int _pageSize = 10;
+  int _playerLeaderboardPage = 1;
+  int _gangLeaderboardPage = 1;
 
   @override
   void initState() {
@@ -39,6 +42,81 @@ class _SocialScreenState extends State<SocialScreen> {
 
   void _snack(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Widget _buildPaginationBar(
+    GameState state, {
+    required int currentPage,
+    required int totalPages,
+    required ValueChanged<int> onPageChanged,
+  }) {
+    if (totalPages <= 1) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 2),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: state.tt('Önceki Sayfa', 'Previous Page'),
+              onPressed: currentPage > 1
+                  ? () => onPageChanged(currentPage - 1)
+                  : null,
+              icon: const Icon(Icons.chevron_left_rounded),
+              color: const Color(0xFFFBBF24),
+              disabledColor: const Color(0xFF475569),
+            ),
+            ...List.generate(totalPages, (index) {
+              final page = index + 1;
+              final selected = page == currentPage;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => onPageChanged(page),
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFFFBBF24).withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0x334B5563),
+                      ),
+                    ),
+                    child: Text(
+                      '$page',
+                      style: TextStyle(
+                        color: selected
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0xFF94A3B8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+            IconButton(
+              tooltip: state.tt('Sonraki Sayfa', 'Next Page'),
+              onPressed: currentPage < totalPages
+                  ? () => onPageChanged(currentPage + 1)
+                  : null,
+              icon: const Icon(Icons.chevron_right_rounded),
+              color: const Color(0xFFFBBF24),
+              disabledColor: const Color(0xFF475569),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _showLeaderboardProfile(
@@ -414,7 +492,13 @@ class _SocialScreenState extends State<SocialScreen> {
       ..sort(
         (a, b) => _gangLeaderboardScore(b).compareTo(_gangLeaderboardScore(a)),
       );
-    final top = gangs.take(5).toList(growable: false);
+    final totalPages = gangs.isEmpty ? 1 : ((gangs.length - 1) ~/ _pageSize) + 1;
+    final currentPage = _gangLeaderboardPage.clamp(1, totalPages);
+    final start = (currentPage - 1) * _pageSize;
+    final end = (start + _pageSize).clamp(0, gangs.length);
+    final visible = gangs.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : gangs.sublist(start, end);
 
     return GlassPanel(
       child: Column(
@@ -451,7 +535,7 @@ class _SocialScreenState extends State<SocialScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          if (top.isEmpty)
+          if (visible.isEmpty)
             Text(
               state.tt(
                 'Henüz çete sıralaması verisi yok.',
@@ -464,8 +548,8 @@ class _SocialScreenState extends State<SocialScreen> {
               ),
             )
           else
-            ...top.asMap().entries.map((e) {
-              final rank = e.key + 1;
+            ...visible.asMap().entries.map((e) {
+              final rank = start + e.key + 1;
               final g = e.value;
               final id = (g['id']?.toString() ?? '').trim();
               final name = (g['name']?.toString() ?? '').trim();
@@ -588,6 +672,14 @@ class _SocialScreenState extends State<SocialScreen> {
                 ),
               );
             }),
+          _buildPaginationBar(
+            state,
+            currentPage: currentPage,
+            totalPages: totalPages,
+            onPageChanged: (page) {
+              setState(() => _gangLeaderboardPage = page);
+            },
+          ),
         ],
       ),
     );
@@ -602,6 +694,18 @@ class _SocialScreenState extends State<SocialScreen> {
           rows,
         )..sort((a, b) => _leaderboardScore(b).compareTo(_leaderboardScore(a)));
         final attackWindowIds = _computeAttackWindowIds(state, rankedRows);
+        final playerTotalPages = rankedRows.isEmpty
+            ? 1
+            : ((rankedRows.length - 1) ~/ _pageSize) + 1;
+        final playerCurrentPage = _playerLeaderboardPage.clamp(
+          1,
+          playerTotalPages,
+        );
+        final playerStart = (playerCurrentPage - 1) * _pageSize;
+        final playerEnd = (playerStart + _pageSize).clamp(0, rankedRows.length);
+        final pagedRows = rankedRows.isEmpty
+            ? const <Map<String, dynamic>>[]
+            : rankedRows.sublist(playerStart, playerEnd);
 
         return ListView(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 120),
@@ -685,7 +789,7 @@ class _SocialScreenState extends State<SocialScreen> {
                 ),
               )
             else
-              ...rankedRows.asMap().entries.map(
+              ...pagedRows.asMap().entries.map(
                 (e) => GestureDetector(
                   onTap: () =>
                       _showLeaderboardProfile(state, e.value, attackWindowIds),
@@ -694,7 +798,7 @@ class _SocialScreenState extends State<SocialScreen> {
                     child: Row(
                       children: [
                         Text(
-                          '#${e.key + 1}',
+                          '#${playerStart + e.key + 1}',
                           style: const TextStyle(
                             color: Color(0xFFFBBF24),
                             fontWeight: FontWeight.w700,
@@ -745,6 +849,15 @@ class _SocialScreenState extends State<SocialScreen> {
                     ),
                   ),
                 ),
+              ),
+            if (rankedRows.isNotEmpty)
+              _buildPaginationBar(
+                state,
+                currentPage: playerCurrentPage,
+                totalPages: playerTotalPages,
+                onPageChanged: (page) {
+                  setState(() => _playerLeaderboardPage = page);
+                },
               ),
           ],
         );
