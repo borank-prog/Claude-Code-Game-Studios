@@ -799,6 +799,11 @@ class _MissionResultSheet extends StatelessWidget {
                       '${res.powerBefore} → ${res.powerAfter}',
                       const Color(0xFFFBBF24),
                     ),
+                    _resultRow(
+                      '⚡ ${state.tt('Kalan Enerji', 'Remaining Energy')}',
+                      '${state.currentEnerji}/${state.maxEnerji}',
+                      const Color(0xFF60A5FA),
+                    ),
                     if (res.sentToJail)
                       _resultRow(
                         '🔒 ${state.tt('Durum', 'Status')}',
