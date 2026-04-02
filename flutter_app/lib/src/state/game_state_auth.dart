@@ -52,8 +52,7 @@ mixin _GameStateAuth on _GameStateBase {
         '[EmailLogin] cloud save attach',
         _pullOrCreateCloudSaveAfterAuth,
       );
-      final fallbackName =
-          u.displayName?.trim().isNotEmpty == true
+      final fallbackName = u.displayName?.trim().isNotEmpty == true
           ? u.displayName!.trim()
           : (u.email?.split('@').first.trim() ?? '');
       if (!_isCustomPlayerName(playerName) && fallbackName.isNotEmpty) {
@@ -163,8 +162,7 @@ mixin _GameStateAuth on _GameStateBase {
         '[GoogleLogin] cloud save attach',
         _pullOrCreateCloudSaveAfterAuth,
       );
-      final fallbackName =
-          u.displayName?.trim().isNotEmpty == true
+      final fallbackName = u.displayName?.trim().isNotEmpty == true
           ? u.displayName!.trim()
           : (u.email?.split('@').first.trim() ?? '');
       if (!_isCustomPlayerName(playerName) && fallbackName.isNotEmpty) {
@@ -212,9 +210,9 @@ mixin _GameStateAuth on _GameStateBase {
 
   Future<void> _runAuthPostStep(
     String label,
-    Future<void> Function() step,
-    {Duration? timeout}
-  ) async {
+    Future<void> Function() step, {
+    Duration? timeout,
+  }) async {
     try {
       await step().timeout(timeout ?? _GameStateBase._authPostStepTimeout);
     } catch (e) {
@@ -228,6 +226,8 @@ mixin _GameStateAuth on _GameStateBase {
     // Önce UI'ı hemen güncelle — Firebase işlemleri beklemesin
     final savedAuthMode = authMode;
     final savedUserId = userId;
+    final savedGangId = (currentGang?['id']?.toString() ?? '').trim();
+    final savedGangName = (currentGang?['name']?.toString() ?? '').trim();
     loggedIn = false;
     playerOnline = false;
     authMode = 'local';
@@ -247,8 +247,12 @@ mixin _GameStateAuth on _GameStateBase {
     unawaited(_save());
 
     // Firebase işlemleri arka planda tamamlansın
-    if (savedAuthMode == 'firebase' && firebaseReady && savedUserId.isNotEmpty) {
-      try { await NotificationService.clearToken(savedUserId); } catch (_) {}
+    if (savedAuthMode == 'firebase' &&
+        firebaseReady &&
+        savedUserId.isNotEmpty) {
+      try {
+        await NotificationService.clearToken(savedUserId);
+      } catch (_) {}
       try {
         await _onlineService.upsertUserProfile(
           uid: savedUserId,
@@ -257,6 +261,8 @@ mixin _GameStateAuth on _GameStateBase {
           level: level,
           rank: rank,
           cash: cash,
+          gold: gold,
+          xp: xp,
           wins: wins,
           gangWins: gangWins,
           lastLoginEpoch: lastLoginEpoch,
@@ -268,8 +274,8 @@ mixin _GameStateAuth on _GameStateBase {
           status: 'active',
           statusUntilEpoch: 0,
           online: false,
-          gangId: currentGang?['id']?.toString() ?? '',
-          gangName: currentGang?['name']?.toString() ?? '',
+          gangId: savedGangId.isEmpty ? null : savedGangId,
+          gangName: savedGangName.isEmpty ? null : savedGangName,
           avatarId: selectedAvatarId,
           equippedWeaponId: equippedWeaponId,
           equippedKnifeId: equippedKnifeId,

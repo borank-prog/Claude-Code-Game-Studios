@@ -41,18 +41,49 @@ class _LeaderboardScreenState extends State<LeaderboardScreen>
     _loadAll();
   }
 
+  Set<String> _computeAttackWindowIds(GameState state) {
+    if (state.userId.isEmpty) return const <String>{};
+    final scoreEntries =
+        _cache[LeaderboardCategory.score] ?? const <LeaderboardEntry>[];
+    if (scoreEntries.isEmpty) return const <String>{};
+
+    final sorted = List<LeaderboardEntry>.from(scoreEntries)
+      ..sort((a, b) => b.score.compareTo(a.score));
+    final myIndex = sorted.indexWhere((e) => e.uid == state.userId);
+    if (myIndex < 0) return const <String>{};
+
+    final start = (myIndex - 5).clamp(0, sorted.length).toInt();
+    final end = (myIndex + 6).clamp(0, sorted.length).toInt();
+    final allowed = <String>{};
+    for (var i = start; i < end; i++) {
+      if (i == myIndex) continue;
+      final uid = sorted[i].uid.trim();
+      if (uid.isNotEmpty) allowed.add(uid);
+    }
+    return allowed;
+  }
+
   void _showProfile(BuildContext context, LeaderboardEntry entry) {
     final state = context.read<GameState>();
+    final attackWindowIds = _computeAttackWindowIds(state);
     final canAttack =
         state.userId.isNotEmpty &&
         entry.uid.isNotEmpty &&
         entry.uid != state.userId &&
-        !entry.uid.startsWith('bot_');
+        !entry.uid.startsWith('bot_') &&
+        attackWindowIds.contains(entry.uid);
     showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _PlayerProfileSheet(entry: entry, canAttack: canAttack),
+      builder: (_) => _PlayerProfileSheet(
+        entry: entry,
+        canAttack: canAttack,
+        attackHint: state.tt(
+          'Sadece üstündeki 5 ve altındaki 5 sıraya saldırabilirsin.',
+          'You can attack only the top 5 above and bottom 5 below you.',
+        ),
+      ),
     ).then((action) {
       if (action != 'attack' || !canAttack || !context.mounted) return;
       showModalBottomSheet(
@@ -593,8 +624,13 @@ class _LeaderRow extends StatelessWidget {
 class _PlayerProfileSheet extends StatelessWidget {
   final LeaderboardEntry entry;
   final bool canAttack;
+  final String attackHint;
 
-  const _PlayerProfileSheet({required this.entry, required this.canAttack});
+  const _PlayerProfileSheet({
+    required this.entry,
+    required this.canAttack,
+    required this.attackHint,
+  });
 
   String _fmt(int v) {
     if (v >= 1000000) return '${(v / 1000000).toStringAsFixed(1)}M';
@@ -780,6 +816,14 @@ class _PlayerProfileSheet extends StatelessWidget {
               ],
             ],
           ),
+          if (!canAttack) ...[
+            const SizedBox(height: 10),
+            Text(
+              attackHint,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+          ],
         ],
       ),
     );

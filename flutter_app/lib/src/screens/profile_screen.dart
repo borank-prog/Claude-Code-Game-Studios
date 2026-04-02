@@ -103,6 +103,143 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _handleGangJoinRequestDecision(
+    BuildContext context,
+    GameState state,
+    Map<String, dynamic> request, {
+    required bool accept,
+  }) async {
+    final requestId = (request['id'] ?? '').toString().trim();
+    if (requestId.isEmpty) {
+      _snack(
+        context,
+        state.tt('İstek kimliği bulunamadı.', 'Request id was not found.'),
+      );
+      return;
+    }
+    if (accept) {
+      await state.acceptGangJoinRequest(requestId);
+    } else {
+      await state.rejectGangJoinRequest(requestId);
+    }
+    if (!context.mounted) return;
+
+    final stillPending = state.gangJoinRequests.any(
+      (e) => ((e['id'] ?? '').toString().trim()) == requestId,
+    );
+    if (stillPending) {
+      final fallback = accept
+          ? state.tt(
+              'Katılım isteği kabul edilemedi.',
+              'Could not accept request.',
+            )
+          : state.tt(
+              'Katılım isteği reddedilemedi.',
+              'Could not reject request.',
+            );
+      _snack(
+        context,
+        state.lastAuthError.trim().isNotEmpty ? state.lastAuthError : fallback,
+      );
+      return;
+    }
+
+    _snack(
+      context,
+      accept
+          ? state.tt('Katılım isteği kabul edildi.', 'Join request accepted.')
+      : state.tt('Katılım isteği reddedildi.', 'Join request rejected.'),
+    );
+  }
+
+  Future<void> _openGangRolePicker(
+    BuildContext context,
+    GameState state, {
+    required String memberUid,
+    required String memberName,
+    required String currentRole,
+  }) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF0F1D36),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  state.tt('Rütbe Seç', 'Select Rank'),
+                  style: const TextStyle(
+                    color: Color(0xFFFBBF24),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  memberName,
+                  style: const TextStyle(
+                    color: Color(0xFFCBD5E1),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ...state.gangRoleOptions.map((role) {
+                  final active = role == currentRole;
+                  return ListTile(
+                    dense: true,
+                    onTap: () => Navigator.of(ctx).pop(role),
+                    leading: Icon(
+                      active
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      color: active
+                          ? const Color(0xFFFBBF24)
+                          : const Color(0xFF94A3B8),
+                    ),
+                    title: Text(
+                      state.gangRoleName(role),
+                      style: TextStyle(
+                        color: active
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0xFFE2E8F0),
+                        fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null || selected.trim().isEmpty) return;
+    final error = await state.assignGangMemberRole(
+      memberUid: memberUid,
+      role: selected,
+    );
+    if (!context.mounted) return;
+    if (error != null && error.trim().isNotEmpty) {
+      _snack(context, error);
+      return;
+    }
+    _snack(
+      context,
+      state.tt(
+        '$memberName için rütbe ${state.gangRoleName(selected)} olarak güncellendi.',
+        'Rank for $memberName updated to ${state.gangRoleName(selected)}.',
+      ),
+    );
+  }
+
   Future<void> _repairItem(
     BuildContext context,
     GameState state,
@@ -752,21 +889,17 @@ class ProfileScreen extends StatelessWidget {
             width: double.infinity,
             child: FilledButton(
               onPressed: () async {
-                final beforeGold = state.gold;
+                String? error;
                 if (inJail) {
-                  await state.payJailWithGold();
+                  error = await state.payJailWithGold();
                 } else {
-                  await state.payHospitalWithGold();
+                  error = await state.payHospitalWithGold();
                 }
                 if (!context.mounted) return;
-                if (state.gold == beforeGold) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        state.tt('Yeterli altının yok!', 'Not enough gold!'),
-                      ),
-                    ),
-                  );
+                if (error != null && error.trim().isNotEmpty) {
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text(error)));
                 }
               },
               child: Text(
@@ -1491,6 +1624,26 @@ class ProfileScreen extends StatelessWidget {
         (state.currentGang?['name']?.toString() ?? '').trim().isEmpty
         ? state.tt('Çete', 'Gang')
         : state.currentGang!['name'].toString().trim();
+    final rolePriority = <String, int>{
+      'Lider': 0,
+      'Sağ Kol': 1,
+      'Kaptan': 2,
+      'Tetikçi': 3,
+      'Asker': 4,
+      'Üye': 5,
+    };
+    final members = List<Map<String, dynamic>>.from(state.gangMembers)
+      ..sort((a, b) {
+        final roleA = (a['role']?.toString() ?? 'Üye').trim();
+        final roleB = (b['role']?.toString() ?? 'Üye').trim();
+        final prA = rolePriority[roleA] ?? 99;
+        final prB = rolePriority[roleB] ?? 99;
+        final roleCmp = prA.compareTo(prB);
+        if (roleCmp != 0) return roleCmp;
+        final powerA = (a['power'] as num?)?.toInt() ?? 0;
+        final powerB = (b['power'] as num?)?.toInt() ?? 0;
+        return powerB.compareTo(powerA);
+      });
 
     return GlassPanel(
       child: Column(
@@ -1615,6 +1768,201 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          Text(
+            state.tt('KARTEL ÜYELERİ', 'CARTEL MEMBERS'),
+            style: const TextStyle(
+              color: Color(0xFFFBBF24),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (members.isEmpty)
+            Text(
+              state.tt(
+                'Üyeler yükleniyor...',
+                'Loading members...',
+              ),
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else
+            ...members.map((m) {
+              final memberUid = (m['uid']?.toString() ?? '').trim();
+              final memberName =
+                  (m['displayName']?.toString() ?? '').trim().isEmpty
+                  ? state.tt('Oyuncu', 'Player')
+                  : m['displayName'].toString().trim();
+              final role = (m['role']?.toString() ?? 'Üye').trim();
+              final power = (m['power'] as num?)?.toInt() ?? 0;
+              final isSelf = memberUid.isNotEmpty && memberUid == state.userId;
+              final canAssign =
+                  state.canAssignGangRoles &&
+                  !isSelf &&
+                  role != 'Lider' &&
+                  memberUid.isNotEmpty;
+              return Container(
+                margin: const EdgeInsets.only(top: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.03),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0x334B5563)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            memberName,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${state.gangRoleName(role)}  •  ${state.tt('Güç', 'Power')}: $power',
+                            style: const TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (canAssign)
+                      TextButton(
+                        onPressed: () => _openGangRolePicker(
+                          context,
+                          state,
+                          memberUid: memberUid,
+                          memberName: memberName,
+                          currentRole: role,
+                        ),
+                        child: Text(state.tt('Rütbe Ver', 'Set Rank')),
+                      ),
+                  ],
+                ),
+              );
+            }),
+          if (state.isGangLeader) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text(
+                  state.tt('KATILIM İSTEKLERİ', 'JOIN REQUESTS'),
+                  style: const TextStyle(
+                    color: Color(0xFFFBBF24),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: state.tt('Yenile', 'Refresh'),
+                  onPressed: state.refreshSocialData,
+                  icon: const Icon(
+                    Icons.refresh_rounded,
+                    size: 18,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+            if (state.gangJoinRequests.isEmpty)
+              Text(
+                state.tt(
+                  'Bekleyen katılım isteği yok.',
+                  'No pending join requests.',
+                ),
+                style: const TextStyle(
+                  color: Color(0xFF94A3B8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              )
+            else
+              ...state.gangJoinRequests.map((req) {
+                final fromName =
+                    ((req['fromName'] ?? req['fromId']) as String?)?.trim() ??
+                    '';
+                final safeName = fromName.isEmpty
+                    ? state.tt('Oyuncu', 'Player')
+                    : fromName;
+                final fromPower = (req['fromPower'] as num?)?.toInt() ?? 0;
+                final gangNameReq = (req['gangName'] as String?)?.trim() ?? '';
+                return Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0x334B5563)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        safeName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${state.tt('Güç', 'Power')}: $fromPower  •  ${gangNameReq.isEmpty ? gangName : gangNameReq}',
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 11,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () => _handleGangJoinRequestDecision(
+                                context,
+                                state,
+                                req,
+                                accept: true,
+                              ),
+                              child: Text(state.tt('Kabul Et', 'Accept')),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => _handleGangJoinRequestDecision(
+                                context,
+                                state,
+                                req,
+                                accept: false,
+                              ),
+                              child: Text(state.tt('Reddet', 'Reject')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,

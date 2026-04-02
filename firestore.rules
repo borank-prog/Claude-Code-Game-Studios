@@ -40,6 +40,19 @@ service cloud.firestore {
         (get(/databases/$(database)/documents/gang_invites/$(inviteId)).data.status == 'pending' ||
          get(/databases/$(database)/documents/gang_invites/$(inviteId)).data.status == 'accepted');
     }
+    function canGangLeaderAssignUserToGang() {
+      return request.resource.data.gangId is string &&
+        request.resource.data.gangId != '' &&
+        request.resource.data.gangRole is string &&
+        request.resource.data.gangRole == 'Üye' &&
+        gangOwnerId(request.resource.data.gangId) == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'gangId',
+          'gangName',
+          'gangRole',
+          'updatedAt'
+        ]);
+    }
 
     // ── User profiles (all game data, leaderboard, social, FCM) ──
     match /users/{uid} {
@@ -49,27 +62,32 @@ service cloud.firestore {
         request.resource.data.isBot != true;
       // Sensitive economy/combat fields are server-authoritative (Cloud Functions).
       allow update: if isLoggedIn() &&
-        isOwner(uid) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'uid',
-          'name',
-          'displayName',
-          'avatarId',
-          'equippedWeaponId',
-          'equippedKnifeId',
-          'equippedArmorId',
-          'equippedVehicleId',
-          'combatWeaponId',
-          'online',
-          'updatedAt',
-          'lastLoginEpoch',
-          'gangId',
-          'gangName',
-          'gangRole',
-          'fcmToken',
-          'fcmUpdatedAt',
-          'platform'
-        ]);
+        (
+          (
+            isOwner(uid) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'uid',
+              'name',
+              'displayName',
+              'avatarId',
+              'equippedWeaponId',
+              'equippedKnifeId',
+              'equippedArmorId',
+              'equippedVehicleId',
+              'combatWeaponId',
+              'online',
+              'updatedAt',
+              'lastLoginEpoch',
+              'gangId',
+              'gangName',
+              'gangRole',
+              'fcmToken',
+              'fcmUpdatedAt',
+              'platform'
+            ])
+          ) ||
+          canGangLeaderAssignUserToGang()
+        );
 
       // Friends sub-collection
       match /friends/{friendId} {
@@ -88,7 +106,7 @@ service cloud.firestore {
         // Client can only toggle local read state.
         allow update: if isOwner(uid) &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['isRead']);
+            .hasOnly(['isRead', 'status']);
         allow create, delete: if false;
       }
     }

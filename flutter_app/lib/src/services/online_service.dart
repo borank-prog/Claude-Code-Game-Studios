@@ -312,6 +312,8 @@ class OnlineService {
     required int level,
     required int rank,
     int? cash,
+    int? gold,
+    int? xp,
     int? wins,
     int? gangWins,
     int? lastLoginEpoch,
@@ -341,6 +343,8 @@ class OnlineService {
       'level': level,
       'rank': rank,
       'cash': cash ?? 0,
+      'gold': gold ?? 0,
+      'xp': xp ?? 0,
       'wins': wins ?? 0,
       'gangWins': gangWins ?? 0,
       if (lastLoginEpoch != null && lastLoginEpoch > 0)
@@ -997,6 +1001,11 @@ class OnlineService {
 
           final userSnap = await tx.get(userRef);
           final userData = userSnap.data();
+          if (!userSnap.exists) {
+            throw Exception(
+              'Oyuncu profili bulunamadı. Oyuncudan tekrar giriş yapmasını isteyin.',
+            );
+          }
           final existingGang = (userData?['gangId'] as String? ?? '').trim();
           if (existingGang.isNotEmpty && existingGang != gangId) {
             throw Exception('Oyuncu başka bir çetede.');
@@ -1030,20 +1039,38 @@ class OnlineService {
             });
           }
 
-          tx.set(userRef, {
-            'uid': memberUid,
-            'name': displayName,
-            'displayName': displayName,
+          tx.update(userRef, {
             'gangId': gangId,
             'gangName': (gang['name'] as String? ?? 'Çete'),
             'gangRole': 'Üye',
             'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          });
           tx.update(reqRef, {
             'status': 'accepted',
             'respondedAt': FieldValue.serverTimestamp(),
             'updatedAt': FieldValue.serverTimestamp(),
           });
+        })
+        .timeout(const Duration(seconds: 10));
+  }
+
+  Future<void> assignGangMemberRole({
+    required String gangId,
+    required String targetUid,
+    required String role,
+  }) async {
+    final cleanGangId = gangId.trim();
+    final cleanTargetUid = targetUid.trim();
+    final cleanRole = role.trim();
+    if (cleanGangId.isEmpty || cleanTargetUid.isEmpty || cleanRole.isEmpty) {
+      throw Exception('Geçersiz kartel rütbe isteği.');
+    }
+    await FirebaseFunctions.instance
+        .httpsCallable('assignGangMemberRole')
+        .call({
+          'gangId': cleanGangId,
+          'targetUid': cleanTargetUid,
+          'role': cleanRole,
         })
         .timeout(const Duration(seconds: 10));
   }

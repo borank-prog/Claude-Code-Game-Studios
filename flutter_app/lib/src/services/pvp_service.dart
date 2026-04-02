@@ -112,8 +112,6 @@ class PvpService {
         .get()
         .timeout(const Duration(seconds: 6));
 
-    if (targetPower == attackerPower) return null;
-
     final allowedTargetIds = <String>{
       ...stronger.docs.map((d) => d.id).where((id) => id != attackerId),
       ...weaker.docs.map((d) => d.id).where((id) => id != attackerId),

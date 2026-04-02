@@ -3,6 +3,25 @@
 part of 'game_state.dart';
 
 mixin _GameStateMissions on _GameStateBase {
+  String _sanitizePenaltySkipError(Object error) {
+    final msg = _sanitizeError(error).trim();
+    final lower = msg.toLowerCase();
+    if (lower.contains('yeterli altın') ||
+        lower.contains('yeterli altin') ||
+        lower.contains('not enough gold') ||
+        lower.contains('insufficient gold') ||
+        lower.contains('failed-precondition')) {
+      return tt('Yeterli altın yok', 'Not enough gold');
+    }
+    if (msg.isEmpty) {
+      return tt(
+        'İşlem başarısız. Tekrar dene.',
+        'Action failed. Try again.',
+      );
+    }
+    return msg;
+  }
+
   Future<String> claimDailyTask(String taskId) async {
     if (isActionLocked) {
       return actionLockMessage;
@@ -133,8 +152,10 @@ mixin _GameStateMissions on _GameStateBase {
     _metricAdd('mission_attempts_total', 1);
     _metricAdd('mission_attempts_${mission.difficulty}', 1);
     _metricAdd('mission_energy_spent_total', mission.staminaCost);
-    final successChance = (mission.successRate + avatar.missionSuccessBonus)
-        .clamp(0.05, 0.98);
+    final rookieSuccessBoost = isRookieEasyMode ? 0.28 : 0.0;
+    final successChance =
+        (mission.successRate + avatar.missionSuccessBonus + rookieSuccessBoost)
+            .clamp(0.05, isRookieEasyMode ? 0.99 : 0.98);
     final success = _rng.nextDouble() <= successChance;
 
     if (success) {
@@ -192,35 +213,29 @@ mixin _GameStateMissions on _GameStateBase {
       );
     }
 
-    final missionId = mission.id.toLowerCase();
-    final isRobberyMission =
-        missionId.contains('market') ||
-        missionId.contains('kuyumcu') ||
-        missionId.contains('banka') ||
-        missionId.contains('depo') ||
-        missionId.contains('soygun') ||
-        missionId.contains('vurgun') ||
-        missionId.contains('baskin');
-    final failureToJail = isRobberyMission || mission.difficulty != 'hard';
+    final failureToJail = missionFailureLeadsToJail(mission);
     _metricAdd('mission_fail_total', 1);
     _metricAdd('mission_fail_${mission.difficulty}', 1);
-    final failCashPenalty = switch (mission.difficulty) {
+    var failCashPenalty = switch (mission.difficulty) {
       'easy' => 90,
       'medium' => 220,
       'hard' => 500,
       _ => 120,
     };
+    if (isRookieEasyMode) {
+      failCashPenalty = max(10, (failCashPenalty * 0.25).round());
+    }
     cash = max(0, cash - failCashPenalty);
     _metricAdd('mission_cash_lost_total', failCashPenalty);
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    if (failureToJail) {
+    if (failureToJail && !isRookieEasyMode) {
       final failXp = max(
         2,
         (mission.xp * _GameStateBase._missionFailXpRatio).round(),
       );
       _grantXp(failXp);
       _metricAdd('mission_xp_earned_total', failXp);
-      jailUntilEpoch = now + _GameStateBase._penaltyDurationSec;
+      jailUntilEpoch = now + _GameStateBase._jailPenaltyDurationSec;
       _metricAdd('jail_entries_total', 1);
       _addNews(
         tt('Kodese Tıkıldın', 'Thrown in Jail'),
@@ -243,8 +258,8 @@ mixin _GameStateMissions on _GameStateBase {
         powerBefore: powerBefore,
         powerAfter: totalPower,
         nextAction: tt(
-          'Hemen çıkmak için $jailSkipGoldCost Altın öde veya $penaltyDurationMinutes dakika bekle.',
-          'Pay $jailSkipGoldCost Gold to leave now or wait $penaltyDurationMinutes minutes.',
+          'Hemen çıkmak için $jailSkipGoldCost Altın öde veya $jailPenaltyDurationMinutes dakika bekle.',
+          'Pay $jailSkipGoldCost Gold to leave now or wait $jailPenaltyDurationMinutes minutes.',
         ),
         sentToJail: true,
       );
@@ -253,12 +268,16 @@ mixin _GameStateMissions on _GameStateBase {
     final failXp = max(2, (mission.xp * 0.2).round());
     _grantXp(failXp);
     _metricAdd('mission_xp_earned_total', failXp);
-    hospitalUntilEpoch = max(
-      hospitalUntilEpoch,
-      now + _GameStateBase._penaltyDurationSec,
-    );
-    _metricAdd('hospital_entries_total', 1);
-    currentTP = max(0, currentTP - 45);
+    if (!isRookieEasyMode) {
+      hospitalUntilEpoch = max(
+        hospitalUntilEpoch,
+        now + _GameStateBase._hospitalPenaltyDurationSec,
+      );
+      _metricAdd('hospital_entries_total', 1);
+      currentTP = max(0, currentTP - 45);
+    } else {
+      currentTP = max(15, currentTP - 12);
+    }
     _addNews(
       tt('Hastanelik Oldun', 'Hospitalized'),
       tt(
@@ -272,26 +291,106 @@ mixin _GameStateMissions on _GameStateBase {
     notifyListeners();
     return MissionResult(
       success: false,
-      message: tt(
-        'Bozguna uğradın, hastaneye kaldırıldın.',
-        'You were defeated and taken to hospital.',
-      ),
+      message: isRookieEasyMode
+          ? tt(
+              'Geri çekildin ama toparlandın.',
+              'You retreated, but recovered quickly.',
+            )
+          : tt(
+              'Bozguna uğradın, hastaneye kaldırıldın.',
+              'You were defeated and taken to hospital.',
+            ),
       xpEarned: failXp,
       powerBefore: powerBefore,
       powerAfter: totalPower,
-      nextAction: tt(
-        'Hemen çıkmak için $hospitalSkipGoldCost Altın öde veya $penaltyDurationMinutes dakika bekle.',
-        'Pay $hospitalSkipGoldCost Gold to leave now or wait $penaltyDurationMinutes minutes.',
-      ),
-      sentToHospital: true,
+      nextAction: isRookieEasyMode
+          ? tt(
+              'Seviye 5 olana kadar görevler daha güvenli.',
+              'Missions stay safer until you reach level 5.',
+            )
+          : tt(
+              'Hemen çıkmak için $hospitalSkipGoldCost Altın öde veya $hospitalPenaltyDurationMinutes dakika bekle.',
+              'Pay $hospitalSkipGoldCost Gold to leave now or wait $hospitalPenaltyDurationMinutes minutes.',
+            ),
+      sentToHospital: !isRookieEasyMode,
     );
   }
 
-  Future<void> payHospitalWithGold() async {
+  Future<Map<String, dynamic>> _secureSkipPenaltyWithRetry({
+    required String penalty,
+    required int cost,
+  }) async {
+    try {
+      return await _onlineService.secureSkipPenalty(
+        penalty: penalty,
+        cost: cost,
+      );
+    } catch (e) {
+      final message = _sanitizeError(e).toLowerCase();
+      final looksLikeInsufficientGold =
+          message.contains('yeterli altın') ||
+          message.contains('not enough gold');
+      if (!looksLikeInsufficientGold || gold < cost) {
+        rethrow;
+      }
+      // Local bakiye yüksek ama sunucu düşükse önce profil senkronu yapıp
+      // bir kez daha dene.
+      await ensureOnlineProfile();
+      return await _onlineService.secureSkipPenalty(
+        penalty: penalty,
+        cost: cost,
+      );
+    }
+  }
+
+  Future<String?> payHospitalWithGold() async {
     final sec = hospitalSecondsLeft;
-    if (sec <= 0) return;
+    if (sec <= 0) return null;
     final cost = hospitalSkipGoldCost;
-    if (gold < cost) return;
+    if (firebaseReady &&
+        online &&
+        authMode == 'firebase' &&
+        userId.isNotEmpty) {
+      try {
+        final result = await _secureSkipPenaltyWithRetry(
+          penalty: 'hospital',
+          cost: cost,
+        );
+        final nextGold = (result['gold'] as num?)?.toInt();
+        if (nextGold != null) {
+          gold = max(0, nextGold);
+        } else if (gold >= cost) {
+          gold -= cost;
+        } else {
+          return tt('Yeterli altın yok', 'Not enough gold');
+        }
+        final serverStatus = (result['status'] as String?)
+            ?.trim()
+            .toLowerCase();
+        hospitalUntilEpoch = serverStatus == 'active'
+            ? 0
+            : (result['statusUntilEpoch'] as num?)?.toInt() ?? 0;
+        final tpFromServer = (result['currentTp'] as num?)?.toInt();
+        if (tpFromServer != null) {
+          currentTP = tpFromServer.clamp(0, maxTP);
+        } else if (currentTP <= 0) {
+          currentTP = 35;
+        }
+        _metricAdd('hospital_skip_gold_spent_total', cost);
+        _queueEvent('hospital_skip', {'cost': cost});
+        await _save();
+        _syncOnlineSoon();
+        notifyListeners();
+        return null;
+      } catch (e) {
+        debugPrint('[PenaltySkip] secure hospital skip failed => $e');
+        return _sanitizePenaltySkipError(e);
+      }
+    }
+
+    if (gold < cost) {
+      return tt('Yeterli altın yok', 'Not enough gold');
+    }
     gold -= cost;
     _metricAdd('hospital_skip_gold_spent_total', cost);
     hospitalUntilEpoch = 0;
@@ -302,13 +401,51 @@ mixin _GameStateMissions on _GameStateBase {
     await _save();
     _syncOnlineSoon();
     notifyListeners();
+    return null;
   }
 
-  Future<void> payJailWithGold() async {
+  Future<String?> payJailWithGold() async {
     final sec = jailSecondsLeft;
-    if (sec <= 0) return;
+    if (sec <= 0) return null;
     final cost = jailSkipGoldCost;
-    if (gold < cost) return;
+    if (firebaseReady &&
+        online &&
+        authMode == 'firebase' &&
+        userId.isNotEmpty) {
+      try {
+        final result = await _secureSkipPenaltyWithRetry(
+          penalty: 'prison',
+          cost: cost,
+        );
+        final nextGold = (result['gold'] as num?)?.toInt();
+        if (nextGold != null) {
+          gold = max(0, nextGold);
+        } else if (gold >= cost) {
+          gold -= cost;
+        } else {
+          return tt('Yeterli altın yok', 'Not enough gold');
+        }
+        final serverStatus = (result['status'] as String?)
+            ?.trim()
+            .toLowerCase();
+        jailUntilEpoch = serverStatus == 'active'
+            ? 0
+            : (result['statusUntilEpoch'] as num?)?.toInt() ?? 0;
+        _metricAdd('jail_skip_gold_spent_total', cost);
+        _queueEvent('jail_skip', {'cost': cost});
+        await _save();
+        _syncOnlineSoon();
+        notifyListeners();
+        return null;
+      } catch (e) {
+        debugPrint('[PenaltySkip] secure prison skip failed => $e');
+        return _sanitizePenaltySkipError(e);
+      }
+    }
+
+    if (gold < cost) {
+      return tt('Yeterli altın yok', 'Not enough gold');
+    }
     gold -= cost;
     _metricAdd('jail_skip_gold_spent_total', cost);
     jailUntilEpoch = 0;
@@ -316,5 +453,6 @@ mixin _GameStateMissions on _GameStateBase {
     await _save();
     _syncOnlineSoon();
     notifyListeners();
+    return null;
   }
 }

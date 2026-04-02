@@ -6,6 +6,68 @@ import '../models/trade_offer.dart';
 class TradeService {
   final _db = FirebaseFirestore.instance;
 
+  String _normalizeGangName(String value) {
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9çğıöşü]+'), '')
+        .trim();
+  }
+
+  bool _isMyGang(Map<String, dynamic> g, String? myGangId) {
+    if (myGangId == null || myGangId.isEmpty) return false;
+    return (g['id']?.toString() ?? '').trim() == myGangId.trim();
+  }
+
+  Map<String, dynamic> _pickPreferredGang(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b, {
+    String? myGangId,
+  }) {
+    if (_isMyGang(a, myGangId)) return a;
+    if (_isMyGang(b, myGangId)) return b;
+    final aPower = (a['totalPower'] as num?)?.toInt() ?? 0;
+    final bPower = (b['totalPower'] as num?)?.toInt() ?? 0;
+    return bPower > aPower ? b : a;
+  }
+
+  List<Map<String, dynamic>> _dedupeGangRows(
+    List<Map<String, dynamic>> rows, {
+    String? myGangId,
+  }) {
+    final source = rows.map((r) => Map<String, dynamic>.from(r)).toList(growable: false);
+
+    // 1) Aynı owner'a ait birden fazla kayıt varsa tek kayda düşür.
+    final byOwner = <String, Map<String, dynamic>>{};
+    final ownerPass = <Map<String, dynamic>>[];
+    for (final g in source) {
+      final ownerId = (g['ownerId'] as String? ?? '').trim();
+      if (ownerId.isEmpty) {
+        ownerPass.add(g);
+        continue;
+      }
+      final existing = byOwner[ownerId];
+      byOwner[ownerId] =
+          existing == null ? g : _pickPreferredGang(existing, g, myGangId: myGangId);
+    }
+    ownerPass.addAll(byOwner.values);
+
+    // 2) Aynı ada sahip kayıtları tekilleştir (özellikle eski ATA kopyaları için).
+    final byName = <String, Map<String, dynamic>>{};
+    final result = <Map<String, dynamic>>[];
+    for (final g in ownerPass) {
+      final nameKey = _normalizeGangName((g['name'] as String? ?? ''));
+      if (nameKey.isEmpty) {
+        result.add(g);
+        continue;
+      }
+      final existing = byName[nameKey];
+      byName[nameKey] =
+          existing == null ? g : _pickPreferredGang(existing, g, myGangId: myGangId);
+    }
+    result.addAll(byName.values);
+    return result;
+  }
+
   Future<TradeOffer> createOffer({
     required String fromId,
     required String fromName,
@@ -179,11 +241,12 @@ class TradeService {
               !realNames.contains((s['name'] as String? ?? '').toLowerCase()),
         ),
       ];
-      merged.sort(
+      final deduped = _dedupeGangRows(merged, myGangId: myGangId);
+      deduped.sort(
         (a, b) => ((b['totalPower'] as num?) ?? 0)
             .compareTo((a['totalPower'] as num?) ?? 0),
       );
-      return merged;
+      return deduped;
     }
 
     return seedGangs;

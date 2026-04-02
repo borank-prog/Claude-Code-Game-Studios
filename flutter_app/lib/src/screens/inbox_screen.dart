@@ -53,7 +53,7 @@ class _InboxScreenState extends State<InboxScreen> {
       case _InboxTab.messages:
         return state.tt('Mesajlar', 'Messages');
       case _InboxTab.friendRequests:
-        return state.tt('Arkadaş İstekleri', 'Friend Requests');
+        return state.tt('İstekler', 'Requests');
     }
   }
 
@@ -62,6 +62,9 @@ class _InboxScreenState extends State<InboxScreen> {
 
   bool _isFriendRequest(Map<String, dynamic> data) =>
       (data['type'] ?? '').toString().trim() == 'friend_request';
+
+  bool _isGangJoinRequest(Map<String, dynamic> data) =>
+      (data['type'] ?? '').toString().trim() == 'gang_join_request';
 
   IconData _resolveIcon(Map<String, dynamic> data) {
     final type = (data['type'] ?? '').toString().trim();
@@ -87,7 +90,9 @@ class _InboxScreenState extends State<InboxScreen> {
   }
 
   String _formatWhen(dynamic createdAt) {
-    final created = createdAt is Timestamp ? createdAt.toDate() : DateTime.now();
+    final created = createdAt is Timestamp
+        ? createdAt.toDate()
+        : DateTime.now();
     return '${created.day.toString().padLeft(2, '0')}.${created.month.toString().padLeft(2, '0')} ${created.hour.toString().padLeft(2, '0')}:${created.minute.toString().padLeft(2, '0')}';
   }
 
@@ -98,7 +103,10 @@ class _InboxScreenState extends State<InboxScreen> {
       case _InboxTab.messages:
         return state.tt('Mesaj yok.', 'No messages yet.');
       case _InboxTab.friendRequests:
-        return state.tt('Arkadaş isteği yok.', 'No friend requests.');
+        return state.tt(
+          'Arkadaş/çete isteği yok.',
+          'No friend or gang requests.',
+        );
     }
   }
 
@@ -137,8 +145,94 @@ class _InboxScreenState extends State<InboxScreen> {
       SnackBar(
         content: Text(
           accept
-              ? state.tt('Arkadaş isteği kabul edildi.', 'Friend request accepted.')
-              : state.tt('Arkadaş isteği reddedildi.', 'Friend request rejected.'),
+              ? state.tt(
+                  'Arkadaş isteği kabul edildi.',
+                  'Friend request accepted.',
+                )
+              : state.tt(
+                  'Arkadaş isteği reddedildi.',
+                  'Friend request rejected.',
+                ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleGangJoinRequestAction(
+    GameState state,
+    QueryDocumentSnapshot<Map<String, dynamic>> doc, {
+    required bool accept,
+  }) async {
+    final data = doc.data();
+    final requestId = (data['requestId'] ?? '').toString().trim();
+    if (requestId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            state.tt('İstek kimliği bulunamadı.', 'Request id was not found.'),
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (accept) {
+      await state.acceptGangJoinRequest(requestId);
+    } else {
+      await state.rejectGangJoinRequest(requestId);
+    }
+    if (!mounted) return;
+
+    String requestStatus = 'pending';
+    try {
+      final reqSnap = await FirebaseFirestore.instance
+          .collection('gang_join_requests')
+          .doc(requestId)
+          .get();
+      requestStatus = (reqSnap.data()?['status'] ?? 'pending')
+          .toString()
+          .trim()
+          .toLowerCase();
+    } catch (_) {}
+
+    final expectedStatus = accept ? 'accepted' : 'rejected';
+    final success =
+        requestStatus == expectedStatus ||
+        (requestStatus != 'pending' && requestStatus.isNotEmpty);
+
+    if (!success) {
+      final fallback = accept
+          ? state.tt(
+              'Katılım isteği kabul edilemedi.',
+              'Could not accept request.',
+            )
+          : state.tt(
+              'Katılım isteği reddedilemedi.',
+              'Could not reject request.',
+            );
+      final msg = state.lastAuthError.trim().isNotEmpty
+          ? state.lastAuthError
+          : fallback;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      return;
+    }
+
+    await doc.reference.update({'isRead': true, 'status': expectedStatus});
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          accept
+              ? state.tt(
+                  'Katılım isteği kabul edildi.',
+                  'Join request accepted.',
+                )
+              : state.tt(
+                  'Katılım isteği reddedildi.',
+                  'Join request rejected.',
+                ),
         ),
       ),
     );
@@ -164,7 +258,9 @@ class _InboxScreenState extends State<InboxScreen> {
                 : Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: selected ? const Color(0xFFFBBF24) : const Color(0x334B5563),
+              color: selected
+                  ? const Color(0xFFFBBF24)
+                  : const Color(0x334B5563),
             ),
           ),
           child: Row(
@@ -176,7 +272,9 @@ class _InboxScreenState extends State<InboxScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: selected ? const Color(0xFFFBBF24) : const Color(0xFF94A3B8),
+                    color: selected
+                        ? const Color(0xFFFBBF24)
+                        : const Color(0xFF94A3B8),
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -185,7 +283,10 @@ class _InboxScreenState extends State<InboxScreen> {
               if (unreadCount > 0) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF34D399),
                     borderRadius: BorderRadius.circular(10),
@@ -254,7 +355,9 @@ class _InboxScreenState extends State<InboxScreen> {
                               : title,
                           style: TextStyle(
                             color: Colors.white,
-                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                            fontWeight: isRead
+                                ? FontWeight.w600
+                                : FontWeight.w800,
                           ),
                         ),
                       ),
@@ -301,10 +404,21 @@ class _InboxScreenState extends State<InboxScreen> {
     QueryDocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data();
+    final isFriendRequest = _isFriendRequest(data);
+    final isGangJoin = _isGangJoinRequest(data);
+    if (!isFriendRequest && !isGangJoin) {
+      return _buildStandardCard(context, state, doc);
+    }
     final title = (data['title'] ?? '').toString().trim();
     final body = (data['body'] ?? '').toString().trim();
-    final fromName = (data['fromName'] ?? data['fromId'] ?? '-').toString().trim();
-    final requestStatus = (data['status'] ?? 'pending').toString().trim().toLowerCase();
+    final fromName = (data['fromName'] ?? data['fromId'] ?? '-')
+        .toString()
+        .trim();
+    final gangName = (data['gangName'] ?? '').toString().trim();
+    final requestStatus = (data['status'] ?? 'pending')
+        .toString()
+        .trim()
+        .toLowerCase();
     final isPending = requestStatus == 'pending';
     final isRead = data['isRead'] == true;
     final when = _formatWhen(data['createdAt']);
@@ -326,19 +440,34 @@ class _InboxScreenState extends State<InboxScreen> {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF34D399).withValues(alpha: 0.15),
+                    color:
+                        (isFriendRequest
+                                ? const Color(0xFF34D399)
+                                : const Color(0xFF60A5FA))
+                            .withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.person_add_alt_1_rounded,
+                  child: Icon(
+                    isFriendRequest
+                        ? Icons.person_add_alt_1_rounded
+                        : Icons.how_to_reg_rounded,
                     size: 18,
-                    color: Color(0xFF34D399),
+                    color: isFriendRequest
+                        ? const Color(0xFF34D399)
+                        : const Color(0xFF60A5FA),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    title.isEmpty ? state.tt('Arkadaşlık isteği', 'Friend request') : title,
+                    title.isEmpty
+                        ? (isFriendRequest
+                              ? state.tt('Arkadaşlık isteği', 'Friend request')
+                              : state.tt(
+                                  'Çete katılım isteği',
+                                  'Gang join request',
+                                ))
+                        : title,
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
@@ -357,7 +486,15 @@ class _InboxScreenState extends State<InboxScreen> {
             const SizedBox(height: 8),
             Text(
               body.isEmpty
-                  ? state.tt('$fromName sana istek gönderdi.', '$fromName sent you a request.')
+                  ? (isFriendRequest
+                        ? state.tt(
+                            '$fromName sana istek gönderdi.',
+                            '$fromName sent you a request.',
+                          )
+                        : state.tt(
+                            '$fromName, ${gangName.isEmpty ? state.tt('çetene', 'your gang') : gangName} katılmak istiyor.',
+                            '$fromName wants to join ${gangName.isEmpty ? state.tt('your gang', 'your gang') : gangName}.',
+                          ))
                   : body,
               style: const TextStyle(color: Color(0xFFD1D5DB), fontSize: 13),
             ),
@@ -367,22 +504,30 @@ class _InboxScreenState extends State<InboxScreen> {
                 children: [
                   Expanded(
                     child: FilledButton(
-                      onPressed: () => _handleFriendRequestAction(
-                        state,
-                        doc,
-                        accept: true,
-                      ),
+                      onPressed: () => isFriendRequest
+                          ? _handleFriendRequestAction(state, doc, accept: true)
+                          : _handleGangJoinRequestAction(
+                              state,
+                              doc,
+                              accept: true,
+                            ),
                       child: Text(state.tt('Kabul Et', 'Accept')),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => _handleFriendRequestAction(
-                        state,
-                        doc,
-                        accept: false,
-                      ),
+                      onPressed: () => isFriendRequest
+                          ? _handleFriendRequestAction(
+                              state,
+                              doc,
+                              accept: false,
+                            )
+                          : _handleGangJoinRequestAction(
+                              state,
+                              doc,
+                              accept: false,
+                            ),
                       child: Text(state.tt('Reddet', 'Reject')),
                     ),
                   ),
@@ -408,9 +553,7 @@ class _InboxScreenState extends State<InboxScreen> {
     final state = context.watch<GameState>();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(state.tt('Mesaj Kutusu', 'Inbox')),
-      ),
+      appBar: AppBar(title: Text(state.tt('Mesaj Kutusu', 'Inbox'))),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: _query.snapshots(),
         builder: (context, snap) {
@@ -428,16 +571,34 @@ class _InboxScreenState extends State<InboxScreen> {
             );
           }
 
-          final docs = snap.data?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+          final docs =
+              snap.data?.docs ??
+              const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
           final reports = docs.where((d) => _isBattleReport(d.data())).toList();
-          final requests = docs.where((d) => _isFriendRequest(d.data())).toList();
+          final requests = docs
+              .where(
+                (d) =>
+                    _isFriendRequest(d.data()) || _isGangJoinRequest(d.data()),
+              )
+              .toList();
           final messages = docs
-              .where((d) => !_isBattleReport(d.data()) && !_isFriendRequest(d.data()))
+              .where(
+                (d) =>
+                    !_isBattleReport(d.data()) &&
+                    !_isFriendRequest(d.data()) &&
+                    !_isGangJoinRequest(d.data()),
+              )
               .toList();
 
-          final unreadReports = reports.where((d) => d.data()['isRead'] != true).length;
-          final unreadMessages = messages.where((d) => d.data()['isRead'] != true).length;
-          final unreadRequests = requests.where((d) => d.data()['isRead'] != true).length;
+          final unreadReports = reports
+              .where((d) => d.data()['isRead'] != true)
+              .length;
+          final unreadMessages = messages
+              .where((d) => d.data()['isRead'] != true)
+              .length;
+          final unreadRequests = requests
+              .where((d) => d.data()['isRead'] != true)
+              .length;
 
           final visibleDocs = switch (_activeTab) {
             _InboxTab.reports => reports,
@@ -480,7 +641,9 @@ class _InboxScreenState extends State<InboxScreen> {
                     onPressed: visibleDocs.isEmpty
                         ? null
                         : () => _markAllRead(visibleDocs),
-                    child: Text(state.tt('Sekmeyi Okundu Yap', 'Mark Tab Read')),
+                    child: Text(
+                      state.tt('Sekmeyi Okundu Yap', 'Mark Tab Read'),
+                    ),
                   ),
                 ),
               ),

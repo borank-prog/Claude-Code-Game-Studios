@@ -10,7 +10,8 @@ class GangRaidService {
   static const int maxRaidMembers = 4;
   static const int memberBonusPctPerExtra = 10;
   static const int raidXpReward = 50;
-  static const int prisonDurationMinutes = 45;
+  static const int prisonDurationMinutes = 10;
+  static const int hospitalDurationMinutes = 45;
 
   final _db = FirebaseFirestore.instance;
   final _rng = Random();
@@ -109,7 +110,7 @@ class GangRaidService {
       batch.update(_db.collection('users').doc(raid.leaderId), {
         'status': 'hospital',
         'statusUntil': Timestamp.fromDate(
-          DateTime.now().add(Duration(minutes: prisonDurationMinutes)),
+          DateTime.now().add(Duration(minutes: hospitalDurationMinutes)),
         ),
       });
       message = 'Baskın başarısız! Lider hastaneye kaldırıldı.';

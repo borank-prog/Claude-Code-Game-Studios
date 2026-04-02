@@ -57,7 +57,7 @@ mixin _GameStateCombat on _GameStateBase {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       hospitalUntilEpoch = max(
         hospitalUntilEpoch,
-        now + _GameStateBase._penaltyDurationSec,
+        now + _GameStateBase._hospitalPenaltyDurationSec,
       );
     }
     if (defenderOfflineLogs.isNotEmpty) {
@@ -106,7 +106,7 @@ mixin _GameStateCombat on _GameStateBase {
     if (currentTP <= 0) {
       hospitalUntilEpoch = max(
         hospitalUntilEpoch,
-        now + _GameStateBase._penaltyDurationSec,
+        now + _GameStateBase._hospitalPenaltyDurationSec,
       );
     }
     if (defenderOfflineLogs.isNotEmpty) {
@@ -122,7 +122,7 @@ mixin _GameStateCombat on _GameStateBase {
     );
     _trackDaily('raid_joined', 1);
     _queueEvent('solo_attack_loss', {
-      'hospitalSec': _GameStateBase._penaltyDurationSec,
+      'hospitalSec': _GameStateBase._hospitalPenaltyDurationSec,
       'damage': max(0, attackerDamage),
       'energy': max(0, attackCost),
       'cashPenalty': max(0, cashPenalty),
@@ -148,7 +148,7 @@ mixin _GameStateCombat on _GameStateBase {
       final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
       hospitalUntilEpoch = max(
         hospitalUntilEpoch,
-        now + _GameStateBase._penaltyDurationSec,
+        now + _GameStateBase._hospitalPenaltyDurationSec,
       );
     }
     if (defenderOfflineLogs.isNotEmpty) {
@@ -196,7 +196,7 @@ mixin _GameStateCombat on _GameStateBase {
     if (currentTP <= 0) {
       hospitalUntilEpoch = max(
         hospitalUntilEpoch,
-        now + _GameStateBase._penaltyDurationSec,
+        now + _GameStateBase._hospitalPenaltyDurationSec,
       );
     }
     if (defenderOfflineLogs.isNotEmpty) {
@@ -212,7 +212,7 @@ mixin _GameStateCombat on _GameStateBase {
     );
     _trackDaily('raid_joined', 1);
     _queueEvent('gang_attack_loss', {
-      'hospitalSec': _GameStateBase._penaltyDurationSec,
+      'hospitalSec': _GameStateBase._hospitalPenaltyDurationSec,
       'damage': max(0, attackerDamage),
       'energy': max(0, attackCost),
     });

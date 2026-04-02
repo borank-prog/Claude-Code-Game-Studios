@@ -158,7 +158,10 @@ class _StreetScreenState extends State<StreetScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      state.tt('Bu zorluk henüz kilitli', 'This tier is locked'),
+                      state.tt(
+                        'Bu zorluk henüz kilitli',
+                        'This tier is locked',
+                      ),
                       style: const TextStyle(
                         color: Color(0xFFFBBF24),
                         fontWeight: FontWeight.w800,
@@ -335,12 +338,19 @@ class _StreetScreenState extends State<StreetScreen> {
           await _showMissionResultSheet(context, state, mission, next);
         },
         onPaySkip: () async {
+          String? error;
           if (res.sentToJail) {
-            await state.payJailWithGold();
+            error = await state.payJailWithGold();
           } else {
-            await state.payHospitalWithGold();
+            error = await state.payHospitalWithGold();
           }
-          if (!ctx.mounted) return;
+          if (!ctx.mounted || !context.mounted) return;
+          if (error != null && error.trim().isNotEmpty) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(error)));
+            return;
+          }
           Navigator.of(ctx).pop();
         },
         onEnergyRush: () async {
@@ -481,7 +491,9 @@ class _StreetScreenState extends State<StreetScreen> {
                       boxShadow: isToday
                           ? [
                               BoxShadow(
-                                color: const Color(0xFFFBBF24).withValues(alpha: 0.4),
+                                color: const Color(
+                                  0xFFFBBF24,
+                                ).withValues(alpha: 0.4),
                                 blurRadius: 8,
                                 spreadRadius: 1,
                               ),

@@ -228,6 +228,8 @@ mixin _GameStateSocial on _GameStateBase {
       return false;
     }
     try {
+      // İstek oluşturmadan önce kullanıcı profilinin Firestore'da var olmasını garanti et.
+      await ensureOnlineProfile();
       await _onlineService.sendGangJoinRequest(
         gangId: normalizedGangId,
         fromUid: userId,
@@ -375,6 +377,71 @@ mixin _GameStateSocial on _GameStateBase {
     } catch (e) {
       lastAuthError = _sanitizeError(e);
       notifyListeners();
+    }
+  }
+
+  Future<String?> assignGangMemberRole({
+    required String memberUid,
+    required String role,
+  }) async {
+    if (isActionLocked) {
+      lastAuthError = actionLockMessage;
+      notifyListeners();
+      return lastAuthError;
+    }
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) {
+      final msg = tt(
+        'Bu işlem için giriş yapman gerekiyor.',
+        'You need to sign in for this action.',
+      );
+      lastAuthError = msg;
+      notifyListeners();
+      return msg;
+    }
+    if (!hasGang) {
+      final msg = tt('Önce bir kartelde olmalısın.', 'You must be in a cartel.');
+      lastAuthError = msg;
+      notifyListeners();
+      return msg;
+    }
+    if (!canAssignGangRoles) {
+      final msg = tt(
+        'Bu işlem için yetkin yok.',
+        'You do not have permission for this action.',
+      );
+      lastAuthError = msg;
+      notifyListeners();
+      return msg;
+    }
+    final cleanMemberUid = memberUid.trim();
+    final cleanRole = role.trim();
+    if (cleanMemberUid.isEmpty || cleanRole.isEmpty) {
+      final msg = tt('Geçersiz üye veya rütbe.', 'Invalid member or rank.');
+      lastAuthError = msg;
+      notifyListeners();
+      return msg;
+    }
+    try {
+      await _onlineService.assignGangMemberRole(
+        gangId: gangId,
+        targetUid: cleanMemberUid,
+        role: cleanRole,
+      );
+      await refreshSocialData();
+      _addNews(
+        tt('Kartel Rütbesi', 'Cartel Rank'),
+        tt(
+          '$cleanMemberUid oyuncusunun rütbesi ${gangRoleName(cleanRole)} yapıldı.',
+          '$cleanMemberUid role changed to ${gangRoleName(cleanRole)}.',
+        ),
+      );
+      await _save();
+      notifyListeners();
+      return null;
+    } catch (e) {
+      lastAuthError = _sanitizeError(e);
+      notifyListeners();
+      return lastAuthError;
     }
   }
 

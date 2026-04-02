@@ -67,7 +67,11 @@ class _HomeShellState extends State<HomeShell> {
           behavior: SnackBarBehavior.floating,
           content: Row(
             children: [
-              const Icon(Icons.delete_forever, color: Color(0xFFFCA5A5), size: 20),
+              const Icon(
+                Icons.delete_forever,
+                color: Color(0xFFFCA5A5),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -75,7 +79,10 @@ class _HomeShellState extends State<HomeShell> {
                     '$name tamamen eskidi ve çöpe atıldı!',
                     '$name wore out and was discarded!',
                   ),
-                  style: const TextStyle(color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700),
+                  style: const TextStyle(
+                    color: Color(0xFFFCA5A5),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -89,7 +96,9 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     if (mounted) {
-      try { context.read<GameState>().removeListener(_onGameStateChanged); } catch (_) {}
+      try {
+        context.read<GameState>().removeListener(_onGameStateChanged);
+      } catch (_) {}
     }
     _inboxUnreadSub?.cancel();
     _inboxUnreadSub = null;
@@ -205,10 +214,11 @@ class _HomeShellState extends State<HomeShell> {
                 border: Border.all(color: borderColor, width: 1.2),
                 boxShadow: [
                   BoxShadow(
-                    color: (hasUnread
-                            ? const Color(0x55EF4444)
-                            : const Color(0x55F59E0B))
-                        .withValues(alpha: 0.35),
+                    color:
+                        (hasUnread
+                                ? const Color(0x55EF4444)
+                                : const Color(0x55F59E0B))
+                            .withValues(alpha: 0.35),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -364,8 +374,8 @@ class _HomeShellState extends State<HomeShell> {
                     const SizedBox(height: 10),
                     Text(
                       state.tt(
-                        'Hemen çıkmak için $cost Altın öde, yoksa ${state.penaltyDurationMinutes} dakika bekle.',
-                        'Pay $cost Gold to leave now, or wait ${state.penaltyDurationMinutes} minutes.',
+                        'Hemen çıkmak için $cost Altın öde, yoksa ${state.jailPenaltyDurationMinutes} dakika bekle.',
+                        'Pay $cost Gold to leave now, or wait ${state.jailPenaltyDurationMinutes} minutes.',
                       ),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -410,24 +420,16 @@ class _HomeShellState extends State<HomeShell> {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () async {
-                          final beforeGold = state.gold;
-                          await state.payJailWithGold();
+                          final error = await state.payJailWithGold();
                           if (!mounted || !ctx.mounted) return;
                           if (state.jailSecondsLeft <= 0) {
                             Navigator.of(ctx).pop();
                             return;
                           }
-                          if (state.gold == beforeGold) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  state.tt(
-                                    'Yeterli altının yok!',
-                                    'Not enough gold!',
-                                  ),
-                                ),
-                              ),
-                            );
+                          if (error != null && error.trim().isNotEmpty) {
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text(error)));
                           }
                           setLocalState(() {});
                         },
@@ -448,8 +450,8 @@ class _HomeShellState extends State<HomeShell> {
                         onPressed: () => Navigator.of(ctx).pop(),
                         child: Text(
                           state.tt(
-                            '${state.penaltyDurationMinutes} Dakika Bekle',
-                            'Wait ${state.penaltyDurationMinutes} Minutes',
+                            '${state.jailPenaltyDurationMinutes} Dakika Bekle',
+                            'Wait ${state.jailPenaltyDurationMinutes} Minutes',
                           ),
                           style: const TextStyle(
                             color: Color(0xFFE5E7EB),
@@ -525,8 +527,8 @@ class _HomeShellState extends State<HomeShell> {
                     const SizedBox(height: 10),
                     Text(
                       state.tt(
-                        'Hemen çıkmak için $cost Altın öde, yoksa ${state.penaltyDurationMinutes} dakika bekle.',
-                        'Pay $cost Gold to leave now, or wait ${state.penaltyDurationMinutes} minutes.',
+                        'Hemen çıkmak için $cost Altın öde, yoksa ${state.hospitalPenaltyDurationMinutes} dakika bekle.',
+                        'Pay $cost Gold to leave now, or wait ${state.hospitalPenaltyDurationMinutes} minutes.',
                       ),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -571,24 +573,16 @@ class _HomeShellState extends State<HomeShell> {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () async {
-                          final beforeGold = state.gold;
-                          await state.payHospitalWithGold();
+                          final error = await state.payHospitalWithGold();
                           if (!mounted || !ctx.mounted) return;
                           if (state.hospitalSecondsLeft <= 0) {
                             Navigator.of(ctx).pop();
                             return;
                           }
-                          if (state.gold == beforeGold) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  state.tt(
-                                    'Yeterli altının yok!',
-                                    'Not enough gold!',
-                                  ),
-                                ),
-                              ),
-                            );
+                          if (error != null && error.trim().isNotEmpty) {
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text(error)));
                           }
                           setLocalState(() {});
                         },
@@ -609,8 +603,8 @@ class _HomeShellState extends State<HomeShell> {
                         onPressed: () => Navigator.of(ctx).pop(),
                         child: Text(
                           state.tt(
-                            '${state.penaltyDurationMinutes} Dakika Bekle',
-                            'Wait ${state.penaltyDurationMinutes} Minutes',
+                            '${state.hospitalPenaltyDurationMinutes} Dakika Bekle',
+                            'Wait ${state.hospitalPenaltyDurationMinutes} Minutes',
                           ),
                           style: const TextStyle(
                             color: Color(0xFFE5E7EB),
@@ -943,10 +937,7 @@ class _HomeShellState extends State<HomeShell> {
                               child: Stack(
                                 children: [
                                   IconButton(
-                                    tooltip: state.tt(
-                                      'Mesaj Kutusu',
-                                      'Inbox',
-                                    ),
+                                    tooltip: state.tt('Mesaj Kutusu', 'Inbox'),
                                     icon: _buildInboxLetterGlyph(
                                       hasUnread: _inboxUnreadCount > 0,
                                     ),

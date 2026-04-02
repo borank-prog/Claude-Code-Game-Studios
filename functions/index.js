@@ -8,10 +8,27 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
 const db = getFirestore();
+const PENALTY_SKIP_GOLD_COST = 80;
+const HOSPITAL_SKIP_MIN_TP = 35;
+const HOSPITAL_PENALTY_MINUTES = 45;
+const PRISON_PENALTY_MINUTES = 10;
+const HOSPITAL_PENALTY_SEC = HOSPITAL_PENALTY_MINUTES * 60;
+const PRISON_PENALTY_SEC = PRISON_PENALTY_MINUTES * 60;
+const MALAMADRE_UID = 'herTAikcrQOKmnM2aYSjwGqliPl2';
+const MALAMADRE_MIN_GOLD = 2000000;
+const GOLD_OVERRIDE_BY_UID = Object.freeze({
+  // Malamadre: always keep at least 2M gold server-side.
+  [MALAMADRE_UID]: MALAMADRE_MIN_GOLD,
+});
 
 function normalizePenaltyStatus(rawStatus) {
   const s = String(rawStatus || 'active').trim().toLowerCase();
   return s === 'hospital' || s === 'prison' ? s : 'active';
+}
+
+function penaltySecondsForStatus(rawStatus) {
+  const status = normalizePenaltyStatus(rawStatus);
+  return status === 'prison' ? PRISON_PENALTY_SEC : HOSPITAL_PENALTY_SEC;
 }
 
 function resolvePenaltyStatus(data, nowEpoch = Math.floor(Date.now() / 1000)) {
@@ -38,6 +55,14 @@ function asInt(value, fallback = 0) {
   return Math.trunc(n);
 }
 
+function forcedGoldMinForUid(uid) {
+  const cleanUid = String(uid ?? '').trim();
+  if (cleanUid === MALAMADRE_UID) {
+    return MALAMADRE_MIN_GOLD;
+  }
+  return asInt(GOLD_OVERRIDE_BY_UID[cleanUid], 0);
+}
+
 function safeText(value, fallback = '', maxLen = 32) {
   const cleaned = String(value ?? '')
     .replace(/[\u0000-\u001F\u007F]/g, '')
@@ -45,6 +70,40 @@ function safeText(value, fallback = '', maxLen = 32) {
     .trim();
   if (!cleaned) return fallback;
   return cleaned.substring(0, maxLen);
+}
+
+const ASSIGNABLE_GANG_ROLES = ['Sağ Kol', 'Kaptan', 'Tetikçi', 'Asker', 'Üye'];
+
+function normalizeGangRole(raw, fallback = 'Üye') {
+  const value = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  switch (value) {
+    case 'lider':
+    case 'leader':
+      return 'Lider';
+    case 'sağ kol':
+    case 'sag kol':
+    case 'right hand':
+    case 'underboss':
+      return 'Sağ Kol';
+    case 'kaptan':
+    case 'captain':
+      return 'Kaptan';
+    case 'tetikçi':
+    case 'tetikci':
+    case 'hitman':
+      return 'Tetikçi';
+    case 'asker':
+    case 'soldier':
+      return 'Asker';
+    case 'üye':
+    case 'uye':
+    case 'member':
+      return 'Üye';
+    default:
+      return fallback;
+  }
 }
 
 function hasOwn(obj, key) {
@@ -138,7 +197,12 @@ function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
     maxValue: 100000000,
     reason: 'gold_gain_clamped',
   });
-  const gold = firstSync ? Math.max(starterGold, rawGold) : rawGold;
+  let gold = firstSync ? Math.max(starterGold, rawGold) : rawGold;
+  const forcedGoldMin = forcedGoldMinForUid(uid);
+  if (forcedGoldMin > 0 && gold < forcedGoldMin) {
+    gold = forcedGoldMin;
+    markClamp('gold_override_applied');
+  }
 
   const xp = clampUpward({
     prevValue: prevXp,
@@ -424,6 +488,214 @@ exports.secureSyncProfile = onCall({ invoker: 'public' }, async (request) => {
   return { ok: true, ...outcome };
 });
 
+exports.secureSkipPenalty = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor');
+  }
+
+  const penalty = normalizePenaltyStatus(request.data?.penalty);
+  if (penalty === 'active') {
+    throw new HttpsError('invalid-argument', 'Geçersiz ceza tipi');
+  }
+
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const userRef = db.collection('users').doc(uid);
+
+  const outcome = await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    if (!userSnap.exists) {
+      throw new HttpsError('not-found', 'Oyuncu profili bulunamadı');
+    }
+
+    const user = userSnap.data() || {};
+    if (user.isBot === true) {
+      throw new HttpsError('permission-denied', 'Bot profili için işlem yapılamaz');
+    }
+
+    const statusInfo = resolvePenaltyStatus(user, nowEpoch);
+    const currentStatus = statusInfo.status;
+    const currentGold = Math.max(0, asInt(user.gold, 0));
+    const maxTp = clamp(asInt(user.maxTp, 120), 100, 500);
+    const currentTp = clamp(asInt(user.currentTp, maxTp), 0, maxTp);
+
+    if (currentStatus === 'active') {
+      tx.set(userRef, {
+        status: 'active',
+        statusUntilEpoch: 0,
+        statusUntil: null,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastServerSyncEpoch: nowEpoch,
+      }, { merge: true });
+      return {
+        ok: true,
+        alreadyActive: true,
+        status: 'active',
+        statusUntilEpoch: 0,
+        gold: currentGold,
+        currentTp,
+        cost: 0,
+      };
+    }
+
+    if (currentStatus !== penalty) {
+      throw new HttpsError(
+        'failed-precondition',
+        penalty === 'prison'
+          ? 'Şu an hapiste değilsin.'
+          : 'Şu an hastanede değilsin.',
+      );
+    }
+
+    if (currentGold < PENALTY_SKIP_GOLD_COST) {
+      throw new HttpsError('failed-precondition', 'Yeterli altın yok');
+    }
+
+    const nextGold = currentGold - PENALTY_SKIP_GOLD_COST;
+    const patch = {
+      gold: nextGold,
+      status: 'active',
+      statusUntilEpoch: 0,
+      statusUntil: null,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastServerSyncEpoch: nowEpoch,
+    };
+
+    let nextCurrentTp = currentTp;
+    if (penalty === 'hospital') {
+      nextCurrentTp = Math.max(currentTp, Math.min(maxTp, HOSPITAL_SKIP_MIN_TP));
+      patch.currentTp = nextCurrentTp;
+    }
+
+    tx.set(userRef, patch, { merge: true });
+
+    return {
+      ok: true,
+      alreadyActive: false,
+      status: 'active',
+      statusUntilEpoch: 0,
+      gold: nextGold,
+      currentTp: nextCurrentTp,
+      cost: PENALTY_SKIP_GOLD_COST,
+    };
+  });
+
+  return outcome;
+});
+
+exports.assignGangMemberRole = onCall({ invoker: 'public' }, async (request) => {
+  const actorUid = String(request.auth?.uid ?? '').trim();
+  if (!actorUid) {
+    throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor');
+  }
+
+  const gangId = safeText(request.data?.gangId, '', 64);
+  const targetUid = safeText(request.data?.targetUid, '', 64);
+  const requestedRole = normalizeGangRole(request.data?.role, '');
+
+  if (!gangId || !targetUid || !requestedRole) {
+    throw new HttpsError('invalid-argument', 'Geçersiz kartel rütbe isteği');
+  }
+  if (!ASSIGNABLE_GANG_ROLES.includes(requestedRole)) {
+    throw new HttpsError('invalid-argument', 'Bu rütbe atanamaz');
+  }
+
+  const gangRef = db.collection('gangs').doc(gangId);
+  const actorMemberRef = gangRef.collection('members').doc(actorUid);
+  const targetMemberRef = gangRef.collection('members').doc(targetUid);
+  const targetUserRef = db.collection('users').doc(targetUid);
+
+  const result = await db.runTransaction(async (tx) => {
+    const gangSnap = await tx.get(gangRef);
+    if (!gangSnap.exists) {
+      throw new HttpsError('not-found', 'Kartel bulunamadı');
+    }
+    const gang = gangSnap.data() || {};
+    const ownerId = safeText(gang.ownerId, '', 64);
+    if (!ownerId) {
+      throw new HttpsError('failed-precondition', 'Kartel lideri bulunamadı');
+    }
+
+    const isOwner = ownerId === actorUid;
+    let actorRole = 'Üye';
+    if (!isOwner) {
+      const actorMemberSnap = await tx.get(actorMemberRef);
+      if (!actorMemberSnap.exists) {
+        throw new HttpsError('permission-denied', 'Bu kartelde yetkin yok');
+      }
+      actorRole = normalizeGangRole(actorMemberSnap.data()?.role, 'Üye');
+    } else {
+      actorRole = 'Lider';
+    }
+
+    const canManage = isOwner || actorRole === 'Sağ Kol';
+    if (!canManage) {
+      throw new HttpsError('permission-denied', 'Bu işlem için yetkin yok');
+    }
+
+    const targetMemberSnap = await tx.get(targetMemberRef);
+    if (!targetMemberSnap.exists) {
+      throw new HttpsError('not-found', 'Bu oyuncu kartelde bulunamadı');
+    }
+    const targetMember = targetMemberSnap.data() || {};
+    const currentRole = normalizeGangRole(targetMember.role, 'Üye');
+    const targetIsOwner = targetUid === ownerId || currentRole === 'Lider';
+    if (targetIsOwner) {
+      throw new HttpsError('failed-precondition', 'Lider rütbesi değiştirilemez');
+    }
+
+    if (!isOwner) {
+      const allowedByRightHand = ['Kaptan', 'Tetikçi', 'Asker', 'Üye'];
+      if (!allowedByRightHand.includes(currentRole) ||
+          !allowedByRightHand.includes(requestedRole)) {
+        throw new HttpsError(
+          'permission-denied',
+          'Sağ Kol yalnızca orta ve alt rütbeleri yönetebilir',
+        );
+      }
+    }
+
+    if (currentRole === requestedRole) {
+      return { ok: true, role: requestedRole, unchanged: true };
+    }
+
+    tx.update(targetMemberRef, {
+      role: requestedRole,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const targetUserSnap = await tx.get(targetUserRef);
+    if (targetUserSnap.exists) {
+      const targetGangId = safeText(targetUserSnap.data()?.gangId, '', 64);
+      if (targetGangId === gangId) {
+        tx.set(targetUserRef, {
+          gangRole: requestedRole,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    }
+
+    tx.set(db.collection('gang_role_events').doc(), {
+      gangId,
+      actorUid,
+      targetUid,
+      fromRole: currentRole,
+      toRole: requestedRole,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true, role: requestedRole, unchanged: false };
+  });
+
+  return {
+    ok: true,
+    gangId,
+    targetUid,
+    role: result.role,
+    unchanged: result.unchanged === true,
+  };
+});
+
 function isBotUid(uid) {
   return String(uid ?? '').trim().startsWith('bot_');
 }
@@ -504,6 +776,13 @@ async function claimSenderReplyWindow(senderId, minGapMs) {
 }
 
 const BOT_PERSONALITY_KEYS = ['aggressive', 'tactician', 'economist', 'mentor', 'street'];
+const BOT_PERSONALITY_ACTIVITY = {
+  aggressive: { attackSec: 12 * 60, missionSec: 7 * 60 },
+  tactician: { attackSec: 18 * 60, missionSec: 10 * 60 },
+  economist: { attackSec: 26 * 60, missionSec: 8 * 60 },
+  mentor: { attackSec: 24 * 60, missionSec: 12 * 60 },
+  street: { attackSec: 15 * 60, missionSec: 9 * 60 },
+};
 const BOT_PERSONALITY_PROFILES = {
   aggressive: {
     label: 'Agresif',
@@ -615,6 +894,18 @@ function resolveBotPersonality(bot) {
   const source = String(bot?.id ?? bot?.name ?? 'bot_default');
   const key = BOT_PERSONALITY_KEYS[hashString(source) % BOT_PERSONALITY_KEYS.length];
   return { key, ...BOT_PERSONALITY_PROFILES[key] };
+}
+
+function resolveBotCadenceSec(bot, profileKey) {
+  const key = BOT_PERSONALITY_ACTIVITY[profileKey] ? profileKey : 'street';
+  const base = BOT_PERSONALITY_ACTIVITY[key];
+  const seed = hashString(`${bot?.id ?? bot?.name ?? 'bot'}:${key}`);
+  const attackJitter = (seed % 6) * 45;
+  const missionJitter = (seed % 5) * 30;
+  return {
+    attackSec: Math.max(8 * 60, base.attackSec + attackJitter),
+    missionSec: Math.max(6 * 60, base.missionSec + missionJitter),
+  };
 }
 
 function detectGlobalTopic(rawText, normalizedText) {
@@ -1143,11 +1434,13 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
   const attackerData = attackerSnap.data() || {};
   const targetData = targetSnap.data() || {};
 
+  const attackerLevelPrecheck = Math.max(1, Number(attackerData.level ?? 1));
   const profileAttackCostRaw = Number(attackerData.attackEnergyCost ?? NaN);
   const profileAttackCost = Number.isFinite(profileAttackCostRaw)
     ? Math.max(12, Math.min(20, Math.trunc(profileAttackCostRaw)))
     : null;
-  const attackCost = profileAttackCost ?? 20;
+  const rookieAttackCostFloor = attackerLevelPrecheck <= 5 ? 8 : 12;
+  const attackCost = Math.max(rookieAttackCostFloor, profileAttackCost ?? 20);
 
   const nowEpoch = Math.floor(Date.now() / 1000);
   const attackerStatus = resolvePenaltyStatus(attackerData, nowEpoch).status;
@@ -1228,9 +1521,11 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
         `Hedef koruma kalkanında. Yaklaşık ${waitMin} dakika bekle`,
       );
     }
+    const attackerLevel = Math.max(1, Number(atkTxData.level ?? 1));
     const atkAttackCostRaw = Number(atkTxData.attackEnergyCost ?? NaN);
+    const atkAttackCostFloor = attackerLevel <= 5 ? 8 : 12;
     const atkAttackCost = Number.isFinite(atkAttackCostRaw)
-      ? Math.max(12, Math.min(20, Math.trunc(atkAttackCostRaw)))
+      ? Math.max(atkAttackCostFloor, Math.min(20, Math.trunc(atkAttackCostRaw)))
       : attackCost;
     const atkEnergy = Math.max(0, Number(atkTxData.currentEnergy ?? 0));
     if (atkEnergy < atkAttackCost) {
@@ -1296,21 +1591,33 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
     const defRoll = randomInt(defPower / 5);
 
     const atkBaseWithEquipment = atkPower + Math.trunc((atkPower * equipmentBonus) / 100);
+    const rookieCombatBoostPct = attackerLevel <= 5 ? 30 : 0;
     const atkTotal =
-      applyPercent(atkBaseWithEquipment, attackerMatchup.loadoutTotalPct) + atkRoll;
+      applyPercent(
+        atkBaseWithEquipment,
+        attackerMatchup.loadoutTotalPct + rookieCombatBoostPct,
+      ) + atkRoll;
     const defTotal = applyPercent(defPower, defenderMatchup.loadoutTotalPct) + defRoll;
 
     const diff = Math.abs(atkTotal - defTotal);
-    const drawThreshold = Math.trunc(defTotal * 0.1);
+    const rookieDrawBufferPct = attackerLevel <= 5 ? 0.18 : 0.1;
+    const drawThreshold = Math.trunc(defTotal * rookieDrawBufferPct);
     let outcome = 'draw';
     if (diff > drawThreshold) {
       outcome = atkTotal > defTotal ? 'win' : 'lose';
+    }
+    if (attackerLevel <= 5 && outcome === 'lose') {
+      // Seviye 1-5 oyuncular için sokak akışını yumuşat:
+      // ağır yenilgi yerine beraberlik.
+      outcome = 'draw';
     }
 
     let stolenCash = 0;
     let xpGained = 0;
     let message = '';
-    const penaltyEndDate = new Date(nowDate.getTime() + 45 * 60 * 1000);
+    const penaltyEndDate = new Date(
+      nowDate.getTime() + HOSPITAL_PENALTY_SEC * 1000,
+    );
     const penaltyShieldUntilEpoch = Math.floor((penaltyEndDate.getTime() + 5 * 60 * 1000) / 1000);
 
     if (outcome === 'win') {
@@ -1356,9 +1663,15 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
         `[${attackerWeaponName} vs ${targetWeaponName} | ` +
         `Toplam ekipman etkisi %${signedPct(attackerMatchup.loadoutTotalPct)}]`;
     } else {
-      message =
-        `Berabere! Her iki taraf da hafif yaralı. ` +
-        `[${attackerWeaponName} vs ${targetWeaponName}]`;
+      message = attackerLevel <= 5
+        ? (
+          `Geri çekildin ama toparlandın. ` +
+          `[${attackerWeaponName} vs ${targetWeaponName}]`
+        )
+        : (
+          `Berabere! Her iki taraf da hafif yaralı. ` +
+          `[${attackerWeaponName} vs ${targetWeaponName}]`
+        );
     }
 
     const attackRef = db.collection('attacks').doc();
@@ -1531,10 +1844,23 @@ exports.executeGangRaid = onCall({ invoker: 'public' }, async (request) => {
 
   const nowDate = new Date();
   const hospitalUntil = admin.firestore.Timestamp.fromDate(
-    new Date(nowDate.getTime() + 45 * 60 * 1000),
+    new Date(nowDate.getTime() + HOSPITAL_PENALTY_SEC * 1000),
   );
-  const hospitalUntilEpoch = Math.floor((nowDate.getTime() + 45 * 60 * 1000) / 1000);
-  const penaltyShieldUntilEpoch = Math.floor((nowDate.getTime() + 50 * 60 * 1000) / 1000);
+  const hospitalUntilEpoch = Math.floor(
+    (nowDate.getTime() + HOSPITAL_PENALTY_SEC * 1000) / 1000,
+  );
+  const prisonUntil = admin.firestore.Timestamp.fromDate(
+    new Date(nowDate.getTime() + PRISON_PENALTY_SEC * 1000),
+  );
+  const prisonUntilEpoch = Math.floor(
+    (nowDate.getTime() + PRISON_PENALTY_SEC * 1000) / 1000,
+  );
+  const hospitalShieldUntilEpoch = Math.floor(
+    (nowDate.getTime() + (HOSPITAL_PENALTY_SEC + 5 * 60) * 1000) / 1000,
+  );
+  const prisonShieldUntilEpoch = Math.floor(
+    (nowDate.getTime() + (PRISON_PENALTY_SEC + 5 * 60) * 1000) / 1000,
+  );
 
   const batch = db.batch();
   let stolenCash = 0;
@@ -1556,9 +1882,9 @@ exports.executeGangRaid = onCall({ invoker: 'public' }, async (request) => {
     batch.update(targetRef, {
       cash: admin.firestore.FieldValue.increment(-totalStolen),
       status: 'prison',
-      statusUntil: hospitalUntil,
-      statusUntilEpoch: hospitalUntilEpoch,
-      shieldUntilEpoch: penaltyShieldUntilEpoch,
+      statusUntil: prisonUntil,
+      statusUntilEpoch: prisonUntilEpoch,
+      shieldUntilEpoch: prisonShieldUntilEpoch,
     });
     message = `Çete baskını başarılı! Kişi başı $${stolenCash} kazandınız.`;
   } else if (outcome === 'lose') {
@@ -1567,7 +1893,7 @@ exports.executeGangRaid = onCall({ invoker: 'public' }, async (request) => {
       status: 'hospital',
       statusUntil: hospitalUntil,
       statusUntilEpoch: hospitalUntilEpoch,
-      shieldUntilEpoch: penaltyShieldUntilEpoch,
+      shieldUntilEpoch: hospitalShieldUntilEpoch,
     });
     message = 'Baskın başarısız! Lider hastaneye kaldırıldı.';
   } else {
@@ -2083,6 +2409,13 @@ function randomInt(maxFloat) {
   return Math.floor(Math.random() * (max + 1));
 }
 
+function withinPowerWindow(attackerPower, targetPower, minRatio = 0.72, maxRatio = 1.32) {
+  const atk = Math.max(1, Number(attackerPower ?? 1));
+  const tgt = Math.max(1, Number(targetPower ?? 1));
+  const ratio = tgt / atk;
+  return ratio >= minRatio && ratio <= maxRatio;
+}
+
 function buildMessage(outcome, attackerName, stolenCash, type) {
   const typeLabel = type === 'gang' ? 'Çete baskını' : 'Saldırı';
 
@@ -2344,6 +2677,10 @@ exports.seedBotData = onCall({ invoker: 'public' }, async (request) => {
       combatWeaponId: defaultWeaponIdForPower(bot.power),
       online: true,
       lastLoginEpoch: nowEpoch,
+      lastBotActionAtEpoch: 0,
+      lastBotMissionAtEpoch: 0,
+      lastBotCombatAtEpoch: 0,
+      lastBotAttackAtEpoch: 0,
       isBot: true,
       botPersonality: profile.key,
       score: bot.power * 30 + bot.cash / 100,
@@ -2390,6 +2727,9 @@ function toSimUser(id, data, nowEpoch) {
     equippedVehicleId: String(data.equippedVehicleId ?? ''),
     combatWeaponId: String(data.combatWeaponId ?? ''),
     lastBotAttackAtEpoch: Math.max(0, Number(data.lastBotAttackAtEpoch ?? 0)),
+    lastBotActionAtEpoch: Math.max(0, Number(data.lastBotActionAtEpoch ?? 0)),
+    lastBotMissionAtEpoch: Math.max(0, Number(data.lastBotMissionAtEpoch ?? 0)),
+    lastBotCombatAtEpoch: Math.max(0, Number(data.lastBotCombatAtEpoch ?? 0)),
   };
 }
 
@@ -2422,8 +2762,9 @@ function pickRandom(items) {
 exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
   const now = admin.firestore.Timestamp.now();
   const nowEpoch = Math.floor(Date.now() / 1000);
-  const PENALTY_SEC = 45 * 60;
   const BOT_ATTACK_TARGET_COOLDOWN_SEC = 4 * 60 * 60;
+  const MAX_ATTACKS_PER_TICK = 8;
+  const MAX_MISSIONS_PER_TICK = 14;
 
   const [botSnap, usersSnap] = await Promise.all([
     db.collection('users').where('isBot', '==', true).get(),
@@ -2454,46 +2795,63 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
   const realHitsByTarget = new Map();
   const maxRealHitsPerTargetPerTick = 1;
   const maxRealTargetsPerTick = 4;
+  let attackActionsThisTick = 0;
+  let missionActionsThisTick = 0;
 
   const botIds = Array.from(botMap.keys()).sort(() => Math.random() - 0.5);
   for (const botId of botIds) {
     const bot = botMap.get(botId);
     if (!bot) continue;
+    const profile = resolveBotPersonality(bot);
+    const cadence = resolveBotCadenceSec(bot, profile.key);
 
     if (isLocked(bot, nowEpoch)) {
-      if (Math.random() < 0.04) {
-        bot.status = 'active';
-        bot.statusUntilEpoch = 0;
-        bot.currentTp = Math.max(70, bot.currentTp);
-      } else {
-        continue;
-      }
+      // Bots obey the same lock rules as real players.
+      continue;
     }
 
     bot.currentEnergy = Math.min(bot.maxEnergy, bot.currentEnergy + (8 + randomInt(12)));
     bot.currentTp = Math.min(bot.maxTp, Math.max(15, bot.currentTp + randomInt(8)));
 
     const actionRoll = Math.random();
-    const canAttack = bot.currentEnergy >= bot.attackEnergyCost && bot.currentTp > 0;
-    const canMission = bot.currentEnergy >= 10;
+    const canAttack =
+      attackActionsThisTick < MAX_ATTACKS_PER_TICK &&
+      bot.currentEnergy >= bot.attackEnergyCost &&
+      bot.currentTp > 0 &&
+      (nowEpoch - bot.lastBotCombatAtEpoch) >= cadence.attackSec;
+    const canMission =
+      missionActionsThisTick < MAX_MISSIONS_PER_TICK &&
+      bot.currentEnergy >= 10 &&
+      (nowEpoch - bot.lastBotMissionAtEpoch) >= cadence.missionSec;
 
     if (actionRoll < 0.52 && canAttack) {
       const botTargets = Array.from(botMap.values()).filter((u) =>
         u.id !== bot.id &&
         !isLocked(u, nowEpoch) &&
         u.shieldUntilEpoch <= nowEpoch &&
-        u.currentTp > 0,
+        u.currentTp > 0 &&
+        withinPowerWindow(bot.power, u.power, 0.70, 1.35),
+      );
+      const botTargetsSoft = Array.from(botMap.values()).filter((u) =>
+        u.id !== bot.id &&
+        !isLocked(u, nowEpoch) &&
+        u.shieldUntilEpoch <= nowEpoch &&
+        u.currentTp > 0 &&
+        withinPowerWindow(bot.power, u.power, 0.55, 1.60),
       );
       const realTargets = Array.from(realMap.values()).filter((u) =>
         !isLocked(u, nowEpoch) &&
         u.shieldUntilEpoch <= nowEpoch &&
         u.currentTp > 0 &&
+        withinPowerWindow(bot.power, u.power, 0.72, 1.32) &&
         (nowEpoch - Math.max(0, Number(u.lastBotAttackAtEpoch ?? 0))) >= BOT_ATTACK_TARGET_COOLDOWN_SEC &&
         (realHitsByTarget.get(u.id) || 0) < maxRealHitsPerTargetPerTick,
       );
       const realTargetsSoft = Array.from(realMap.values()).filter((u) =>
         !isLocked(u, nowEpoch) &&
         u.shieldUntilEpoch <= nowEpoch &&
+        u.currentTp > 0 &&
+        withinPowerWindow(bot.power, u.power, 0.62, 1.45) &&
         (nowEpoch - Math.max(0, Number(u.lastBotAttackAtEpoch ?? 0))) >= BOT_ATTACK_TARGET_COOLDOWN_SEC &&
         (realHitsByTarget.get(u.id) || 0) < maxRealHitsPerTargetPerTick,
       );
@@ -2514,6 +2872,8 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
         pool = realTargetsSoft;
       } else if (botTargets.length > 0) {
         pool = botTargets;
+      } else if (botTargetsSoft.length > 0) {
+        pool = botTargetsSoft;
       } else {
         pool = realTargetsSoft;
       }
@@ -2555,6 +2915,9 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
       }
 
       bot.currentEnergy = Math.max(0, bot.currentEnergy - bot.attackEnergyCost);
+      bot.lastBotCombatAtEpoch = nowEpoch;
+      bot.lastBotActionAtEpoch = nowEpoch;
+      attackActionsThisTick += 1;
       let stolenCash = 0;
       let xpGained = 0;
       let message = '';
@@ -2574,8 +2937,9 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
 
         target.cash = Math.max(0, target.cash - stolenCash);
         const targetPenalty = Math.random() < 0.33 ? 'prison' : 'hospital';
-        applyPenalty(target, targetPenalty, nowEpoch, PENALTY_SEC);
-        target.shieldUntilEpoch = nowEpoch + PENALTY_SEC + (5 * 60);
+        const targetPenaltySec = penaltySecondsForStatus(targetPenalty);
+        applyPenalty(target, targetPenalty, nowEpoch, targetPenaltySec);
+        target.shieldUntilEpoch = nowEpoch + targetPenaltySec + (5 * 60);
         if (!target.isBot) {
           changedRealIds.add(target.id);
         }
@@ -2586,8 +2950,8 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
       } else if (outcome === 'lose') {
         xpGained = 6 + randomInt(8);
         bot.xp += xpGained;
-        applyPenalty(bot, 'hospital', nowEpoch, PENALTY_SEC);
-        bot.shieldUntilEpoch = nowEpoch + PENALTY_SEC + (5 * 60);
+        applyPenalty(bot, 'hospital', nowEpoch, HOSPITAL_PENALTY_SEC);
+        bot.shieldUntilEpoch = nowEpoch + HOSPITAL_PENALTY_SEC + (5 * 60);
         message = `${target.name} saldırıyı püskürttü, bot hastaneye düştü.`;
       } else {
         xpGained = 10 + randomInt(6);
@@ -2640,6 +3004,9 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
     if (canMission) {
       const missionCost = 10 + randomInt(8);
       bot.currentEnergy = Math.max(0, bot.currentEnergy - missionCost);
+      bot.lastBotMissionAtEpoch = nowEpoch;
+      bot.lastBotActionAtEpoch = nowEpoch;
+      missionActionsThisTick += 1;
       const missionSuccess = Math.random() < Math.min(0.92, 0.50 + (bot.power / 6000));
       if (missionSuccess) {
         const missionCash = 450 + randomInt(1800);
@@ -2654,8 +3021,9 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
         bot.cash = Math.max(0, bot.cash - failPenalty);
         if (Math.random() < 0.58) {
           const failStatus = Math.random() < 0.52 ? 'prison' : 'hospital';
-          applyPenalty(bot, failStatus, nowEpoch, PENALTY_SEC);
-          bot.shieldUntilEpoch = nowEpoch + PENALTY_SEC + (5 * 60);
+          const failPenaltySec = penaltySecondsForStatus(failStatus);
+          applyPenalty(bot, failStatus, nowEpoch, failPenaltySec);
+          bot.shieldUntilEpoch = nowEpoch + failPenaltySec + (5 * 60);
         }
       }
       bot.level = levelForXp(bot.xp);
@@ -2719,7 +3087,10 @@ exports.botActivityLoop = onSchedule('every 2 minutes', async () => {
       equippedArmorId: botLoadout.armorId,
       equippedVehicleId: botLoadout.vehicleId,
       combatWeaponId: botLoadout.weaponId,
-      online: true,
+      online: (nowEpoch - Math.max(0, Number(bot.lastBotActionAtEpoch ?? 0))) < (40 * 60),
+      lastBotActionAtEpoch: Math.max(0, Math.trunc(bot.lastBotActionAtEpoch ?? 0)),
+      lastBotMissionAtEpoch: Math.max(0, Math.trunc(bot.lastBotMissionAtEpoch ?? 0)),
+      lastBotCombatAtEpoch: Math.max(0, Math.trunc(bot.lastBotCombatAtEpoch ?? 0)),
       score: Math.trunc((bot.power * 12) + (bot.wins * 900) + (bot.gangWins * 1200) + (bot.cash / 2000)),
       updatedAt: now,
     }, { merge: true });

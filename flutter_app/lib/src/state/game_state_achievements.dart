@@ -123,19 +123,40 @@ mixin _GameStateAchievements on _GameStateBase {
       'gold': def.rewardGold,
       'xp': def.rewardXp,
     });
+    final rewardPartsTr = <String>[];
+    final rewardPartsEn = <String>[];
+    if (def.rewardCash > 0) {
+      rewardPartsTr.add('+\$${def.rewardCash}');
+      rewardPartsEn.add('+\$${def.rewardCash}');
+    }
+    if (def.rewardGold > 0) {
+      rewardPartsTr.add('+${def.rewardGold} Altin');
+      rewardPartsEn.add('+${def.rewardGold} Gold');
+    }
+    if (def.rewardXp > 0) {
+      rewardPartsTr.add('+${def.rewardXp} XP');
+      rewardPartsEn.add('+${def.rewardXp} XP');
+    }
+    final rewardSummaryTr = rewardPartsTr.isEmpty
+        ? '-'
+        : rewardPartsTr.join(' ');
+    final rewardSummaryEn = rewardPartsEn.isEmpty
+        ? '-'
+        : rewardPartsEn.join(' ');
+
     _addNews(
       tt('Odul Alindi', 'Reward Claimed'),
       tt(
-        '${def.titleTr}: +\$${def.rewardCash}${def.rewardGold > 0 ? ' +${def.rewardGold} Altin' : ''}',
-        '${def.titleEn}: +\$${def.rewardCash}${def.rewardGold > 0 ? ' +${def.rewardGold} Gold' : ''}',
+        '${def.titleTr}: $rewardSummaryTr',
+        '${def.titleEn}: $rewardSummaryEn',
       ),
     );
     await _save();
     _syncOnlineSoon();
     notifyListeners();
     return tt(
-      'Odul alindi! +\$${def.rewardCash}${def.rewardGold > 0 ? ' +${def.rewardGold} Altin' : ''}',
-      'Reward claimed! +\$${def.rewardCash}${def.rewardGold > 0 ? ' +${def.rewardGold} Gold' : ''}',
+      'Odul alindi! $rewardSummaryTr',
+      'Reward claimed! $rewardSummaryEn',
     );
   }
 

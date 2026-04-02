@@ -589,12 +589,20 @@ class _AttackScreenState extends State<AttackScreen>
       );
       final attackerRoll = _simRandom.nextInt(160);
       final defenderRoll = _simRandom.nextInt(160);
+      final rookieAtkBonusPct = state.isRookieEasyMode ? 30 : 0;
+      final rookieDefNerfPct = state.isRookieEasyMode ? -12 : 0;
       final atkScore =
-          _applyPercent(state.totalPower, attackerMatchup.totalPct) +
+          _applyPercent(
+            state.totalPower,
+            attackerMatchup.totalPct + rookieAtkBonusPct,
+          ) +
           attackerRoll;
       final defScore =
-          _applyPercent(current.power, defenderMatchup.totalPct) + defenderRoll;
-      final won = atkScore >= defScore;
+          _applyPercent(current.power, defenderMatchup.totalPct + rookieDefNerfPct) +
+          defenderRoll;
+      final won = state.isRookieEasyMode
+          ? (atkScore + 60 >= defScore)
+          : (atkScore >= defScore);
       _AttackStepReport report;
 
       if (won) {

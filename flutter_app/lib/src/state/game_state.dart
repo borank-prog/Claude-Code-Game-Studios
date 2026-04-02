@@ -47,8 +47,10 @@ class _GameStateBase extends ChangeNotifier {
   static const _maxItemDurability = 100;
   static const _oneTimeGoldGiftAmount = 1000000;
   static const _oneTimeCashGiftAmount = 1000000;
-  static const _penaltyDurationSec = 2700;
+  static const _hospitalPenaltyDurationSec = 2700;
+  static const _jailPenaltyDurationSec = 600;
   static const _missionFailXpRatio = 0.2;
+  static const _rookieEasyLevelCap = 5;
   static const _pendingQueueMax = 200;
   static const _pendingQueueTtlMs = 7 * 24 * 60 * 60 * 1000;
   static const Duration _authPostStepTimeout = Duration(seconds: 2);
@@ -315,6 +317,30 @@ class _GameStateBase extends ChangeNotifier {
 
   String get gangId => currentGang?['id']?.toString() ?? '';
   bool get hasGang => gangId.isNotEmpty;
+  static const List<String> _gangRoleOptions = <String>[
+    'Sağ Kol',
+    'Kaptan',
+    'Tetikçi',
+    'Asker',
+    'Üye',
+  ];
+  List<String> get gangRoleOptions => _gangRoleOptions;
+
+  String get myGangRole {
+    if (!hasGang) return '';
+    final fromCurrent = (currentGang?['role']?.toString() ?? '').trim();
+    if (fromCurrent.isNotEmpty) return fromCurrent;
+    final meUid = userId.trim();
+    if (meUid.isEmpty) return 'Üye';
+    for (final m in gangMembers) {
+      final uid = (m['uid']?.toString() ?? '').trim();
+      if (uid != meUid) continue;
+      final role = (m['role']?.toString() ?? '').trim();
+      if (role.isNotEmpty) return role;
+    }
+    return 'Üye';
+  }
+
   bool get isGangLeader {
     if (!hasGang || userId.trim().isEmpty) return false;
     final ownerId = (currentGang?['ownerId']?.toString() ?? '').trim();
@@ -322,6 +348,11 @@ class _GameStateBase extends ChangeNotifier {
     if (ownerId.isNotEmpty) return ownerId == userId.trim();
     return role == 'lider' || role == 'leader';
   }
+  bool get isGangRightHand {
+    final role = myGangRole.trim().toLowerCase();
+    return role == 'sağ kol' || role == 'sag kol' || role == 'right hand';
+  }
+  bool get canAssignGangRoles => isGangLeader || isGangRightHand;
 
   bool get gangInviteOnly => currentGang?['inviteOnly'] == true;
   bool get gangAcceptJoinRequests =>
@@ -585,10 +616,33 @@ class _GameStateBase extends ChangeNotifier {
     }
   }
 
+  /// Görev başarısızlığında hapis mi hastane mi olacağını belirler.
+  ///
+  /// Kural: Sadece doğrudan soygun/baskın tipi görevlerde hapis uygulanır.
+  /// Diğer görev türleri başarısızlıkta hastaneye düşürür.
+  bool missionFailureLeadsToJail(MissionDef mission) {
+    final missionId = mission.id.toLowerCase();
+    return missionId.contains('market') ||
+        missionId.contains('kuyumcu') ||
+        missionId.contains('banka') ||
+        missionId.contains('depo') ||
+        missionId.contains('soygun') ||
+        missionId.contains('vurgun') ||
+        missionId.contains('baskin');
+  }
+
   String gangRoleName(String role) {
     switch (role) {
       case 'Lider':
         return tt('Lider', 'Leader');
+      case 'Sağ Kol':
+        return tt('Sağ Kol', 'Right Hand');
+      case 'Kaptan':
+        return tt('Kaptan', 'Captain');
+      case 'Tetikçi':
+        return tt('Tetikçi', 'Hitman');
+      case 'Asker':
+        return tt('Asker', 'Soldier');
       case 'Üye':
         return tt('Üye', 'Member');
       default:
@@ -697,10 +751,13 @@ class _GameStateBase extends ChangeNotifier {
 
   bool get hasEnoughEnergyForAttack => currentEnerji >= attackEnergyCost;
   int get attackEnergyCost => max(
-    12,
+    isRookieEasyMode ? 8 : 12,
     ((22 - vehicleAttackEnergyDiscount) * avatar.energyCostMult).round(),
   );
-  int get penaltyDurationMinutes => _penaltyDurationSec ~/ 60;
+  bool get isRookieEasyMode => level <= _rookieEasyLevelCap;
+  int get hospitalPenaltyDurationMinutes => _hospitalPenaltyDurationSec ~/ 60;
+  int get jailPenaltyDurationMinutes => _jailPenaltyDurationSec ~/ 60;
+  int get penaltyDurationMinutes => hospitalPenaltyDurationMinutes;
   int get vipHealGoldCost => PremiumShopService.vipHealGoldCost;
   int get energyRushGoldCost => PremiumShopService.energyRushGoldCost;
   int get vipShieldGoldCost => PremiumShopService.vipShieldGoldCost;
@@ -1455,7 +1512,23 @@ class _GameStateBase extends ChangeNotifier {
     if (text.startsWith('Exception:')) {
       text = text.replaceFirst('Exception:', '').trim();
     }
+    if (text.startsWith('FirebaseFunctionsException:')) {
+      text = text.replaceFirst('FirebaseFunctionsException:', '').trim();
+    }
+    if (text.startsWith('FirebaseException:')) {
+      text = text.replaceFirst('FirebaseException:', '').trim();
+    }
+    // Oyuncuya teknik provider kodlarını göstermeyelim.
+    text = text.replaceFirst(RegExp(r'^\[[^\]]+\]\s*'), '').trim();
+    text = text
+        .replaceFirst(RegExp(r'^cloud_functions\/[a-z-]+:\s*'), '')
+        .trim();
     final lower = text.toLowerCase();
+    if (lower.contains('yeterli altın yok') ||
+        lower.contains('yeterli altin yok') ||
+        lower.contains('not enough gold') ||
+        lower.contains('insufficient gold'))
+      return tt('Yeterli altın yok', 'Not enough gold');
     if (lower.contains('connection failed: 8') || lower.contains('status 8'))
       return tt(
         'Bağlantı hatası. İnternetini kontrol edip tekrar dene.',
@@ -1625,22 +1698,26 @@ class _GameStateBase extends ChangeNotifier {
       final gangsFuture = safeFetch(() => _onlineService.fetchGangs(limit: 20));
 
       final me = await meFuture;
-      final meGangId = (me?['gangId']?.toString() ?? '').trim();
-      final meGangName = (me?['gangName']?.toString() ?? '').trim();
-      final meGangRole = (me?['gangRole']?.toString() ?? '').trim();
-      final currentGangId = (currentGang?['id']?.toString() ?? '').trim();
-      if (meGangId.isNotEmpty && meGangId != currentGangId) {
-        currentGang = {
-          'id': meGangId,
-          'name': meGangName.isEmpty ? tt('Çete', 'Gang') : meGangName,
-          'role': meGangRole.isEmpty ? 'Üye' : meGangRole,
-        };
-        gangStateChanged = true;
-      } else if (meGangId.isEmpty && currentGangId.isNotEmpty) {
-        currentGang = null;
-        gangMembers.clear();
-        gangJoinRequests.clear();
-        gangStateChanged = true;
+      // Dikkat: "me == null" çoğunlukla geçici fetch hatasıdır.
+      // Bu durumda çete state'ini silmek veri kaybı hissi yaratır.
+      if (me != null) {
+        final meGangId = (me['gangId']?.toString() ?? '').trim();
+        final meGangName = (me['gangName']?.toString() ?? '').trim();
+        final meGangRole = (me['gangRole']?.toString() ?? '').trim();
+        final currentGangId = (currentGang?['id']?.toString() ?? '').trim();
+        if (meGangId.isNotEmpty && meGangId != currentGangId) {
+          currentGang = {
+            'id': meGangId,
+            'name': meGangName.isEmpty ? tt('Çete', 'Gang') : meGangName,
+            'role': meGangRole.isEmpty ? 'Üye' : meGangRole,
+          };
+          gangStateChanged = true;
+        } else if (meGangId.isEmpty && currentGangId.isNotEmpty) {
+          currentGang = null;
+          gangMembers.clear();
+          gangJoinRequests.clear();
+          gangStateChanged = true;
+        }
       }
 
       final fetchedFriends = await friendsFuture;
@@ -1698,7 +1775,12 @@ class _GameStateBase extends ChangeNotifier {
 
         final gang = await gangFuture;
         if (gang != null) {
-          currentGang = {'id': gId, ...gang};
+          final preservedRole = (currentGang?['role']?.toString() ?? '').trim();
+          currentGang = {
+            'id': gId,
+            ...gang,
+            if (preservedRole.isNotEmpty) 'role': preservedRole,
+          };
           gangRank = (gang['gangRank'] as num?)?.toInt() ?? gangRank;
           gangRespectPoints =
               (gang['respectPoints'] as num?)?.toInt() ?? gangRespectPoints;
@@ -1711,6 +1793,21 @@ class _GameStateBase extends ChangeNotifier {
           gangMembers
             ..clear()
             ..addAll(fetchedMembers);
+          final meUid = userId.trim();
+          if (meUid.isNotEmpty) {
+            for (final m in gangMembers) {
+              final uid = (m['uid']?.toString() ?? '').trim();
+              if (uid != meUid) continue;
+              final role = (m['role']?.toString() ?? '').trim();
+              if (role.isNotEmpty) {
+                currentGang = {
+                  ...(currentGang ?? <String, dynamic>{'id': gId}),
+                  'role': role,
+                };
+              }
+              break;
+            }
+          }
         }
 
         if (isGangLeader) {
@@ -1875,6 +1972,24 @@ class _GameStateBase extends ChangeNotifier {
             resolvedGangId = remoteGangId;
             resolvedGangName = remoteGangName;
             hydratedGangFromRemote = true;
+          } else {
+            // Eski bug'dan kalan üyelik kayıpları için: member kaydından çeteyi geri bul.
+            final recovered = await _onlineService.findGangByMember(userId);
+            final recoveredGangId = (recovered?['gangId'] ?? '').trim();
+            if (recoveredGangId.isNotEmpty) {
+              final recoveredGangName = (recovered?['gangName'] ?? '').trim();
+              final recoveredGangRole = (recovered?['gangRole'] ?? '').trim();
+              currentGang = {
+                'id': recoveredGangId,
+                'name': recoveredGangName.isEmpty
+                    ? tt('Çete', 'Gang')
+                    : recoveredGangName,
+                'role': recoveredGangRole.isEmpty ? 'Üye' : recoveredGangRole,
+              };
+              resolvedGangId = recoveredGangId;
+              resolvedGangName = recoveredGangName;
+              hydratedGangFromRemote = true;
+            }
           }
         } catch (_) {}
       }
@@ -1887,6 +2002,8 @@ class _GameStateBase extends ChangeNotifier {
         level: level,
         rank: rank,
         cash: cash,
+        gold: gold,
+        xp: xp,
         wins: wins,
         gangWins: gangWins,
         lastLoginEpoch: lastLoginEpoch,
@@ -2019,8 +2136,9 @@ class _GameStateBase extends ChangeNotifier {
       final localEpoch = localUpdatedAtEpoch;
 
       if (remotePayload.isNotEmpty) {
-        final shouldApplyRemote =
-            saveOwnerUid != currentUid || remoteEpoch > localEpoch;
+        // Firebase hesaplarda cihazlar arası tutarlılık için cloud save öncelikli.
+        // Bu sayede telefonda/eski cihazda kalan yerel farklar oyunu bölmez.
+        final shouldApplyRemote = true;
         if (shouldApplyRemote) {
           await prefs.setString(_storageKey, _safeJsonEncode(remotePayload));
           await _load();

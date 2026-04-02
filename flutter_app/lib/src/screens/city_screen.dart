@@ -140,12 +140,19 @@ class CityScreen extends StatelessWidget {
           await _showMissionResultSheet(context, state, mission, next);
         },
         onPaySkip: () async {
+          String? error;
           if (res.sentToJail) {
-            await state.payJailWithGold();
+            error = await state.payJailWithGold();
           } else {
-            await state.payHospitalWithGold();
+            error = await state.payHospitalWithGold();
           }
-          if (!ctx.mounted) return;
+          if (!ctx.mounted || !context.mounted) return;
+          if (error != null && error.trim().isNotEmpty) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(error)));
+            return;
+          }
           Navigator.of(ctx).pop();
         },
         onEnergyRush: () async {
