@@ -93,6 +93,13 @@ class _HomeShellState extends State<HomeShell> {
     }
   }
 
+  void _safeClosePenaltyDialog(BuildContext dialogContext) {
+    if (!dialogContext.mounted) return;
+    final route = ModalRoute.of(dialogContext);
+    if (route == null || !route.isCurrent) return;
+    Navigator.of(dialogContext).pop();
+  }
+
   @override
   void dispose() {
     if (mounted) {
@@ -402,7 +409,7 @@ class _HomeShellState extends State<HomeShell> {
                         );
                         if (secLeft <= 0) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (ctx.mounted) Navigator.of(ctx).pop();
+                            _safeClosePenaltyDialog(ctx);
                           });
                         }
                         return Text(
@@ -420,18 +427,32 @@ class _HomeShellState extends State<HomeShell> {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () async {
-                          final error = await state.payJailWithGold();
-                          if (!mounted || !ctx.mounted) return;
-                          if (state.jailSecondsLeft <= 0) {
-                            Navigator.of(ctx).pop();
-                            return;
+                          try {
+                            final error = await state.payJailWithGold();
+                            if (!mounted || !ctx.mounted) return;
+                            if (state.jailSecondsLeft <= 0) {
+                              _safeClosePenaltyDialog(ctx);
+                              return;
+                            }
+                            if (error != null && error.trim().isNotEmpty) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text(error)));
+                            }
+                            setLocalState(() {});
+                          } catch (_) {
+                            if (!mounted || !ctx.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  state.tt(
+                                    'İşlem başarısız. Tekrar dene.',
+                                    'Action failed. Try again.',
+                                  ),
+                                ),
+                              ),
+                            );
                           }
-                          if (error != null && error.trim().isNotEmpty) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(error)));
-                          }
-                          setLocalState(() {});
                         },
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF0B223E),
@@ -447,7 +468,7 @@ class _HomeShellState extends State<HomeShell> {
                     SizedBox(
                       width: double.infinity,
                       child: TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
+                        onPressed: () => _safeClosePenaltyDialog(ctx),
                         child: Text(
                           state.tt(
                             '${state.jailPenaltyDurationMinutes} Dakika Bekle',
@@ -555,7 +576,7 @@ class _HomeShellState extends State<HomeShell> {
                         );
                         if (secLeft <= 0) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (ctx.mounted) Navigator.of(ctx).pop();
+                            _safeClosePenaltyDialog(ctx);
                           });
                         }
                         return Text(
@@ -573,18 +594,32 @@ class _HomeShellState extends State<HomeShell> {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () async {
-                          final error = await state.payHospitalWithGold();
-                          if (!mounted || !ctx.mounted) return;
-                          if (state.hospitalSecondsLeft <= 0) {
-                            Navigator.of(ctx).pop();
-                            return;
+                          try {
+                            final error = await state.payHospitalWithGold();
+                            if (!mounted || !ctx.mounted) return;
+                            if (state.hospitalSecondsLeft <= 0) {
+                              _safeClosePenaltyDialog(ctx);
+                              return;
+                            }
+                            if (error != null && error.trim().isNotEmpty) {
+                              ScaffoldMessenger.of(
+                                context,
+                              ).showSnackBar(SnackBar(content: Text(error)));
+                            }
+                            setLocalState(() {});
+                          } catch (_) {
+                            if (!mounted || !ctx.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  state.tt(
+                                    'İşlem başarısız. Tekrar dene.',
+                                    'Action failed. Try again.',
+                                  ),
+                                ),
+                              ),
+                            );
                           }
-                          if (error != null && error.trim().isNotEmpty) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text(error)));
-                          }
-                          setLocalState(() {});
                         },
                         style: FilledButton.styleFrom(
                           backgroundColor: const Color(0xFF0B223E),
@@ -600,7 +635,7 @@ class _HomeShellState extends State<HomeShell> {
                     SizedBox(
                       width: double.infinity,
                       child: TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
+                        onPressed: () => _safeClosePenaltyDialog(ctx),
                         child: Text(
                           state.tt(
                             '${state.hospitalPenaltyDurationMinutes} Dakika Bekle',

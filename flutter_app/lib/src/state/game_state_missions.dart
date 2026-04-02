@@ -339,115 +339,125 @@ mixin _GameStateMissions on _GameStateBase {
   }
 
   Future<String?> payHospitalWithGold() async {
-    final sec = hospitalSecondsLeft;
-    if (sec <= 0) return null;
-    final cost = hospitalSkipGoldCost;
-    if (firebaseReady &&
-        online &&
-        authMode == 'firebase' &&
-        userId.isNotEmpty) {
-      try {
-        final result = await _secureSkipPenaltyWithRetry(
-          penalty: 'hospital',
-          cost: cost,
-        );
-        final nextGold = (result['gold'] as num?)?.toInt();
-        if (nextGold != null) {
-          gold = max(0, nextGold);
-        } else if (gold >= cost) {
-          gold -= cost;
-        } else {
-          return tt('Yeterli altın yok', 'Not enough gold');
+    try {
+      final sec = hospitalSecondsLeft;
+      if (sec <= 0) return null;
+      final cost = hospitalSkipGoldCost;
+      if (firebaseReady &&
+          online &&
+          authMode == 'firebase' &&
+          userId.isNotEmpty) {
+        try {
+          final result = await _secureSkipPenaltyWithRetry(
+            penalty: 'hospital',
+            cost: cost,
+          );
+          final nextGold = (result['gold'] as num?)?.toInt();
+          if (nextGold != null) {
+            gold = max(0, nextGold);
+          } else if (gold >= cost) {
+            gold -= cost;
+          } else {
+            return tt('Yeterli altın yok', 'Not enough gold');
+          }
+          final serverStatus = (result['status'] as String?)
+              ?.trim()
+              .toLowerCase();
+          hospitalUntilEpoch = serverStatus == 'active'
+              ? 0
+              : (result['statusUntilEpoch'] as num?)?.toInt() ?? 0;
+          final tpFromServer = (result['currentTp'] as num?)?.toInt();
+          if (tpFromServer != null) {
+            currentTP = tpFromServer.clamp(0, maxTP);
+          } else if (currentTP <= 0) {
+            currentTP = 35;
+          }
+          _metricAdd('hospital_skip_gold_spent_total', cost);
+          _queueEvent('hospital_skip', {'cost': cost});
+          await _save();
+          _syncOnlineSoon();
+          notifyListeners();
+          return null;
+        } catch (e) {
+          debugPrint('[PenaltySkip] secure hospital skip failed => $e');
+          return _sanitizePenaltySkipError(e);
         }
-        final serverStatus = (result['status'] as String?)
-            ?.trim()
-            .toLowerCase();
-        hospitalUntilEpoch = serverStatus == 'active'
-            ? 0
-            : (result['statusUntilEpoch'] as num?)?.toInt() ?? 0;
-        final tpFromServer = (result['currentTp'] as num?)?.toInt();
-        if (tpFromServer != null) {
-          currentTP = tpFromServer.clamp(0, maxTP);
-        } else if (currentTP <= 0) {
-          currentTP = 35;
-        }
-        _metricAdd('hospital_skip_gold_spent_total', cost);
-        _queueEvent('hospital_skip', {'cost': cost});
-        await _save();
-        _syncOnlineSoon();
-        notifyListeners();
-        return null;
-      } catch (e) {
-        debugPrint('[PenaltySkip] secure hospital skip failed => $e');
-        return _sanitizePenaltySkipError(e);
       }
-    }
 
-    if (gold < cost) {
-      return tt('Yeterli altın yok', 'Not enough gold');
+      if (gold < cost) {
+        return tt('Yeterli altın yok', 'Not enough gold');
+      }
+      gold -= cost;
+      _metricAdd('hospital_skip_gold_spent_total', cost);
+      hospitalUntilEpoch = 0;
+      if (currentTP <= 0) {
+        currentTP = 35;
+      }
+      _queueEvent('hospital_skip', {'cost': cost});
+      await _save();
+      _syncOnlineSoon();
+      notifyListeners();
+      return null;
+    } catch (e) {
+      debugPrint('[PenaltySkip] payHospitalWithGold unexpected => $e');
+      return _sanitizePenaltySkipError(e);
     }
-    gold -= cost;
-    _metricAdd('hospital_skip_gold_spent_total', cost);
-    hospitalUntilEpoch = 0;
-    if (currentTP <= 0) {
-      currentTP = 35;
-    }
-    _queueEvent('hospital_skip', {'cost': cost});
-    await _save();
-    _syncOnlineSoon();
-    notifyListeners();
-    return null;
   }
 
   Future<String?> payJailWithGold() async {
-    final sec = jailSecondsLeft;
-    if (sec <= 0) return null;
-    final cost = jailSkipGoldCost;
-    if (firebaseReady &&
-        online &&
-        authMode == 'firebase' &&
-        userId.isNotEmpty) {
-      try {
-        final result = await _secureSkipPenaltyWithRetry(
-          penalty: 'prison',
-          cost: cost,
-        );
-        final nextGold = (result['gold'] as num?)?.toInt();
-        if (nextGold != null) {
-          gold = max(0, nextGold);
-        } else if (gold >= cost) {
-          gold -= cost;
-        } else {
-          return tt('Yeterli altın yok', 'Not enough gold');
+    try {
+      final sec = jailSecondsLeft;
+      if (sec <= 0) return null;
+      final cost = jailSkipGoldCost;
+      if (firebaseReady &&
+          online &&
+          authMode == 'firebase' &&
+          userId.isNotEmpty) {
+        try {
+          final result = await _secureSkipPenaltyWithRetry(
+            penalty: 'prison',
+            cost: cost,
+          );
+          final nextGold = (result['gold'] as num?)?.toInt();
+          if (nextGold != null) {
+            gold = max(0, nextGold);
+          } else if (gold >= cost) {
+            gold -= cost;
+          } else {
+            return tt('Yeterli altın yok', 'Not enough gold');
+          }
+          final serverStatus = (result['status'] as String?)
+              ?.trim()
+              .toLowerCase();
+          jailUntilEpoch = serverStatus == 'active'
+              ? 0
+              : (result['statusUntilEpoch'] as num?)?.toInt() ?? 0;
+          _metricAdd('jail_skip_gold_spent_total', cost);
+          _queueEvent('jail_skip', {'cost': cost});
+          await _save();
+          _syncOnlineSoon();
+          notifyListeners();
+          return null;
+        } catch (e) {
+          debugPrint('[PenaltySkip] secure prison skip failed => $e');
+          return _sanitizePenaltySkipError(e);
         }
-        final serverStatus = (result['status'] as String?)
-            ?.trim()
-            .toLowerCase();
-        jailUntilEpoch = serverStatus == 'active'
-            ? 0
-            : (result['statusUntilEpoch'] as num?)?.toInt() ?? 0;
-        _metricAdd('jail_skip_gold_spent_total', cost);
-        _queueEvent('jail_skip', {'cost': cost});
-        await _save();
-        _syncOnlineSoon();
-        notifyListeners();
-        return null;
-      } catch (e) {
-        debugPrint('[PenaltySkip] secure prison skip failed => $e');
-        return _sanitizePenaltySkipError(e);
       }
-    }
 
-    if (gold < cost) {
-      return tt('Yeterli altın yok', 'Not enough gold');
+      if (gold < cost) {
+        return tt('Yeterli altın yok', 'Not enough gold');
+      }
+      gold -= cost;
+      _metricAdd('jail_skip_gold_spent_total', cost);
+      jailUntilEpoch = 0;
+      _queueEvent('jail_skip', {'cost': cost});
+      await _save();
+      _syncOnlineSoon();
+      notifyListeners();
+      return null;
+    } catch (e) {
+      debugPrint('[PenaltySkip] payJailWithGold unexpected => $e');
+      return _sanitizePenaltySkipError(e);
     }
-    gold -= cost;
-    _metricAdd('jail_skip_gold_spent_total', cost);
-    jailUntilEpoch = 0;
-    _queueEvent('jail_skip', {'cost': cost});
-    await _save();
-    _syncOnlineSoon();
-    notifyListeners();
-    return null;
   }
 }
