@@ -103,6 +103,63 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _promptGangInvite(BuildContext context, GameState state) async {
+    if (!state.isGangLeader) {
+      _snack(
+        context,
+        state.tt(
+          'Sadece kartel lideri davet gönderebilir.',
+          'Only cartel leader can send invites.',
+        ),
+      );
+      return;
+    }
+    final ctrl = TextEditingController();
+    final entered = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF111a2e),
+        title: Text(
+          state.tt('Kartele Davet Et', 'Invite to Cartel'),
+          style: const TextStyle(color: Color(0xFFFBBF24)),
+        ),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: state.tt(
+              'Oyuncu UID veya ad gir',
+              'Enter player UID or name',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(state.tt('Vazgeç', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+            child: Text(state.tt('Davet Et', 'Invite')),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    final target = entered?.trim() ?? '';
+    if (target.isEmpty) return;
+    final ok = await state.sendGangInvite(target);
+    if (!context.mounted) return;
+    _snack(
+      context,
+      ok
+          ? state.tt('Kartel daveti gönderildi.', 'Cartel invite sent.')
+          : (state.lastAuthError.trim().isNotEmpty
+                ? state.lastAuthError
+                : state.tt('Davet gönderilemedi.', 'Invite failed.')),
+    );
+  }
+
   Future<void> _handleGangJoinRequestDecision(
     BuildContext context,
     GameState state,
@@ -307,6 +364,19 @@ class ProfileScreen extends StatelessWidget {
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
                           ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: state.tt(
+                          'Kartele Davet Et',
+                          'Invite to Cartel',
+                        ),
+                        onPressed: state.isGangLeader
+                            ? () => _promptGangInvite(context, state)
+                            : null,
+                        icon: const Icon(
+                          Icons.person_add_alt_1_rounded,
+                          color: Color(0xFFFBBF24),
                         ),
                       ),
                       IconButton(
@@ -1983,6 +2053,17 @@ class ProfileScreen extends StatelessWidget {
               label: Text(state.tt('Kartel İçini Aç', 'Open Cartel Details')),
             ),
           ),
+          if (state.isGangLeader) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _promptGangInvite(context, state),
+                icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+                label: Text(state.tt('Kartele Davet Et', 'Invite to Cartel')),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Text(
             state.tt('KARTEL ÜYELERİ', 'CARTEL MEMBERS'),
