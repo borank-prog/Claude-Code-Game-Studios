@@ -16,8 +16,8 @@ class GangWarService {
   final FirebaseFunctions _functions;
 
   GangWarService({FirebaseFirestore? db})
-      : _db = db ?? FirebaseFirestore.instance,
-        _functions = FirebaseFunctions.instance;
+    : _db = db ?? FirebaseFirestore.instance,
+      _functions = FirebaseFunctions.instance;
 
   CollectionReference<Map<String, dynamic>> get _wars =>
       _db.collection('gang_wars');
@@ -41,9 +41,9 @@ class GangWarService {
       throw Exception('Hedef kartel bulunamadı.');
     }
     try {
-      final response = await _functions
-          .httpsCallable('createGangWar')
-          .call(<String, dynamic>{'targetGangId': cleanTargetGangId});
+      final response = await _functions.httpsCallable('createGangWar').call(
+        <String, dynamic>{'targetGangId': cleanTargetGangId},
+      );
       return _asMap(response.data);
     } on FirebaseFunctionsException catch (e) {
       throw Exception(e.message ?? 'Kartel savaşı başlatılamadı.');
@@ -52,17 +52,15 @@ class GangWarService {
     }
   }
 
-  Future<Map<String, dynamic>> resolveWar({
-    required String warId,
-  }) async {
+  Future<Map<String, dynamic>> resolveWar({required String warId}) async {
     final cleanWarId = warId.trim();
     if (cleanWarId.isEmpty) {
       throw Exception('Savaş bulunamadı.');
     }
     try {
-      final response = await _functions
-          .httpsCallable('resolveGangWar')
-          .call(<String, dynamic>{'warId': cleanWarId});
+      final response = await _functions.httpsCallable('resolveGangWar').call(
+        <String, dynamic>{'warId': cleanWarId},
+      );
       return _asMap(response.data);
     } on FirebaseFunctionsException catch (e) {
       throw Exception(e.message ?? 'Kartel savaşı çözümlenemedi.');
@@ -144,8 +142,10 @@ class GangWarService {
       defenderPowerSnapshot: 0,
       durationMinutes: durationMinutes,
       pairCooldownUntilEpoch:
-          now.add(Duration(minutes: pairCooldownMinutes)).millisecondsSinceEpoch ~/
-              1000,
+          now
+              .add(Duration(minutes: pairCooldownMinutes))
+              .millisecondsSinceEpoch ~/
+          1000,
       status: GangWarStatus.recruiting,
       result: GangWarResult.pending,
       winnerGangId: '',
@@ -166,10 +166,7 @@ class GangWarService {
       'side': GangWarSide.attacker.name,
       'actorUid': createdBy,
       'actorName': participant.displayName,
-      'payload': {
-        'attackerGangId': attackerId,
-        'defenderGangId': defenderId,
-      },
+      'payload': {'attackerGangId': attackerId, 'defenderGangId': defenderId},
       'createdAt': FieldValue.serverTimestamp(),
     });
     await batch.commit().timeout(const Duration(seconds: 8));
@@ -197,87 +194,95 @@ class GangWarService {
     }
 
     final warRef = _wars.doc(cleanWarId);
-    final participantRef = _participants.doc(participantDocId(cleanWarId, cleanUid));
-    await _db.runTransaction((tx) async {
-      final warSnap = await tx.get(warRef);
-      if (!warSnap.exists) {
-        throw Exception('Savaş bulunamadı.');
-      }
-      final war = GangWar.fromFirestore(warSnap.id, warSnap.data()!);
-      if (war.isFinished || war.status == GangWarStatus.active) {
-        throw Exception('Bu savaşa artık katılamazsın.');
-      }
+    final participantRef = _participants.doc(
+      participantDocId(cleanWarId, cleanUid),
+    );
+    await _db
+        .runTransaction((tx) async {
+          final warSnap = await tx.get(warRef);
+          if (!warSnap.exists) {
+            throw Exception('Savaş bulunamadı.');
+          }
+          final war = GangWar.fromFirestore(warSnap.id, warSnap.data()!);
+          if (war.isFinished || war.status == GangWarStatus.active) {
+            throw Exception('Bu savaşa artık katılamazsın.');
+          }
 
-      final expectedGangId = side == GangWarSide.attacker
-          ? war.attackerGangId
-          : war.defenderGangId;
-      if (cleanGangId != expectedGangId) {
-        throw Exception('Yanlış taraf için katılım isteği.');
-      }
+          final expectedGangId = side == GangWarSide.attacker
+              ? war.attackerGangId
+              : war.defenderGangId;
+          if (cleanGangId != expectedGangId) {
+            throw Exception('Yanlış taraf için katılım isteği.');
+          }
 
-      final existing = await tx.get(participantRef);
-      if (existing.exists) {
-        tx.update(participantRef, {
-          'status': GangWarParticipantStatus.active.name,
-          'ready': true,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-      } else {
-        final participant = GangWarParticipant(
-          warId: cleanWarId,
-          uid: cleanUid,
-          displayName: displayName.trim().isEmpty ? 'Oyuncu' : displayName.trim(),
-          gangId: cleanGangId,
-          gangRole: gangRole.trim().isEmpty ? 'Üye' : gangRole.trim(),
-          side: side,
-          status: GangWarParticipantStatus.active,
-          powerSnapshot: powerSnapshot,
-          weaponId: weaponId.trim(),
-          armorId: armorId.trim(),
-          knifeId: knifeId.trim(),
-          vehicleId: vehicleId.trim(),
-          ready: true,
-          turnOrder: 0,
-          joinedAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-        tx.set(participantRef, participant.toMap());
-      }
+          final existing = await tx.get(participantRef);
+          if (existing.exists) {
+            tx.update(participantRef, {
+              'status': GangWarParticipantStatus.active.name,
+              'ready': true,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          } else {
+            final participant = GangWarParticipant(
+              warId: cleanWarId,
+              uid: cleanUid,
+              displayName: displayName.trim().isEmpty
+                  ? 'Oyuncu'
+                  : displayName.trim(),
+              gangId: cleanGangId,
+              gangRole: gangRole.trim().isEmpty ? 'Üye' : gangRole.trim(),
+              side: side,
+              status: GangWarParticipantStatus.active,
+              powerSnapshot: powerSnapshot,
+              weaponId: weaponId.trim(),
+              armorId: armorId.trim(),
+              knifeId: knifeId.trim(),
+              vehicleId: vehicleId.trim(),
+              ready: true,
+              turnOrder: 0,
+              joinedAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            );
+            tx.set(participantRef, participant.toMap());
+          }
 
-      final nextAttackerCount = side == GangWarSide.attacker
-          ? (war.attackerCount + 1).clamp(0, war.participantLimit)
-          : war.attackerCount;
-      final nextDefenderCount = side == GangWarSide.defender
-          ? (war.defenderCount + 1).clamp(0, war.participantLimit)
-          : war.defenderCount;
-      final nextStatus = (nextAttackerCount >= war.minParticipants &&
-              nextDefenderCount >= war.minParticipants)
-          ? GangWarStatus.ready
-          : GangWarStatus.recruiting;
+          final nextAttackerCount = side == GangWarSide.attacker
+              ? (war.attackerCount + 1).clamp(0, war.participantLimit)
+              : war.attackerCount;
+          final nextDefenderCount = side == GangWarSide.defender
+              ? (war.defenderCount + 1).clamp(0, war.participantLimit)
+              : war.defenderCount;
+          final nextStatus =
+              (nextAttackerCount >= war.minParticipants &&
+                  nextDefenderCount >= war.minParticipants)
+              ? GangWarStatus.ready
+              : GangWarStatus.recruiting;
 
-      tx.update(warRef, {
-        'attackerCount': nextAttackerCount,
-        'defenderCount': nextDefenderCount,
-        'status': nextStatus.name,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }).timeout(const Duration(seconds: 10));
+          tx.update(warRef, {
+            'attackerCount': nextAttackerCount,
+            'defenderCount': nextDefenderCount,
+            'status': nextStatus.name,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        })
+        .timeout(const Duration(seconds: 10));
   }
 
-  Future<void> leaveWar({
-    required String warId,
-    required String uid,
-  }) async {
+  Future<void> leaveWar({required String warId, required String uid}) async {
     final cleanWarId = warId.trim();
     final cleanUid = uid.trim();
     if (cleanWarId.isEmpty || cleanUid.isEmpty) return;
 
-    final participantRef = _participants.doc(participantDocId(cleanWarId, cleanUid));
-    await participantRef.update({
-      'status': GangWarParticipantStatus.left.name,
-      'ready': false,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }).timeout(const Duration(seconds: 8));
+    final participantRef = _participants.doc(
+      participantDocId(cleanWarId, cleanUid),
+    );
+    await participantRef
+        .update({
+          'status': GangWarParticipantStatus.left.name,
+          'ready': false,
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(const Duration(seconds: 8));
   }
 
   Future<void> markWarStarted({
@@ -287,14 +292,19 @@ class GangWarService {
     int durationMinutes = defaultWarDurationMinutes,
   }) async {
     final now = DateTime.now();
-    await _wars.doc(warId).update({
-      'status': GangWarStatus.active.name,
-      'startsAt': Timestamp.fromDate(now),
-      'endsAt': Timestamp.fromDate(now.add(Duration(minutes: durationMinutes))),
-      'attackerPowerSnapshot': attackerPowerSnapshot,
-      'defenderPowerSnapshot': defenderPowerSnapshot,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }).timeout(const Duration(seconds: 8));
+    await _wars
+        .doc(warId)
+        .update({
+          'status': GangWarStatus.active.name,
+          'startsAt': Timestamp.fromDate(now),
+          'endsAt': Timestamp.fromDate(
+            now.add(Duration(minutes: durationMinutes)),
+          ),
+          'attackerPowerSnapshot': attackerPowerSnapshot,
+          'defenderPowerSnapshot': defenderPowerSnapshot,
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(const Duration(seconds: 8));
   }
 
   Future<void> markWarResolved({
@@ -302,20 +312,22 @@ class GangWarService {
     required GangWarResult result,
     required String winnerGangId,
   }) async {
-    await _wars.doc(warId).update({
-      'status': GangWarStatus.resolved.name,
-      'result': result.name,
-      'winnerGangId': winnerGangId.trim(),
-      'resolvedAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    }).timeout(const Duration(seconds: 8));
+    await _wars
+        .doc(warId)
+        .update({
+          'status': GangWarStatus.resolved.name,
+          'result': result.name,
+          'winnerGangId': winnerGangId.trim(),
+          'resolvedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        })
+        .timeout(const Duration(seconds: 8));
   }
 
   Future<void> appendEvent(GangWarEvent event) async {
-    await _events.add({
-      ...event.toMap(),
-      'createdAt': FieldValue.serverTimestamp(),
-    }).timeout(const Duration(seconds: 8));
+    await _events
+        .add({...event.toMap(), 'createdAt': FieldValue.serverTimestamp()})
+        .timeout(const Duration(seconds: 8));
   }
 
   Future<void> createReport(GangWarReport report) async {
@@ -339,6 +351,29 @@ class GangWarService {
               .map((d) => GangWarParticipant.fromFirestore(d.data()))
               .toList(growable: false),
         );
+  }
+
+  Stream<List<GangWarEvent>> watchEvents({
+    required String warId,
+    int limit = 80,
+  }) {
+    final cleanWarId = warId.trim();
+    if (cleanWarId.isEmpty) return const Stream<List<GangWarEvent>>.empty();
+    return _events
+        .where('warId', isEqualTo: cleanWarId)
+        .limit(limit)
+        .snapshots()
+        .map((snap) {
+          final rows = snap.docs
+              .map((d) => GangWarEvent.fromFirestore(d.id, d.data()))
+              .toList(growable: true);
+          rows.sort((a, b) {
+            final turnCompare = a.turn.compareTo(b.turn);
+            if (turnCompare != 0) return turnCompare;
+            return a.createdAt.compareTo(b.createdAt);
+          });
+          return rows;
+        });
   }
 
   Future<List<GangWar>> fetchRecentWarsForGang({

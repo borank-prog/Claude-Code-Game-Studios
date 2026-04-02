@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/gang_war.dart';
+import '../models/gang_war_event.dart';
+import '../models/gang_war_participant.dart';
 import '../models/gang_war_report.dart';
 import '../services/gang_war_service.dart';
 import '../state/game_state.dart';
@@ -320,6 +322,381 @@ class _GangWarScreenState extends State<GangWarScreen> {
     return '$hh:$mm';
   }
 
+  String _participantSlotLabel(GameState state, GangWarParticipant p) {
+    return '${p.displayName} • ${state.gangRoleName(p.gangRole)} • ${state.tt('Güç', 'Power')}: ${p.powerSnapshot}';
+  }
+
+  String _eventTitle(GameState state, GangWarEvent e) {
+    switch (e.type) {
+      case 'war_created':
+        return state.tt('Savaş Başladı', 'War Started');
+      case 'duel_resolved':
+        return state.tt('Tur ${e.turn}', 'Round ${e.turn}');
+      case 'war_resolved':
+        return state.tt('Savaş Sonucu', 'War Result');
+      default:
+        return state.tt('Olay', 'Event');
+    }
+  }
+
+  String _eventBody(GameState state, GangWarEvent e) {
+    final payload = e.payload;
+    if (e.type == 'war_created') {
+      final ac = (payload['attackerCount'] as num?)?.toInt() ?? 0;
+      final dc = (payload['defenderCount'] as num?)?.toInt() ?? 0;
+      final dur = (payload['durationMinutes'] as num?)?.toInt() ?? 0;
+      return state.tt(
+        'Kadrolar hazırlandı: $ac vs $dc • Süre: $dur dk',
+        'Rosters are ready: $ac vs $dc • Duration: $dur min',
+      );
+    }
+    if (e.type == 'duel_resolved') {
+      final atkName = (payload['attackerName']?.toString() ?? '').trim();
+      final defName = (payload['defenderName']?.toString() ?? '').trim();
+      final atkWeapon = (payload['attackerWeapon']?.toString() ?? '').trim();
+      final defWeapon = (payload['defenderWeapon']?.toString() ?? '').trim();
+      final atkTotal = (payload['attackerTotal'] as num?)?.toInt() ?? 0;
+      final defTotal = (payload['defenderTotal'] as num?)?.toInt() ?? 0;
+      final result = (payload['result']?.toString() ?? '').trim();
+      final resultLabel = result == 'attacker'
+          ? state.tt('Saldıran turu aldı', 'Attacker won the round')
+          : result == 'defender'
+          ? state.tt('Savunan turu aldı', 'Defender won the round')
+          : state.tt('Tur berabere', 'Round draw');
+      return state.tt(
+        '$atkName ($atkWeapon) vs $defName ($defWeapon) • $atkTotal-$defTotal • $resultLabel',
+        '$atkName ($atkWeapon) vs $defName ($defWeapon) • $atkTotal-$defTotal • $resultLabel',
+      );
+    }
+    if (e.type == 'war_resolved') {
+      final atkScore = (payload['attackerScore'] as num?)?.toInt() ?? 0;
+      final defScore = (payload['defenderScore'] as num?)?.toInt() ?? 0;
+      final winnerGangId = (payload['winnerGangId']?.toString() ?? '').trim();
+      if (winnerGangId.isEmpty) {
+        return state.tt(
+          'Skor: $atkScore-$defScore • Berabere',
+          'Score: $atkScore-$defScore • Draw',
+        );
+      }
+      final winnerName = (payload['winnerGangName']?.toString() ?? '').trim();
+      return state.tt(
+        'Skor: $atkScore-$defScore • Kazanan: ${winnerName.isEmpty ? winnerGangId : winnerName}',
+        'Score: $atkScore-$defScore • Winner: ${winnerName.isEmpty ? winnerGangId : winnerName}',
+      );
+    }
+    return state.tt('Detay bulunamadı.', 'No details available.');
+  }
+
+  Future<void> _openWarDetailSheet(GameState state, GangWar war) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F1B33),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (sheetCtx) {
+        return SafeArea(
+          top: false,
+          child: SizedBox(
+            height: MediaQuery.of(sheetCtx).size.height * 0.88,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${war.attackerGangName}  vs  ${war.defenderGangName}',
+                          style: const TextStyle(
+                            color: Color(0xFFFBBF24),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _statusColor(war).withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          _statusLabel(state, war),
+                          style: TextStyle(
+                            color: _statusColor(war),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${state.tt('Skor', 'Score')}: ${war.attackerCount}-${war.defenderCount}  •  ${state.tt('Başlangıç', 'Start')}: ${_timeLabel(war.startsAt)}  •  ${state.tt('Bitiş', 'End')}: ${_timeLabel(war.endsAt)}',
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    state.tt('KADROLAR', 'ROSTERS'),
+                    style: const TextStyle(
+                      color: Color(0xFFFBBF24),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: StreamBuilder<List<GangWarParticipant>>(
+                      stream: _service.watchParticipants(war.id),
+                      builder: (context, participantSnap) {
+                        final participants =
+                            participantSnap.data ??
+                            const <GangWarParticipant>[];
+                        final attackers = participants
+                            .where((p) => p.side == GangWarSide.attacker)
+                            .toList(growable: false);
+                        final defenders = participants
+                            .where((p) => p.side == GangWarSide.defender)
+                            .toList(growable: false);
+
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.03),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: const Color(0x337F8EA8),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      state.tt('Saldıran', 'Attacker'),
+                                      style: const TextStyle(
+                                        color: Color(0xFF34D399),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    if (attackers.isEmpty)
+                                      Text(
+                                        state.tt(
+                                          'Kadrolar yükleniyor...',
+                                          'Roster loading...',
+                                        ),
+                                        style: const TextStyle(
+                                          color: Color(0xFF94A3B8),
+                                          fontSize: 12,
+                                        ),
+                                      )
+                                    else
+                                      ...attackers.map(
+                                        (p) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 4,
+                                          ),
+                                          child: Text(
+                                            _participantSlotLabel(state, p),
+                                            style: const TextStyle(
+                                              color: Color(0xFFCBD5E1),
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.03),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: const Color(0x337F8EA8),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      state.tt('Savunan', 'Defender'),
+                                      style: const TextStyle(
+                                        color: Color(0xFF60A5FA),
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    if (defenders.isEmpty)
+                                      Text(
+                                        state.tt(
+                                          'Kadrolar yükleniyor...',
+                                          'Roster loading...',
+                                        ),
+                                        style: const TextStyle(
+                                          color: Color(0xFF94A3B8),
+                                          fontSize: 12,
+                                        ),
+                                      )
+                                    else
+                                      ...defenders.map(
+                                        (p) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 4,
+                                          ),
+                                          child: Text(
+                                            _participantSlotLabel(state, p),
+                                            style: const TextStyle(
+                                              color: Color(0xFFCBD5E1),
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    state.tt('SAVAŞ AKIŞI', 'WAR FLOW'),
+                    style: const TextStyle(
+                      color: Color(0xFFFBBF24),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: StreamBuilder<List<GangWarEvent>>(
+                      stream: _service.watchEvents(warId: war.id, limit: 100),
+                      builder: (context, eventSnap) {
+                        final events = eventSnap.data ?? const <GangWarEvent>[];
+                        if (events.isEmpty) {
+                          return Text(
+                            state.tt(
+                              'Henüz savaş olayı oluşmadı.',
+                              'No war events yet.',
+                            ),
+                            style: const TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12,
+                            ),
+                          );
+                        }
+                        return ListView.builder(
+                          itemCount: events.length,
+                          itemBuilder: (_, i) {
+                            final e = events[i];
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.03),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0x337F8EA8),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        _eventTitle(state, e),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      const Spacer(),
+                                      Text(
+                                        _timeLabel(e.createdAt),
+                                        style: const TextStyle(
+                                          color: Color(0xFF94A3B8),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    _eventBody(state, e),
+                                    style: const TextStyle(
+                                      color: Color(0xFFCBD5E1),
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _busy
+                              ? null
+                              : () => Navigator.pop(sheetCtx),
+                          child: Text(state.tt('Kapat', 'Close')),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: (_busy || war.isFinished)
+                              ? null
+                              : () async {
+                                  Navigator.pop(sheetCtx);
+                                  await _resolveWar(state, war);
+                                },
+                          icon: const Icon(Icons.bolt_rounded, size: 16),
+                          label: Text(state.tt('Savaşı Çöz', 'Resolve War')),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<GameState>();
@@ -452,71 +829,95 @@ class _GangWarScreenState extends State<GangWarScreen> {
               )
             else
               ...activeWars.map(
-                (war) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0x2214213B),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0x557F8EA8)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${war.attackerGangName}  vs  ${war.defenderGangName}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _statusColor(war).withValues(alpha: 0.16),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _statusLabel(state, war),
-                              style: TextStyle(
-                                color: _statusColor(war),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                (war) => InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _openWarDetailSheet(state, war),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0x2214213B),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0x557F8EA8)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${war.attackerGangName}  vs  ${war.defenderGangName}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _statusColor(
+                                  war,
+                                ).withValues(alpha: 0.16),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                _statusLabel(state, war),
+                                style: TextStyle(
+                                  color: _statusColor(war),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${state.tt('Skor', 'Score')}: ${war.attackerCount}-${war.defenderCount}  •  ${state.tt('Bitiş', 'Ends')}: ${_timeLabel(war.endsAt)}',
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 12,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${state.tt('Skor', 'Score')}: ${war.attackerCount}-${war.defenderCount}  •  ${state.tt('Bitiş', 'Ends')}: ${_timeLabel(war.endsAt)}',
-                        style: const TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 12,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _busy
-                              ? null
-                              : () => _resolveWar(state, war),
-                          icon: const Icon(Icons.bolt_rounded, size: 16),
-                          label: Text(state.tt('Savaşı Çöz', 'Resolve War')),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _busy
+                                    ? null
+                                    : () => _openWarDetailSheet(state, war),
+                                icon: const Icon(
+                                  Icons.visibility_outlined,
+                                  size: 16,
+                                ),
+                                label: Text(state.tt('Detay', 'Details')),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _busy
+                                    ? null
+                                    : () => _resolveWar(state, war),
+                                icon: const Icon(Icons.bolt_rounded, size: 16),
+                                label: Text(
+                                  state.tt('Savaşı Çöz', 'Resolve War'),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -539,54 +940,58 @@ class _GangWarScreenState extends State<GangWarScreen> {
               ...historyWars
                   .take(8)
                   .map(
-                    (war) => Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0x2214213B),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0x557F8EA8)),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${war.attackerGangName}  vs  ${war.defenderGangName}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
+                    (war) => InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => _openWarDetailSheet(state, war),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0x2214213B),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0x557F8EA8)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${war.attackerGangName}  vs  ${war.defenderGangName}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  _resultLabel(state, war),
-                                  style: const TextStyle(
-                                    color: Color(0xFF94A3B8),
-                                    fontSize: 12,
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _resultLabel(state, war),
+                                    style: const TextStyle(
+                                      color: Color(0xFF94A3B8),
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (war.winnerGangId.trim().isNotEmpty)
-                            Text(
-                              war.winnerGangId.trim() == state.gangId
-                                  ? state.tt('Kazandın', 'Won')
-                                  : state.tt('Kaybettin', 'Lost'),
-                              style: TextStyle(
-                                color: war.winnerGangId.trim() == state.gangId
-                                    ? const Color(0xFF34D399)
-                                    : const Color(0xFFF87171),
-                                fontWeight: FontWeight.w700,
+                                ],
                               ),
                             ),
-                        ],
+                            if (war.winnerGangId.trim().isNotEmpty)
+                              Text(
+                                war.winnerGangId.trim() == state.gangId
+                                    ? state.tt('Kazandın', 'Won')
+                                    : state.tt('Kaybettin', 'Lost'),
+                                style: TextStyle(
+                                  color: war.winnerGangId.trim() == state.gangId
+                                      ? const Color(0xFF34D399)
+                                      : const Color(0xFFF87171),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
