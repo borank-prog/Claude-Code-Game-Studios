@@ -239,7 +239,7 @@ void main() {
       expect(gs.missionFailureLeadsToJail(robbery), true);
     });
 
-    test('non-robbery missions route failure to hospital', () {
+    test('non-robbery missions also route failure to jail', () {
       final gs = GameState();
       final nonRobbery = const MissionDef(
         id: 'teslimat_easy',
@@ -251,10 +251,10 @@ void main() {
         xp: 10,
         successRate: 0.5,
       );
-      expect(gs.missionFailureLeadsToJail(nonRobbery), false);
+      expect(gs.missionFailureLeadsToJail(nonRobbery), true);
     });
 
-    test('hard mission is not automatically jail without robbery marker', () {
+    test('hard mission is also jail by global mission penalty rule', () {
       final gs = GameState();
       final hardButNonRobbery = const MissionDef(
         id: 'egitim_hard',
@@ -266,7 +266,7 @@ void main() {
         xp: 18,
         successRate: 0.4,
       );
-      expect(gs.missionFailureLeadsToJail(hardButNonRobbery), false);
+      expect(gs.missionFailureLeadsToJail(hardButNonRobbery), true);
     });
   });
 
