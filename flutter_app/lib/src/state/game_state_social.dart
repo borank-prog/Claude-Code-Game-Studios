@@ -90,7 +90,8 @@ mixin _GameStateSocial on _GameStateBase {
       notifyListeners();
       return false;
     }
-    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty) return false;
+    if (!firebaseReady || authMode != 'firebase' || userId.isEmpty)
+      return false;
     final cleanFriendUid = friendUid.trim();
     if (cleanFriendUid.isEmpty || cleanFriendUid == userId) return false;
     try {
@@ -153,6 +154,9 @@ mixin _GameStateSocial on _GameStateBase {
       return false;
     }
     try {
+      // Yeni hesapta users/{uid} belgesi henüz oluşmadıysa, çete kurmadan önce
+      // profil belgesini güvenli şekilde oluştur.
+      await ensureOnlineProfile();
       final result = await _onlineService.createGang(
         ownerUid: userId,
         ownerName: playerName,
@@ -318,10 +322,7 @@ mixin _GameStateSocial on _GameStateBase {
       );
       _addNews(
         tt('Çete Daveti', 'Gang Invite'),
-        tt(
-          '$raw oyuncusuna davet gönderildi.',
-          'Invite sent to $raw.',
-        ),
+        tt('$raw oyuncusuna davet gönderildi.', 'Invite sent to $raw.'),
       );
       await refreshSocialData();
       notifyListeners();

@@ -373,6 +373,21 @@ class OnlineService {
         .timeout(_firestoreOpTimeout);
   }
 
+  Future<Map<String, dynamic>> secureSkipPenalty({
+    required String penalty,
+    required int cost,
+  }) async {
+    final res = await FirebaseFunctions.instance
+        .httpsCallable('secureSkipPenalty')
+        .call({'penalty': penalty, 'cost': cost})
+        .timeout(_firestoreOpTimeout);
+    final raw = res.data;
+    if (raw is Map) {
+      return Map<String, dynamic>.from(raw);
+    }
+    return <String, dynamic>{};
+  }
+
   Future<Map<String, dynamic>?> fetchUserProfile(String uid) async {
     if (uid.trim().isEmpty) return null;
     final snap = await FirebaseFirestore.instance
@@ -712,6 +727,12 @@ class OnlineService {
     final userRef = FirebaseFirestore.instance
         .collection('users')
         .doc(cleanOwnerUid);
+    final ownerProfileSeed = <String, dynamic>{
+      'uid': cleanOwnerUid,
+      'name': cleanOwnerName,
+      'displayName': cleanOwnerName,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
 
     // Legacy/stale saves may carry a gangId while the gang doc no longer exists.
     // Auto-clean that mismatch to avoid false "already in gang" blocks.
@@ -728,10 +749,10 @@ class OnlineService {
       }
       await userRef
           .set({
+            ...ownerProfileSeed,
             'gangId': '',
             'gangName': '',
             'gangRole': '',
-            'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true))
           .timeout(_firestoreOpTimeout);
     }
@@ -741,10 +762,10 @@ class OnlineService {
     if (recoveredGang != null && (recoveredGang['gangId'] ?? '').isNotEmpty) {
       await userRef
           .set({
+            ...ownerProfileSeed,
             'gangId': recoveredGang['gangId'],
             'gangName': recoveredGang['gangName'] ?? '',
             'gangRole': recoveredGang['gangRole'] ?? 'Üye',
-            'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true))
           .timeout(_firestoreOpTimeout);
       throw Exception('Zaten bir çetedesin.');
@@ -782,10 +803,10 @@ class OnlineService {
             'joinedAt': FieldValue.serverTimestamp(),
           });
           tx.set(userRef, {
+            ...ownerProfileSeed,
             'gangId': gangRef.id,
             'gangName': cleanGangName,
             'gangRole': 'Lider',
-            'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
         })
         .timeout(const Duration(seconds: 10));
@@ -1009,6 +1030,9 @@ class OnlineService {
           }
 
           tx.set(userRef, {
+            'uid': memberUid,
+            'name': displayName,
+            'displayName': displayName,
             'gangId': gangId,
             'gangName': (gang['name'] as String? ?? 'Çete'),
             'gangRole': 'Üye',
@@ -1202,6 +1226,9 @@ class OnlineService {
           }
 
           tx.set(userRef, {
+            'uid': cleanUid,
+            'name': displayName,
+            'displayName': displayName,
             'gangId': gangId,
             'gangName': (gang['name'] as String? ?? 'Çete'),
             'gangRole': 'Üye',
@@ -1339,6 +1366,9 @@ class OnlineService {
           }
 
           tx.set(userRef, {
+            'uid': cleanUid,
+            'name': displayName,
+            'displayName': displayName,
             'gangId': cleanGangId,
             'gangName': gangName,
             'gangRole': 'Üye',
@@ -1367,6 +1397,7 @@ class OnlineService {
     final batch = FirebaseFirestore.instance.batch();
     batch.delete(memberRef);
     batch.set(userRef, {
+      'uid': uid,
       'gangId': '',
       'gangName': '',
       'gangRole': '',
@@ -1457,8 +1488,10 @@ class OnlineService {
   List<Map<String, dynamic>> _dedupeGangList(List<Map<String, dynamic>> rows) {
     final byOwner = <String, Map<String, dynamic>>{};
     final ownerless = <Map<String, dynamic>>[];
-    int memberCountOf(Map<String, dynamic> g) => (g['memberCount'] as num?)?.toInt() ?? 0;
-    int powerOf(Map<String, dynamic> g) => (g['totalPower'] as num?)?.toInt() ?? 0;
+    int memberCountOf(Map<String, dynamic> g) =>
+        (g['memberCount'] as num?)?.toInt() ?? 0;
+    int powerOf(Map<String, dynamic> g) =>
+        (g['totalPower'] as num?)?.toInt() ?? 0;
 
     for (final raw in rows) {
       final g = Map<String, dynamic>.from(raw);
@@ -1480,10 +1513,8 @@ class OnlineService {
     }
 
     final byName = <String, Map<String, dynamic>>{};
-    String normalizeName(String value) => value
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9çğıöşü]+'), '')
-        .trim();
+    String normalizeName(String value) =>
+        value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9çğıöşü]+'), '').trim();
 
     for (final g in [...ownerless, ...byOwner.values]) {
       final nameKey = normalizeName((g['name'] as String? ?? ''));
