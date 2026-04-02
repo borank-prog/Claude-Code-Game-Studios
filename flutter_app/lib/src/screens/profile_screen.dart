@@ -9,6 +9,7 @@ import '../widgets/glass_panel.dart';
 import '../widgets/item_asset_image.dart';
 import 'gang_chat_screen.dart';
 import 'gang_leaderboard_screen.dart';
+import 'gang_war_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -2043,6 +2044,19 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const GangWarScreen()),
+                );
+              },
+              icon: const Icon(Icons.shield_moon_outlined, size: 18),
+              label: Text(state.tt('Kartel Savaşı', 'Cartel War')),
+            ),
           ),
           if (state.isGangLeader) ...[
             const SizedBox(height: 8),
