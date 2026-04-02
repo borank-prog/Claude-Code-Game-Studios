@@ -316,7 +316,12 @@ class _GameStateBase extends ChangeNotifier {
     return playerName;
   }
 
-  String get gangId => currentGang?['id']?.toString() ?? '';
+  String get gangId {
+    final id = (currentGang?['id']?.toString() ?? '').trim();
+    if (id.isNotEmpty) return id;
+    // Legacy payload compatibility: some saves persisted `gangId` instead of `id`.
+    return (currentGang?['gangId']?.toString() ?? '').trim();
+  }
   bool get hasGang => gangId.isNotEmpty;
   static const List<String> _gangRoleOptions = <String>[
     'Sağ Kol',
@@ -2513,7 +2518,23 @@ class _GameStateBase extends ChangeNotifier {
       ..clear()
       ..addAll(((map['news'] as List<dynamic>? ?? const []).cast<String>()));
 
-    currentGang = (map['currentGang'] as Map<String, dynamic>?);
+    final rawCurrentGang = (map['currentGang'] as Map?)?.map(
+      (k, v) => MapEntry(k.toString(), v),
+    );
+    if (rawCurrentGang != null) {
+      final normalizedGang = Map<String, dynamic>.from(rawCurrentGang);
+      final normalizedId =
+          ((normalizedGang['id'] ?? normalizedGang['gangId']) as String?)
+              ?.trim() ??
+          '';
+      if (normalizedId.isNotEmpty) {
+        normalizedGang['id'] = normalizedId;
+        normalizedGang['gangId'] = normalizedId;
+      }
+      currentGang = normalizedGang;
+    } else {
+      currentGang = null;
+    }
     gangRank = map['gangRank'] as int? ?? 1;
     gangRespectPoints = map['gangRespectPoints'] as int? ?? 0;
     gangVault = map['gangVault'] as int? ?? 25000;

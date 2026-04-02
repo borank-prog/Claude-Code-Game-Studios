@@ -280,161 +280,196 @@ class ProfileScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
       builder: (sheetCtx) {
+        final maxHeight = MediaQuery.of(sheetCtx).size.height * 0.78;
         return SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.groups_rounded,
-                      color: Color(0xFFFBBF24),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        gangName.isEmpty
-                            ? state.tt('Kartel Üyeleri', 'Cartel Members')
-                            : '$gangName • ${state.tt('Üyeler', 'Members')}',
-                        style: const TextStyle(
-                          color: Color(0xFFFBBF24),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
-                        ),
+          child: SizedBox(
+            height: maxHeight,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.groups_rounded,
+                        color: Color(0xFFFBBF24),
+                        size: 18,
                       ),
-                    ),
-                    IconButton(
-                      tooltip: state.tt('Yenile', 'Refresh'),
-                      onPressed: () async {
-                        await state.refreshSocialData();
-                        if (!sheetCtx.mounted) return;
-                        Navigator.of(sheetCtx).pop();
-                        if (context.mounted) {
-                          _openGangMembersSheet(context, state);
-                        }
-                      },
-                      icon: const Icon(
-                        Icons.refresh_rounded,
-                        color: Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  '${state.tt('Toplam Üye', 'Total Members')}: ${members.length}  •  ${state.tt('Aktif', 'Online')}: ${state.onlineGangMembers}',
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Flexible(
-                  child: members.isEmpty
-                      ? Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            state.tt(
-                              'Kartel üyeleri yüklenemedi.',
-                              'Could not load cartel members.',
-                            ),
-                            style: const TextStyle(
-                              color: Color(0xFF94A3B8),
-                              fontSize: 12,
-                            ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          gangName.isEmpty
+                              ? state.tt('Kartel Üyeleri', 'Cartel Members')
+                              : '$gangName • ${state.tt('Üyeler', 'Members')}',
+                          style: const TextStyle(
+                            color: Color(0xFFFBBF24),
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
                           ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: members.length,
-                          itemBuilder: (_, i) {
-                            final m = members[i];
-                            final memberUid = (m['uid']?.toString() ?? '')
-                                .trim();
-                            final memberName =
-                                (m['displayName']?.toString() ?? '')
-                                    .trim()
-                                    .isEmpty
-                                ? state.tt('Oyuncu', 'Player')
-                                : m['displayName'].toString().trim();
-                            final role = (m['role']?.toString() ?? 'Üye')
-                                .trim();
-                            final power = (m['power'] as num?)?.toInt() ?? 0;
-                            final isSelf = memberUid == state.userId;
-                            final canAssign =
-                                state.isGangLeader &&
-                                !isSelf &&
-                                role != 'Lider' &&
-                                memberUid.isNotEmpty;
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 9,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.03),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: const Color(0x334B5563),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          memberName,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w800,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          '${state.gangRoleName(role)}  •  ${state.tt('Güç', 'Power')}: $power',
-                                          style: const TextStyle(
-                                            color: Color(0xFF94A3B8),
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (canAssign)
-                                    TextButton(
-                                      onPressed: () => _openGangRolePicker(
-                                        context,
-                                        state,
-                                        memberUid: memberUid,
-                                        memberName: memberName,
-                                        currentRole: role,
-                                      ),
-                                      child: Text(
-                                        state.tt('Rütbe Ver', 'Set Rank'),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            );
-                          },
                         ),
-                ),
-              ],
+                      ),
+                      IconButton(
+                        tooltip: state.tt('Yenile', 'Refresh'),
+                        onPressed: () async {
+                          await state.refreshSocialData();
+                          if (!sheetCtx.mounted) return;
+                          Navigator.of(sheetCtx).pop();
+                          if (context.mounted) {
+                            _openGangMembersSheet(context, state);
+                          }
+                        },
+                        icon: const Icon(
+                          Icons.refresh_rounded,
+                          color: Color(0xFF94A3B8),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${state.tt('Toplam Üye', 'Total Members')}: ${members.length}  •  ${state.tt('Aktif', 'Online')}: ${state.onlineGangMembers}',
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: members.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              state.tt(
+                                'Kartel üyeleri yüklenemedi.',
+                                'Could not load cartel members.',
+                              ),
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 12,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: members.length,
+                            itemBuilder: (_, i) {
+                              final m = members[i];
+                              final memberUid = (m['uid']?.toString() ?? '')
+                                  .trim();
+                              final memberName =
+                                  (m['displayName']?.toString() ?? '')
+                                      .trim()
+                                      .isEmpty
+                                  ? state.tt('Oyuncu', 'Player')
+                                  : m['displayName'].toString().trim();
+                              final role = (m['role']?.toString() ?? 'Üye')
+                                  .trim();
+                              final power = (m['power'] as num?)?.toInt() ?? 0;
+                              final isSelf = memberUid == state.userId;
+                              final canAssign =
+                                  state.isGangLeader &&
+                                  !isSelf &&
+                                  role != 'Lider' &&
+                                  memberUid.isNotEmpty;
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 9,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.03),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: const Color(0x334B5563),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            memberName,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${state.gangRoleName(role)}  •  ${state.tt('Güç', 'Power')}: $power',
+                                            style: const TextStyle(
+                                              color: Color(0xFF94A3B8),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (canAssign)
+                                      TextButton(
+                                        onPressed: () => _openGangRolePicker(
+                                          context,
+                                          state,
+                                          memberUid: memberUid,
+                                          memberName: memberName,
+                                          currentRole: role,
+                                        ),
+                                        child: Text(
+                                          state.tt('Rütbe Ver', 'Set Rank'),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  Future<void> _openGangChat(BuildContext context, GameState state) async {
+    var roomId = state.gangId.trim();
+    if (roomId.isEmpty) {
+      await state.refreshSocialData();
+      roomId = state.gangId.trim();
+    }
+    if (!context.mounted) return;
+    if (roomId.isEmpty) {
+      _snack(
+        context,
+        state.tt(
+          'Kartel bilgisi yüklenemedi. Sayfayı yenileyip tekrar dene.',
+          'Cartel info is missing. Refresh and try again.',
+        ),
+      );
+      return;
+    }
+    final roomName =
+        (state.currentGang?['name']?.toString() ?? '').trim().isEmpty
+        ? state.tt('Kartel', 'Cartel')
+        : state.currentGang!['name'].toString().trim();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GangChatScreen(
+          roomId: roomId,
+          roomName: roomName,
+          currentUid: state.userId,
+          currentName: state.playerName,
+        ),
+      ),
     );
   }
 
@@ -1864,50 +1899,57 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0x2214213B),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x557F8EA8)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  gangName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
+              onTap: () => _openGangMembersSheet(context, state),
+              child: Ink(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0x2214213B),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x557F8EA8)),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${state.tt('Rütbe', 'Rank')}: ${state.gangRank}   •   ${state.tt('Toplam Güç', 'Total Power')}: ${state.totalGangPower}',
-                  style: const TextStyle(
-                    color: Color(0xFFFBBF24),
-                    fontSize: 12,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      gangName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${state.tt('Rütbe', 'Rank')}: ${state.gangRank}   •   ${state.tt('Toplam Güç', 'Total Power')}: ${state.totalGangPower}',
+                      style: const TextStyle(
+                        color: Color(0xFFFBBF24),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${state.tt('Kasa', 'Vault')}: \$${state.gangVault}   •   ${state.tt('Saygınlık', 'Respect')}: ${state.gangRespectPoints}',
+                      style: const TextStyle(
+                        color: Color(0xFF34D399),
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${state.tt('Aktif Üye', 'Online Members')}: ${state.onlineGangMembers}/${state.gangMembers.length}',
+                      style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${state.tt('Kasa', 'Vault')}: \$${state.gangVault}   •   ${state.tt('Saygınlık', 'Respect')}: ${state.gangRespectPoints}',
-                  style: const TextStyle(
-                    color: Color(0xFF34D399),
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${state.tt('Aktif Üye', 'Online Members')}: ${state.onlineGangMembers}/${state.gangMembers.length}',
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -1915,18 +1957,7 @@ class ProfileScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => GangChatScreen(
-                          roomId: state.gangId,
-                          roomName: gangName,
-                          currentUid: state.userId,
-                          currentName: state.playerName,
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: () => _openGangChat(context, state),
                   icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
                   label: Text(state.tt('Kartel Sohbeti', 'Cartel Chat')),
                 ),
