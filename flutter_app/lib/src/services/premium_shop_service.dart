@@ -73,8 +73,8 @@ class PremiumShopService {
     }
 
     player.gold -= vipShieldGoldCost;
-    final baseEpoch = max(nowEpoch, player.shieldUntilEpoch);
-    final shieldEnd = baseEpoch + (6 * 60 * 60);
+    // VIP shield should always grant a fixed 6-hour window from purchase time.
+    final shieldEnd = nowEpoch + (6 * 60 * 60);
     player.shieldUntilEpoch = shieldEnd;
 
     return PremiumShopResult(

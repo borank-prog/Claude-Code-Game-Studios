@@ -36,6 +36,30 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
   String? _errorMsg;
   final _pvp = PvpService();
 
+  String _friendlyError(Object e) {
+    var text = e.toString().trim();
+    if (text.startsWith('Exception:')) {
+      text = text.replaceFirst('Exception:', '').trim();
+    }
+    text = text.replaceFirst(RegExp(r'^\[[^\]]+\]\s*'), '').trim();
+    text = text
+        .replaceFirst(RegExp(r'^cloud_functions\/[a-z-]+:\s*'), '')
+        .trim();
+    final lower = text.toLowerCase();
+    if (lower.contains('yeterli altın yok') ||
+        lower.contains('yeterli altin yok') ||
+        lower.contains('insufficient gold') ||
+        lower.contains('not enough gold')) {
+      return 'Yeterli altın yok';
+    }
+    if (lower.contains('permission-denied') ||
+        lower.contains('missing or insufficient permissions')) {
+      return 'Bu işlem şu an yapılamıyor. Lütfen biraz sonra tekrar dene.';
+    }
+    if (text.isEmpty) return 'Bir hata oluştu, tekrar dene.';
+    return text;
+  }
+
   Future<void> _showActionLockedPopup(GameState state) async {
     if (!mounted) return;
     await showDialog<void>(
@@ -148,10 +172,8 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
         builder: (_) => AttackResultSheet(result: result),
       );
     } catch (e) {
-      final raw = e.toString();
-      final clean = raw.startsWith('Exception: ') ? raw.substring(11) : raw;
       setState(() {
-        _errorMsg = clean.isEmpty ? 'Bir hata oluştu, tekrar dene.' : clean;
+        _errorMsg = _friendlyError(e);
         _loading = false;
       });
     }

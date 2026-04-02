@@ -361,6 +361,45 @@ void main() {
       await gs.payHospitalWithGold();
       expect(gs.hospitalSecondsLeft, 0);
     });
+
+    test(
+      'VIP shield grants fixed 6h even when another shield is active',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final gs = GameState();
+        await gs.initialize();
+        gs.gold = 999;
+        final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+        gs.shieldUntilEpoch = now + (2 * 60 * 60); // existing 2h shield
+
+        final msg = await gs.buyVipShield();
+
+        expect(msg.contains('6 saat') || msg.contains('6h'), true);
+        expect(gs.shieldSecondsLeft, lessThanOrEqualTo(6 * 60 * 60));
+        expect(gs.shieldSecondsLeft, greaterThan(5 * 60 * 60));
+      },
+    );
+
+    test('VIP shield can be used only once per day', () async {
+      SharedPreferences.setMockInitialValues({});
+      final gs = GameState();
+      await gs.initialize();
+      gs.gold = 999;
+
+      final first = await gs.buyVipShield();
+      final goldAfterFirst = gs.gold;
+      final second = await gs.buyVipShield();
+
+      expect(first.contains('Kalkan') || first.contains('Shield'), true);
+      expect(gs.gold, goldAfterFirst);
+      expect(
+        second.contains('bugün') ||
+            second.contains('yarın') ||
+            second.contains('today') ||
+            second.contains('tomorrow'),
+        true,
+      );
+    });
   });
 
   group('Stat system', () {

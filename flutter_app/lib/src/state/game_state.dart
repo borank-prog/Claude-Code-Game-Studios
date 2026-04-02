@@ -2140,9 +2140,6 @@ class _GameStateBase extends ChangeNotifier {
     try {
       final remote = await _onlineService.fetchCloudSave(currentUid);
       final remotePayload = _asStringDynamicMap(remote?['payload']);
-      final remoteEpoch =
-          (remote?['clientUpdatedAtEpoch'] as num?)?.toInt() ?? 0;
-      final localEpoch = localUpdatedAtEpoch;
 
       if (remotePayload.isNotEmpty) {
         // Firebase hesaplarda cihazlar arası tutarlılık için cloud save öncelikli.

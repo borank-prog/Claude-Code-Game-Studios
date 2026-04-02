@@ -34,6 +34,30 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
 
   bool get _isLeader => widget.currentUserId == widget.raid.leaderId;
 
+  String _friendlyError(Object e) {
+    var text = e.toString().trim();
+    if (text.startsWith('Exception:')) {
+      text = text.replaceFirst('Exception:', '').trim();
+    }
+    text = text.replaceFirst(RegExp(r'^\[[^\]]+\]\s*'), '').trim();
+    text = text
+        .replaceFirst(RegExp(r'^cloud_functions\/[a-z-]+:\s*'), '')
+        .trim();
+    final lower = text.toLowerCase();
+    if (lower.contains('yeterli altın yok') ||
+        lower.contains('yeterli altin yok') ||
+        lower.contains('insufficient gold') ||
+        lower.contains('not enough gold')) {
+      return 'Yeterli altın yok';
+    }
+    if (lower.contains('permission-denied') ||
+        lower.contains('missing or insufficient permissions')) {
+      return 'Bu işlem için yetkin yok veya kural engeli var.';
+    }
+    if (text.isEmpty) return 'Bir hata oluştu, tekrar dene.';
+    return text;
+  }
+
   Future<void> _join(GangRaid raid) async {
     setState(() => _joining = true);
     try {
@@ -44,9 +68,9 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Katılım hatası: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
     } finally {
       if (mounted) setState(() => _joining = false);
     }
@@ -56,8 +80,9 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
     setState(() => _starting = true);
     try {
       // Server-authoritative gang raid via Cloud Function
-      final callable =
-          FirebaseFunctions.instance.httpsCallable('executeGangRaid');
+      final callable = FirebaseFunctions.instance.httpsCallable(
+        'executeGangRaid',
+      );
       final response = await callable.call<Map<String, dynamic>>({
         'raidId': raid.id,
       });
@@ -66,8 +91,8 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
       final outcome = data['outcome'] == 'win'
           ? AttackOutcome.win
           : data['outcome'] == 'lose'
-              ? AttackOutcome.lose
-              : AttackOutcome.draw;
+          ? AttackOutcome.lose
+          : AttackOutcome.draw;
 
       final result = AttackResult(
         outcome: outcome,
@@ -87,9 +112,9 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
     } catch (e) {
       setState(() => _starting = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hata: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
     }
   }
 
@@ -152,13 +177,14 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                 final isMe = uid == widget.currentUserId;
                 final isLeader = uid == raid.leaderId;
                 final displayName = filled
-                    ? (isMe
-                        ? 'Sen'
-                        : (raid.memberNames[uid] ?? 'Üye ${i + 1}'))
+                    ? (isMe ? 'Sen' : (raid.memberNames[uid] ?? 'Üye ${i + 1}'))
                     : 'Boş slot';
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: filled
                         ? const Color(0xFFfbbf24).withValues(alpha: 0.08)
@@ -174,7 +200,9 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                     children: [
                       Icon(
                         filled ? Icons.person : Icons.person_outline,
-                        color: filled ? const Color(0xFFfbbf24) : Colors.white24,
+                        color: filled
+                            ? const Color(0xFFfbbf24)
+                            : Colors.white24,
                         size: 20,
                       ),
                       const SizedBox(width: 10),
@@ -188,10 +216,14 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                       if (filled && isLeader) ...[
                         const Spacer(),
                         Container(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFfbbf24).withValues(alpha: 0.15),
+                            color: const Color(
+                              0xFFfbbf24,
+                            ).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
@@ -216,7 +248,10 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(10),
@@ -228,7 +263,10 @@ class _GangRaidLobbySheetState extends State<GangRaidLobbySheet> {
                       const SizedBox(width: 8),
                       Text(
                         'Oda: ${raid.id.substring(0, 8).toUpperCase()}',
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
