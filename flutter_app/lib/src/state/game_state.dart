@@ -51,6 +51,10 @@ class _GameStateBase extends ChangeNotifier {
   static const _jailPenaltyDurationSec = 600;
   static const _missionFailXpRatio = 0.2;
   static const _rookieEasyLevelCap = 5;
+  static const _gangWarMinMembersToStart = 3;
+  static const _gangWarMaxMembersPerSide = 5;
+  static const _gangWarDurationMinutes = 30;
+  static const _gangWarPairCooldownMinutes = 30;
   static const _pendingQueueMax = 200;
   static const _pendingQueueTtlMs = 7 * 24 * 60 * 60 * 1000;
   static const Duration _authPostStepTimeout = Duration(seconds: 2);
@@ -361,6 +365,72 @@ class _GameStateBase extends ChangeNotifier {
   }
 
   bool get canAssignGangRoles => isGangLeader;
+  bool get canInitiateGangWar => isGangLeader || isGangRightHand;
+
+  int get gangWarMinMembersToStart => _gangWarMinMembersToStart;
+  int get gangWarMaxMembersPerSide => _gangWarMaxMembersPerSide;
+  int get gangWarDurationMinutes => _gangWarDurationMinutes;
+  int get gangWarPairCooldownMinutes => _gangWarPairCooldownMinutes;
+
+  Map<String, dynamic>? _playerSnapshotByUid(String uid) {
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return null;
+    for (final row in leaderboardRows) {
+      final rowUid = (row['uid']?.toString() ?? '').trim();
+      if (rowUid == cleanUid) return row;
+    }
+    return null;
+  }
+
+  bool _isStatusBlockedForGangWar(String status) {
+    final s = status.trim().toLowerCase();
+    return s == 'hospital' || s == 'prison';
+  }
+
+  List<Map<String, dynamic>> get gangWarEligibleMembers {
+    if (gangMembers.isEmpty) return const <Map<String, dynamic>>[];
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final eligible = <Map<String, dynamic>>[];
+    for (final member in gangMembers) {
+      final uid = (member['uid']?.toString() ?? '').trim();
+      if (uid.isEmpty) continue;
+
+      final snapshot = _playerSnapshotByUid(uid);
+      final status = (snapshot?['status']?.toString() ?? 'active').trim();
+      final statusUntilEpoch = (snapshot?['statusUntilEpoch'] as num?)?.toInt() ?? 0;
+      if (_isStatusBlockedForGangWar(status) && statusUntilEpoch > now) {
+        continue;
+      }
+
+      eligible.add(member);
+    }
+    eligible.sort((a, b) {
+      final pa = (a['power'] as num?)?.toInt() ?? 0;
+      final pb = (b['power'] as num?)?.toInt() ?? 0;
+      return pb.compareTo(pa);
+    });
+    return eligible.take(_gangWarMaxMembersPerSide).toList(growable: false);
+  }
+
+  int get gangWarEligibleMemberCount => gangWarEligibleMembers.length;
+
+  String? get gangWarStartBlockReason {
+    if (!hasGang) return tt('Önce bir kartelde olmalısın.', 'You must be in a cartel first.');
+    if (!canInitiateGangWar) {
+      return tt(
+        'Çete savaşını sadece Lider veya Sağ Kol başlatabilir.',
+        'Only Leader or Right Hand can start a cartel war.',
+      );
+    }
+    if (isActionLocked) return actionLockMessage;
+    if (gangWarEligibleMemberCount < _gangWarMinMembersToStart) {
+      return tt(
+        'Çete savaşı için en az $_gangWarMinMembersToStart uygun üye gerekir.',
+        'At least $_gangWarMinMembersToStart eligible members are required for cartel war.',
+      );
+    }
+    return null;
+  }
 
   bool get gangInviteOnly => currentGang?['inviteOnly'] == true;
   bool get gangAcceptJoinRequests =>
