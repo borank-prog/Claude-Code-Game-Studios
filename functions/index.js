@@ -32,6 +32,394 @@ function resolvePenaltyStatus(data, nowEpoch = Math.floor(Date.now() / 1000)) {
   return { status: 'active', statusUntilEpoch: 0 };
 }
 
+function asInt(value, fallback = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.trunc(n);
+}
+
+function safeText(value, fallback = '', maxLen = 32) {
+  const cleaned = String(value ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return fallback;
+  return cleaned.substring(0, maxLen);
+}
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj || {}, key);
+}
+
+function sanitizeIdFromMap(raw, mapObj, fallback = '') {
+  const id = String(raw ?? '').trim();
+  if (!id) return fallback;
+  return hasOwn(mapObj, id) ? id : fallback;
+}
+
+function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
+  const prev = previous || {};
+  const firstSync = !previous || Object.keys(previous).length === 0;
+  const prevUpdatedEpoch = Math.max(
+    0,
+    asInt(prev.lastServerSyncEpoch, asInt(prev.updatedAt?.seconds, nowEpoch)),
+  );
+  const elapsedSec = firstSync
+    ? (24 * 60 * 60)
+    : clamp(nowEpoch - prevUpdatedEpoch, 1, 7 * 24 * 60 * 60);
+
+  const reasons = [];
+  const markClamp = (reason) => {
+    if (!reasons.includes(reason)) reasons.push(reason);
+  };
+
+  const clampUpward = ({
+    prevValue,
+    requestedValue,
+    maxIncrease,
+    minValue,
+    maxValue,
+    reason,
+  }) => {
+    const req = clamp(asInt(requestedValue, prevValue), minValue, maxValue);
+    if (firstSync) return req;
+    const cap = clamp(prevValue + Math.max(0, maxIncrease), minValue, maxValue);
+    if (req > cap) {
+      markClamp(reason);
+      return cap;
+    }
+    return req;
+  };
+
+  const prevPower = clamp(asInt(prev.power, 1), 1, 500000);
+  const prevCash = clamp(asInt(prev.cash, 0), 0, 100000000);
+  const prevGold = clamp(asInt(prev.gold, 0), 0, 100000000);
+  const prevXp = clamp(asInt(prev.xp, 0), 0, 100000000);
+  const prevWins = clamp(asInt(prev.wins, 0), 0, 1000000);
+  const prevGangWins = clamp(asInt(prev.gangWins, 0), 0, 1000000);
+  const prevLevel = clamp(asInt(prev.level, 1), 1, 2000);
+  const prevRank = clamp(asInt(prev.rank, 0), 0, 5000);
+
+  const maxPowerIncrease = Math.min(7000, 30 + Math.trunc(elapsedSec / 15));
+  const maxCashIncrease = Math.min(2500000, 30000 + Math.trunc(elapsedSec * 220));
+  const maxGoldIncrease = Math.min(100000, 40 + Math.trunc(elapsedSec * 4));
+  const maxXpIncrease = Math.min(500000, 1200 + Math.trunc(elapsedSec * 40));
+  const maxWinsIncrease = Math.min(40, 1 + Math.trunc(elapsedSec / 300));
+  const maxGangWinsIncrease = Math.min(40, 1 + Math.trunc(elapsedSec / 300));
+  const maxLevelIncrease = Math.min(50, 1 + Math.trunc(elapsedSec / 1800));
+  const maxRankIncrease = Math.min(50, 1 + Math.trunc(elapsedSec / 1800));
+
+  const power = clampUpward({
+    prevValue: prevPower,
+    requestedValue: input.power,
+    maxIncrease: maxPowerIncrease,
+    minValue: 1,
+    maxValue: 500000,
+    reason: 'power_gain_clamped',
+  });
+
+  const cash = clampUpward({
+    prevValue: prevCash,
+    requestedValue: input.cash,
+    maxIncrease: maxCashIncrease,
+    minValue: 0,
+    maxValue: 100000000,
+    reason: 'cash_gain_clamped',
+  });
+
+  const gold = clampUpward({
+    prevValue: prevGold,
+    requestedValue: input.gold,
+    maxIncrease: maxGoldIncrease,
+    minValue: 0,
+    maxValue: 100000000,
+    reason: 'gold_gain_clamped',
+  });
+
+  const xp = clampUpward({
+    prevValue: prevXp,
+    requestedValue: input.xp,
+    maxIncrease: maxXpIncrease,
+    minValue: 0,
+    maxValue: 100000000,
+    reason: 'xp_gain_clamped',
+  });
+
+  const wins = clampUpward({
+    prevValue: prevWins,
+    requestedValue: input.wins,
+    maxIncrease: maxWinsIncrease,
+    minValue: 0,
+    maxValue: 1000000,
+    reason: 'wins_gain_clamped',
+  });
+
+  const gangWins = clampUpward({
+    prevValue: prevGangWins,
+    requestedValue: input.gangWins,
+    maxIncrease: maxGangWinsIncrease,
+    minValue: 0,
+    maxValue: 1000000,
+    reason: 'gang_wins_gain_clamped',
+  });
+
+  const level = clampUpward({
+    prevValue: prevLevel,
+    requestedValue: input.level,
+    maxIncrease: maxLevelIncrease,
+    minValue: 1,
+    maxValue: 2000,
+    reason: 'level_gain_clamped',
+  });
+
+  const rank = clampUpward({
+    prevValue: prevRank,
+    requestedValue: input.rank,
+    maxIncrease: maxRankIncrease,
+    minValue: 0,
+    maxValue: 5000,
+    reason: 'rank_gain_clamped',
+  });
+
+  const maxEnergy = clamp(asInt(input.maxEnergy, asInt(prev.maxEnergy, 120)), 100, 500);
+  const maxTp = clamp(asInt(input.maxTp, asInt(prev.maxTp, 120)), 100, 500);
+  const currentEnergy = clamp(
+    asInt(input.currentEnergy, asInt(prev.currentEnergy, maxEnergy)),
+    0,
+    maxEnergy,
+  );
+  const currentTp = clamp(
+    asInt(input.currentTp, asInt(prev.currentTp, maxTp)),
+    0,
+    maxTp,
+  );
+  const attackEnergyCost = clamp(
+    asInt(input.attackEnergyCost, asInt(prev.attackEnergyCost, 20)),
+    12,
+    24,
+  );
+
+  const prevPenalty = resolvePenaltyStatus(prev, nowEpoch);
+  const requestedStatus = normalizePenaltyStatus(input.status);
+  const requestedStatusUntilEpoch = Math.max(
+    0,
+    asInt(
+      input.statusUntilEpoch,
+      asInt(input.statusUntil?.seconds, 0),
+    ),
+  );
+  const maxPenaltyUntilEpoch = nowEpoch + (2 * 60 * 60);
+
+  let status = prevPenalty.status;
+  let statusUntilEpoch = prevPenalty.statusUntilEpoch;
+
+  if (status === 'active') {
+    if (requestedStatus !== 'active' && requestedStatusUntilEpoch > nowEpoch) {
+      status = requestedStatus;
+      statusUntilEpoch = clamp(requestedStatusUntilEpoch, nowEpoch + 60, maxPenaltyUntilEpoch);
+      if (requestedStatusUntilEpoch > statusUntilEpoch) {
+        markClamp('status_until_clamped');
+      }
+    }
+  } else if (requestedStatus === status && requestedStatusUntilEpoch > statusUntilEpoch) {
+    statusUntilEpoch = clamp(requestedStatusUntilEpoch, statusUntilEpoch, maxPenaltyUntilEpoch);
+    if (requestedStatusUntilEpoch > statusUntilEpoch) {
+      markClamp('status_extend_clamped');
+    }
+  } else if (requestedStatus === 'active') {
+    markClamp('status_clear_blocked');
+  }
+
+  if (statusUntilEpoch <= nowEpoch) {
+    status = 'active';
+    statusUntilEpoch = 0;
+  }
+
+  const prevShieldUntil = Math.max(0, asInt(prev.shieldUntilEpoch, 0));
+  const requestedShieldUntil = clamp(
+    Math.max(0, asInt(input.shieldUntilEpoch, prevShieldUntil)),
+    0,
+    nowEpoch + (3 * 60 * 60),
+  );
+  let shieldUntilEpoch = prevShieldUntil;
+  if (requestedShieldUntil > prevShieldUntil) {
+    shieldUntilEpoch = requestedShieldUntil;
+  } else if (requestedShieldUntil < prevShieldUntil && prevShieldUntil > nowEpoch) {
+    markClamp('shield_reduce_blocked');
+  }
+  if (shieldUntilEpoch <= nowEpoch) {
+    shieldUntilEpoch = 0;
+  }
+
+  const displayName = safeText(input.displayName ?? input.name, safeText(prev.displayName ?? prev.name, 'Oyuncu', 24), 24);
+  const avatarId = safeText(input.avatarId, safeText(prev.avatarId, '', 32), 32);
+
+  const equippedWeaponId = sanitizeIdFromMap(
+    input.equippedWeaponId,
+    WEAPON_ARCHETYPE_BY_ID,
+    sanitizeIdFromMap(prev.equippedWeaponId, WEAPON_ARCHETYPE_BY_ID, ''),
+  );
+  const combatWeaponId = sanitizeIdFromMap(
+    input.combatWeaponId,
+    WEAPON_ARCHETYPE_BY_ID,
+    equippedWeaponId || sanitizeIdFromMap(prev.combatWeaponId, WEAPON_ARCHETYPE_BY_ID, ''),
+  );
+  const equippedKnifeId = sanitizeIdFromMap(
+    input.equippedKnifeId,
+    WEAPON_ARCHETYPE_BY_ID,
+    sanitizeIdFromMap(prev.equippedKnifeId, WEAPON_ARCHETYPE_BY_ID, ''),
+  );
+  const equippedArmorId = sanitizeIdFromMap(
+    input.equippedArmorId,
+    ARMOR_ARCHETYPE_BY_ID,
+    sanitizeIdFromMap(prev.equippedArmorId, ARMOR_ARCHETYPE_BY_ID, ''),
+  );
+  const equippedVehicleId = sanitizeIdFromMap(
+    input.equippedVehicleId,
+    VEHICLE_ARCHETYPE_BY_ID,
+    sanitizeIdFromMap(prev.equippedVehicleId, VEHICLE_ARCHETYPE_BY_ID, ''),
+  );
+
+  const gangId = safeText(prev.gangId, '', 64);
+  const gangName = safeText(prev.gangName, '', 32);
+  const gangRole = safeText(prev.gangRole, '', 16);
+
+  const lastLoginEpoch = clamp(
+    asInt(input.lastLoginEpoch, asInt(prev.lastLoginEpoch, nowEpoch)),
+    0,
+    nowEpoch,
+  );
+
+  const online = Boolean(input.online);
+  const score = Math.trunc((power * 12) + (wins * 900) + (gangWins * 1200) + (cash / 2000));
+
+  return {
+    flagged: reasons.length > 0,
+    reasons,
+    profile: {
+      uid,
+      name: displayName,
+      displayName,
+      avatarId,
+      power,
+      level,
+      rank,
+      cash,
+      gold,
+      xp,
+      wins,
+      gangWins,
+      currentEnergy,
+      maxEnergy,
+      attackEnergyCost,
+      currentTp,
+      maxTp,
+      status,
+      statusUntilEpoch,
+      statusUntil: statusUntilEpoch > 0
+        ? admin.firestore.Timestamp.fromDate(new Date(statusUntilEpoch * 1000))
+        : null,
+      shieldUntilEpoch,
+      equippedWeaponId,
+      equippedKnifeId,
+      equippedArmorId,
+      equippedVehicleId,
+      combatWeaponId,
+      gangId,
+      gangName,
+      gangRole,
+      lastLoginEpoch,
+      online,
+      score,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastServerSyncEpoch: nowEpoch,
+      // Prevent client from escalating privileges.
+      isBot: prev.isBot === true,
+    },
+  };
+}
+
+exports.secureSyncProfile = onCall({ invoker: 'public' }, async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Giriş yapman gerekiyor');
+  }
+
+  const input = request.data || {};
+  const nowEpoch = Math.floor(Date.now() / 1000);
+  const userRef = db.collection('users').doc(uid);
+  const eventRef = db.collection('security_events').doc();
+
+  const outcome = await db.runTransaction(async (tx) => {
+    const userSnap = await tx.get(userRef);
+    const previous = userSnap.exists ? (userSnap.data() || {}) : {};
+    if (previous.isBot === true) {
+      throw new HttpsError('permission-denied', 'Bot profili senkronlanamaz');
+    }
+
+    const sanitized = sanitizeProfileSyncInput({
+      uid,
+      previous,
+      input,
+      nowEpoch,
+    });
+
+    tx.set(userRef, sanitized.profile, { merge: true });
+
+    if (sanitized.flagged) {
+      tx.set(eventRef, {
+        uid,
+        type: 'profile_sync_clamped',
+        reasons: sanitized.reasons,
+        requested: {
+          power: asInt(input.power, 0),
+          cash: asInt(input.cash, 0),
+          gold: asInt(input.gold, 0),
+          xp: asInt(input.xp, 0),
+          level: asInt(input.level, 0),
+          rank: asInt(input.rank, 0),
+          wins: asInt(input.wins, 0),
+          gangWins: asInt(input.gangWins, 0),
+          status: String(input.status ?? ''),
+          statusUntilEpoch: asInt(input.statusUntilEpoch, 0),
+        },
+        applied: {
+          power: sanitized.profile.power,
+          cash: sanitized.profile.cash,
+          gold: sanitized.profile.gold,
+          xp: sanitized.profile.xp,
+          level: sanitized.profile.level,
+          rank: sanitized.profile.rank,
+          wins: sanitized.profile.wins,
+          gangWins: sanitized.profile.gangWins,
+          status: sanitized.profile.status,
+          statusUntilEpoch: sanitized.profile.statusUntilEpoch,
+        },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    return {
+      flagged: sanitized.flagged,
+      reasons: sanitized.reasons,
+      profile: {
+        power: sanitized.profile.power,
+        cash: sanitized.profile.cash,
+        gold: sanitized.profile.gold,
+        xp: sanitized.profile.xp,
+        level: sanitized.profile.level,
+        rank: sanitized.profile.rank,
+        wins: sanitized.profile.wins,
+        gangWins: sanitized.profile.gangWins,
+        status: sanitized.profile.status,
+        statusUntilEpoch: sanitized.profile.statusUntilEpoch,
+      },
+    };
+  });
+
+  return { ok: true, ...outcome };
+});
+
 function isBotUid(uid) {
   return String(uid ?? '').trim().startsWith('bot_');
 }
@@ -728,14 +1116,8 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
   }
 
   const rawType = String(request.data?.type ?? 'quick').trim();
-  const type = ['quick', 'planned', 'gang'].includes(rawType) ? rawType : 'quick';
-  const rawBonus = Number(request.data?.equipmentBonus ?? 0);
-  const equipmentBonus = Number.isFinite(rawBonus)
-    ? Math.max(0, Math.min(50, Math.trunc(rawBonus)))
-    : 0;
-
-  const attackerName = String(request.data?.attackerName ?? '').trim() || 'Bilinmiyor';
-  const targetNameFromClient = String(request.data?.targetName ?? '').trim();
+  const type = rawType === 'planned' ? 'planned' : 'quick';
+  const equipmentBonus = type === 'planned' ? 15 : 0;
 
   const users = db.collection('users');
   const attackerRef = users.doc(attackerId);
@@ -854,6 +1236,14 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
       );
     }
 
+    const lastAttackRequestAtEpoch = Math.max(0, Number(atkTxData.lastAttackRequestAtEpoch ?? 0));
+    if ((txNowEpoch - lastAttackRequestAtEpoch) < 3) {
+      throw new HttpsError(
+        'resource-exhausted',
+        'Çok hızlı işlem yapıyorsun, 2-3 saniye bekle',
+      );
+    }
+
     if (coolTxSnap.exists) {
       const lastAttackTs = coolTxSnap.data()?.lastAttack;
       if (lastAttackTs?.toDate) {
@@ -870,7 +1260,19 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
 
     tx.update(attackerRef, {
       currentEnergy: admin.firestore.FieldValue.increment(-atkAttackCost),
+      lastAttackRequestAtEpoch: txNowEpoch,
     });
+
+    const attackerDisplayName = safeText(
+      atkTxData.displayName ?? atkTxData.name,
+      'Bilinmiyor',
+      24,
+    );
+    const targetDisplayName = safeText(
+      targetTxData.displayName ?? targetTxData.name,
+      'Bilinmiyor',
+      24,
+    );
 
     const atkPower = Math.max(1, Number(atkTxData.power ?? 1));
     const defPower = Math.max(1, Number(targetTxData.power ?? 1));
@@ -960,8 +1362,8 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
     tx.set(attackRef, {
       attackerId,
       targetId,
-      attackerName,
-      targetName: targetNameFromClient || String(targetTxData.displayName || 'Bilinmiyor'),
+      attackerName: attackerDisplayName,
+      targetName: targetDisplayName,
       type,
       outcome,
       attackCost: atkAttackCost,
@@ -969,6 +1371,8 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
       xpGained,
       atkTotal,
       defTotal,
+      attackerPower: atkPower,
+      targetPower: defPower,
       attackerWeaponId: attackerLoadout.weaponId,
       targetWeaponId: targetLoadout.weaponId,
       attackerKnifeId: attackerLoadout.knifeId,
@@ -989,6 +1393,8 @@ exports.executePvpAttack = onCall({ invoker: 'public' }, async (request) => {
 
     return {
       outcome,
+      attackerName: attackerDisplayName,
+      targetName: targetDisplayName,
       stolenCash,
       xpGained,
       message,
@@ -1661,7 +2067,6 @@ function isTargetInAttackWindow(targetId, targetPower, attackerPower, window) {
   const atk = Number(attackerPower ?? 0);
   const tgt = Number(targetPower ?? 0);
   if (!Number.isFinite(atk) || !Number.isFinite(tgt)) return false;
-  if (tgt === atk) return true;
   const allowed = new Set([
     ...(Array.isArray(window?.strongerIds) ? window.strongerIds : []),
     ...(Array.isArray(window?.weakerIds) ? window.weakerIds : []),

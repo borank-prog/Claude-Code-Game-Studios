@@ -44,13 +44,32 @@ service cloud.firestore {
     // ── User profiles (all game data, leaderboard, social, FCM) ──
     match /users/{uid} {
       allow read: if isLoggedIn();
-      allow create: if isOwner(uid);
-      // Owner: full update. Other logged-in users: PvP field updates only.
-      allow update: if isLoggedIn() && (
-        isOwner(uid) ||
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['cash', 'status', 'statusUntil', 'xp'])
-      );
+      allow create: if isOwner(uid) &&
+        request.resource.data.uid == uid &&
+        request.resource.data.isBot != true;
+      // Sensitive economy/combat fields are server-authoritative (Cloud Functions).
+      allow update: if isLoggedIn() &&
+        isOwner(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'uid',
+          'name',
+          'displayName',
+          'avatarId',
+          'equippedWeaponId',
+          'equippedKnifeId',
+          'equippedArmorId',
+          'equippedVehicleId',
+          'combatWeaponId',
+          'online',
+          'updatedAt',
+          'lastLoginEpoch',
+          'gangId',
+          'gangName',
+          'gangRole',
+          'fcmToken',
+          'fcmUpdatedAt',
+          'platform'
+        ]);
 
       // Friends sub-collection
       match /friends/{friendId} {
@@ -115,8 +134,30 @@ service cloud.firestore {
       // Only gang owner can update gang fields, or limited fields for others
       allow update: if isLoggedIn() && (
         resource.data.ownerId == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['totalPower', 'memberCount', 'vault', 'respectPoints'])
+        (
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['totalPower', 'memberCount', 'vault', 'respectPoints', 'updatedAt']) &&
+          request.resource.data.memberCount is int &&
+          request.resource.data.memberCount >= 0 &&
+          request.resource.data.memberCount <= 5 &&
+          request.resource.data.totalPower is int &&
+          request.resource.data.totalPower >= 0 &&
+          request.resource.data.totalPower <= 500000 &&
+          request.resource.data.vault is int &&
+          request.resource.data.vault >= 0 &&
+          request.resource.data.vault <= 100000000 &&
+          request.resource.data.respectPoints is int &&
+          request.resource.data.respectPoints >= 0 &&
+          request.resource.data.respectPoints <= 100000000 &&
+          request.resource.data.memberCount >= resource.data.memberCount - 1 &&
+          request.resource.data.memberCount <= resource.data.memberCount + 1 &&
+          request.resource.data.totalPower >= resource.data.totalPower - 50000 &&
+          request.resource.data.totalPower <= resource.data.totalPower + 50000 &&
+          request.resource.data.vault >= resource.data.vault &&
+          request.resource.data.vault <= resource.data.vault + 500000 &&
+          request.resource.data.respectPoints >= resource.data.respectPoints &&
+          request.resource.data.respectPoints <= resource.data.respectPoints + 50000
+        )
       );
 
       // Gang members
@@ -152,10 +193,22 @@ service cloud.firestore {
     match /gang_raids/{raidId} {
       allow read: if isLoggedIn();
       allow create: if isLoggedIn() &&
-        request.resource.data.leaderId == request.auth.uid;
+        request.resource.data.leaderId == request.auth.uid &&
+        request.resource.data.members is list &&
+        request.resource.data.members.size() == 1 &&
+        request.resource.data.members[0] == request.auth.uid &&
+        request.resource.data.status == 'waiting';
       allow update: if isLoggedIn() && (
         resource.data.leaderId == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+        (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberNames', 'updatedAt']) &&
+          request.resource.data.members is list &&
+          request.resource.data.members.size() <= 4 &&
+          request.auth.uid in request.resource.data.members &&
+          request.resource.data.leaderId == resource.data.leaderId &&
+          request.resource.data.targetId == resource.data.targetId &&
+          request.resource.data.status == resource.data.status
+        )
       );
       allow delete: if false;
     }
@@ -196,7 +249,11 @@ service cloud.firestore {
     match /gang_chats/{gangId}/messages/{msgId} {
       allow read: if isLoggedIn();
       allow create: if isLoggedIn() &&
-        request.resource.data.senderId == request.auth.uid;
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.type == 'text' &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() <= 500;
     }
 
     // ── Trade offers ──

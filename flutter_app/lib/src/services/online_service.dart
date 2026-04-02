@@ -333,7 +333,6 @@ class OnlineService {
     String? equippedVehicleId,
     String? combatWeaponId,
   }) async {
-    final doc = FirebaseFirestore.instance.collection('users').doc(uid);
     final payload = <String, dynamic>{
       'uid': uid,
       'name': displayName,
@@ -361,7 +360,6 @@ class OnlineService {
       'equippedVehicleId': equippedVehicleId ?? '',
       'combatWeaponId': combatWeaponId ?? '',
       'online': online,
-      'updatedAt': FieldValue.serverTimestamp(),
     };
     if (gangId != null) {
       payload['gangId'] = gangId;
@@ -369,8 +367,9 @@ class OnlineService {
     if (gangName != null) {
       payload['gangName'] = gangName;
     }
-    await doc
-        .set(payload, SetOptions(merge: true))
+    await FirebaseFunctions.instance
+        .httpsCallable('secureSyncProfile')
+        .call(payload)
         .timeout(_firestoreOpTimeout);
   }
 
@@ -383,6 +382,34 @@ class OnlineService {
         .timeout(_firestoreOpTimeout);
     if (!snap.exists) return null;
     return snap.data();
+  }
+
+  Future<Map<String, String>?> findGangByMember(String uid) async {
+    final cleanUid = uid.trim();
+    if (cleanUid.isEmpty) return null;
+
+    final memberSnap = await FirebaseFirestore.instance
+        .collectionGroup('members')
+        .where('uid', isEqualTo: cleanUid)
+        .limit(1)
+        .get()
+        .timeout(_firestoreOpTimeout);
+    if (memberSnap.docs.isEmpty) return null;
+
+    final memberDoc = memberSnap.docs.first;
+    final gangRef = memberDoc.reference.parent.parent;
+    if (gangRef == null) return null;
+
+    final gangSnap = await gangRef.get().timeout(_firestoreOpTimeout);
+    if (!gangSnap.exists) return null;
+
+    final gangData = gangSnap.data() ?? <String, dynamic>{};
+    final memberData = memberDoc.data();
+    return {
+      'gangId': gangRef.id,
+      'gangName': (gangData['name'] as String? ?? '').trim(),
+      'gangRole': (memberData['role'] as String? ?? 'Üye').trim(),
+    };
   }
 
   Future<void> upsertCloudSave({
@@ -707,6 +734,20 @@ class OnlineService {
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true))
           .timeout(_firestoreOpTimeout);
+    }
+
+    // Kullanıcı belgesi boş görünse bile aktif bir çete üyeliği varsa yeniden çete kurdurma.
+    final recoveredGang = await findGangByMember(cleanOwnerUid);
+    if (recoveredGang != null && (recoveredGang['gangId'] ?? '').isNotEmpty) {
+      await userRef
+          .set({
+            'gangId': recoveredGang['gangId'],
+            'gangName': recoveredGang['gangName'] ?? '',
+            'gangRole': recoveredGang['gangRole'] ?? 'Üye',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true))
+          .timeout(_firestoreOpTimeout);
+      throw Exception('Zaten bir çetedesin.');
     }
 
     await FirebaseFirestore.instance
@@ -1405,11 +1446,69 @@ class OnlineService {
           .get()
           .timeout(_firestoreOpTimeout);
     }
-    return snap.docs
+    final rows = snap.docs
         .map((d) {
           return {'id': d.id, ...d.data()};
         })
         .toList(growable: false);
+    return _dedupeGangList(rows);
+  }
+
+  List<Map<String, dynamic>> _dedupeGangList(List<Map<String, dynamic>> rows) {
+    final byOwner = <String, Map<String, dynamic>>{};
+    final ownerless = <Map<String, dynamic>>[];
+    int memberCountOf(Map<String, dynamic> g) => (g['memberCount'] as num?)?.toInt() ?? 0;
+    int powerOf(Map<String, dynamic> g) => (g['totalPower'] as num?)?.toInt() ?? 0;
+
+    for (final raw in rows) {
+      final g = Map<String, dynamic>.from(raw);
+      final ownerId = (g['ownerId'] as String? ?? '').trim();
+      if (ownerId.isEmpty) {
+        ownerless.add(g);
+        continue;
+      }
+      final existing = byOwner[ownerId];
+      if (existing == null) {
+        byOwner[ownerId] = g;
+        continue;
+      }
+      final betterByMembers = memberCountOf(g) > memberCountOf(existing);
+      final betterByPower = powerOf(g) > powerOf(existing);
+      if (betterByMembers || (!betterByMembers && betterByPower)) {
+        byOwner[ownerId] = g;
+      }
+    }
+
+    final byName = <String, Map<String, dynamic>>{};
+    String normalizeName(String value) => value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9çğıöşü]+'), '')
+        .trim();
+
+    for (final g in [...ownerless, ...byOwner.values]) {
+      final nameKey = normalizeName((g['name'] as String? ?? ''));
+      if (nameKey.isEmpty) {
+        byName['id:${g['id']?.toString() ?? ''}'] = g;
+        continue;
+      }
+      final existing = byName[nameKey];
+      if (existing == null) {
+        byName[nameKey] = g;
+        continue;
+      }
+      final betterByMembers = memberCountOf(g) > memberCountOf(existing);
+      final betterByPower = powerOf(g) > powerOf(existing);
+      if (betterByMembers || (!betterByMembers && betterByPower)) {
+        byName[nameKey] = g;
+      }
+    }
+    final deduped = byName.values.toList(growable: false);
+    deduped.sort((a, b) {
+      final mc = memberCountOf(b).compareTo(memberCountOf(a));
+      if (mc != 0) return mc;
+      return powerOf(b).compareTo(powerOf(a));
+    });
+    return deduped;
   }
 
   Future<void> deleteAccountAndData(String uid) async {
