@@ -40,6 +40,22 @@ class _HomeShellState extends State<HomeShell> {
   int _lastKnownUnread = 0;
   bool _inboxWatchPrimed = false;
 
+  String _two(int value) => value.toString().padLeft(2, '0');
+
+  String _clockLabel(GameState state, DateTime now) {
+    final h = _two(now.hour);
+    final m = _two(now.minute);
+    final s = _two(now.second);
+    return state.tt('Saat $h:$m:$s', 'Time $h:$m:$s');
+  }
+
+  String _dateLabel(GameState state, DateTime now) {
+    final d = _two(now.day);
+    final mo = _two(now.month);
+    final y = now.year;
+    return state.tt('Tarih $d.$mo.$y', 'Date $d.$mo.$y');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -751,6 +767,14 @@ class _HomeShellState extends State<HomeShell> {
                           child: _languagePill(state),
                         ),
                         Positioned(
+                          top: 8,
+                          left: 58,
+                          right: 58,
+                          child: IgnorePointer(
+                            child: _clockPill(state),
+                          ),
+                        ),
+                        Positioned(
                           top: 56,
                           right: 8,
                           child: Semantics(
@@ -1077,6 +1101,57 @@ class _HomeShellState extends State<HomeShell> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _clockPill(GameState state) {
+    final now = DateTime.now();
+    return Center(
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 130),
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xCC14233F),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0x55FBBF24)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x33000000),
+              blurRadius: 10,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _clockLabel(state, now),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFFBBF24),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                height: 1.0,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              _dateLabel(state, now),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFFCBD5E1),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                height: 1.0,
+              ),
+            ),
+          ],
         ),
       ),
     );
