@@ -493,6 +493,7 @@ class OnlineService {
           'name': (data['name'] ?? data['displayName'] ?? 'Oyuncu').toString(),
           'displayName': (data['displayName'] ?? data['name'] ?? 'Oyuncu')
               .toString(),
+          'level': (data['level'] as num?)?.toInt() ?? 1,
           'power': (data['power'] as num?)?.toInt() ?? 0,
           'cash': (data['cash'] as num?)?.toInt() ?? 0,
           'wins': (data['wins'] as num?)?.toInt() ?? 0,

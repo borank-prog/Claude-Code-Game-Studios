@@ -166,7 +166,9 @@ class _AttackScreenState extends State<AttackScreen>
   List<_RivalVm> _buildRivals(GameState state) {
     final myNameLower = state.displayPlayerName.toLowerCase().trim();
     final rows = state.leaderboardRows;
-    if (rows.length == _lastRowsLength && myNameLower == _lastMyName && _cachedRivals.isNotEmpty) {
+    if (rows.length == _lastRowsLength &&
+        myNameLower == _lastMyName &&
+        _cachedRivals.isNotEmpty) {
       return _cachedRivals;
     }
     _lastRowsLength = rows.length;
@@ -185,12 +187,20 @@ class _AttackScreenState extends State<AttackScreen>
             ? 'lb_$i'
             : row['uid'].toString();
         final power = (row['power'] as num?)?.toInt() ?? 120 + (i * 70);
-        final level = (row['level'] as num?)?.toInt() ?? max(1, power ~/ 100);
+        // Legacy rows may miss "level"; keep fallback conservative so power
+        // does not create unrealistically high visual level values.
+        final level =
+            (row['level'] as num?)?.toInt() ?? max(1, min(90, power ~/ 250));
         final cash = (row['cash'] as num?)?.toInt() ?? (350 + (power ~/ 2));
         final nowEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-        final rawStatus = (row['status'] ?? 'active').toString().trim().toLowerCase();
-        final statusUntilEpoch = (row['statusUntilEpoch'] as num?)?.toInt() ?? 0;
-        final status = (statusUntilEpoch > nowEpoch &&
+        final rawStatus = (row['status'] ?? 'active')
+            .toString()
+            .trim()
+            .toLowerCase();
+        final statusUntilEpoch =
+            (row['statusUntilEpoch'] as num?)?.toInt() ?? 0;
+        final status =
+            (statusUntilEpoch > nowEpoch &&
                 (rawStatus == 'hospital' || rawStatus == 'prison'))
             ? rawStatus
             : 'active';
@@ -303,9 +313,7 @@ class _AttackScreenState extends State<AttackScreen>
       return;
     }
 
-    final active = bots
-        .where((r) => r.currentTP > 0)
-        .toList(growable: false);
+    final active = bots.where((r) => r.currentTP > 0).toList(growable: false);
     if (active.length < 2) return;
 
     final attacker = active[_simRandom.nextInt(active.length)];
