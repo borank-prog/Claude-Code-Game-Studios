@@ -19,6 +19,30 @@ class _StreetScreenState extends State<StreetScreen> {
   String difficulty = 'easy';
   Timer? _timer;
 
+  Future<MissionResult?> _completeMissionSafely(
+    BuildContext context,
+    GameState state,
+    MissionDef mission,
+  ) async {
+    try {
+      return await state.completeMission(mission);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              state.tt(
+                'Görev sırasında bir hata oluştu. Tekrar dene.',
+                'A mission error occurred. Please try again.',
+              ),
+            ),
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
   Future<void> _showActionLockedPopup(GameState state) async {
     if (!mounted) return;
     await showDialog<void>(
@@ -302,7 +326,8 @@ class _StreetScreenState extends State<StreetScreen> {
                 await _showActionLockedPopup(state);
                 return;
               }
-              final res = await state.completeMission(m);
+              final res = await _completeMissionSafely(context, state, m);
+              if (res == null) return;
               if (!mounted) return;
               await _showMissionResultSheet(context, state, m, res);
             },
@@ -323,6 +348,8 @@ class _StreetScreenState extends State<StreetScreen> {
     // Jail/Hospital penalties are handled by HomeShell center popups only.
     if (res.sentToHospital || res.sentToJail) return;
 
+    var actionInProgress = false;
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -332,12 +359,21 @@ class _StreetScreenState extends State<StreetScreen> {
         mission: mission,
         res: res,
         onRepeat: () async {
+          if (actionInProgress) return;
+          actionInProgress = true;
           Navigator.of(ctx).pop();
-          final next = await state.completeMission(mission);
+          final next = await _completeMissionSafely(context, state, mission);
+          if (next == null) {
+            actionInProgress = false;
+            return;
+          }
           if (!context.mounted) return;
           await _showMissionResultSheet(context, state, mission, next);
+          actionInProgress = false;
         },
         onPaySkip: () async {
+          if (actionInProgress) return;
+          actionInProgress = true;
           String? error;
           if (res.sentToJail) {
             error = await state.payJailWithGold();
@@ -349,17 +385,22 @@ class _StreetScreenState extends State<StreetScreen> {
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(SnackBar(content: Text(error)));
+            actionInProgress = false;
             return;
           }
           Navigator.of(ctx).pop();
+          actionInProgress = false;
         },
         onEnergyRush: () async {
+          if (actionInProgress) return;
+          actionInProgress = true;
           final msg = await state.buyEnergyRush();
           if (!ctx.mounted || !context.mounted) return;
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(msg)));
           Navigator.of(ctx).pop();
+          actionInProgress = false;
         },
       ),
     );
