@@ -553,7 +553,7 @@ class _SocialScreenState extends State<SocialScreen> {
                               ],
                             ),
                             Text(
-                              '${members}/5 ${state.tt('üye', 'members')}  •  ${state.tt('Saygınlık', 'Respect')}: $respect',
+                              '$members/5 ${state.tt('üye', 'members')}  •  ${state.tt('Saygınlık', 'Respect')}: $respect',
                               style: const TextStyle(
                                 color: Color(0xFF94A3B8),
                                 fontSize: 11,
