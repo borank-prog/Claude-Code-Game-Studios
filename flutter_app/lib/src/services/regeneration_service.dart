@@ -2,7 +2,8 @@ import '../data/player_model.dart';
 
 class RegenerationService {
   final int _tpRegenPerMinute = 1;
-  final int _energyRegenPerMinute = 5;
+  // Oyun dengesine göre enerji artık otomatik yenilenmez.
+  final int _energyRegenPerMinute = 0;
 
   void applyOfflineRegeneration(Player me) {
     final now = DateTime.now();
@@ -11,10 +12,12 @@ class RegenerationService {
     final minutesPassed = now.difference(me.lastRegenCheck!).inMinutes;
     if (minutesPassed <= 0) return;
 
-    final energyToRegen = minutesPassed * _energyRegenPerMinute;
-    me.currentEnerji += energyToRegen;
-    if (me.currentEnerji > me.maxEnerji) {
-      me.currentEnerji = me.maxEnerji;
+    if (_energyRegenPerMinute > 0 && me.currentEnerji < me.maxEnerji) {
+      final energyToRegen = minutesPassed * _energyRegenPerMinute;
+      me.currentEnerji += energyToRegen;
+      if (me.currentEnerji > me.maxEnerji) {
+        me.currentEnerji = me.maxEnerji;
+      }
     }
 
     if (me.currentTP < me.maxTP) {

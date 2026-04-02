@@ -1187,7 +1187,7 @@ class _GameStateBase extends ChangeNotifier {
         jailUntilEpoch: jailUntilEpoch,
         currentEnergy: currentEnerji,
         maxEnergy: maxEnerji,
-        energyRegenPerMin: 5,
+        energyRegenPerMin: 0,
       ).catchError(
         (e) => debugPrint('[GameState] scheduleGameNotifications failed: $e'),
       ),
