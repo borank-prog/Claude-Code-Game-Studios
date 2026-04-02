@@ -201,15 +201,10 @@ mixin _GameStateMissions on _GameStateBase {
         territoryBonusCash: territoryBonusCash,
         powerBefore: powerBefore,
         powerAfter: powerAfter,
-        nextAction: currentEnerji >= mission.staminaCost
-            ? tt(
-                'Enerjin yeterli, bir görev daha deneyebilirsin.',
-                'Energy is enough, try one more mission.',
-              )
-            : tt(
-                'Enerjin düştü. Şehir veya market ekranına göz at.',
-                'Energy is low. Check city or market next.',
-              ),
+        nextAction: tt(
+          'Kalan Enerji: $currentEnerji/$maxEnerji',
+          'Remaining Energy: $currentEnerji/$maxEnerji',
+        ),
       );
     }
 
