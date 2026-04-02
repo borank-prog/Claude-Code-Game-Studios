@@ -152,8 +152,6 @@ class _SocialScreenState extends State<SocialScreen> {
     final uid = (row['uid'] ?? '').toString().trim();
     if (state.userId.isEmpty || uid.isEmpty) return false;
     if (uid == state.userId) return false;
-    final power = (row['power'] as num?)?.toInt() ?? 0;
-    if (power == state.totalPower) return true;
     return attackWindowIds.contains(uid);
   }
 
@@ -198,6 +196,13 @@ class _SocialScreenState extends State<SocialScreen> {
     final wins = (row['wins'] as num?)?.toInt() ?? 0;
     final gangWins = (row['gangWins'] as num?)?.toInt() ?? 0;
     return (power * 12) + (wins * 900) + (gangWins * 1200) + (cash ~/ 2000);
+  }
+
+  int _gangLeaderboardScore(Map<String, dynamic> gang) {
+    final totalPower = (gang['totalPower'] as num?)?.toInt() ?? 0;
+    final respect = (gang['respectPoints'] as num?)?.toInt() ?? 0;
+    final members = (gang['memberCount'] as num?)?.toInt() ?? 0;
+    return (totalPower * 8) + (respect * 10) + (members * 500);
   }
 
   Future<void> _createGang(GameState state) async {
@@ -247,14 +252,13 @@ class _SocialScreenState extends State<SocialScreen> {
   }
 
   Widget _buildGangSection(GameState state) {
-    final hasGang = state.hasGang;
+    if (state.hasGang) {
+      // Mevcut kartel bilgisi sadece profil ekranında gösterilir.
+      return const SizedBox.shrink();
+    }
     final discoverable = state.discoverableGangs
         .take(6)
         .toList(growable: false);
-    final gangName =
-        (state.currentGang?['name']?.toString() ?? '').trim().isNotEmpty
-        ? state.currentGang!['name'].toString().trim()
-        : state.tt('Çete', 'Gang');
 
     return GlassPanel(
       child: Column(
@@ -269,9 +273,7 @@ class _SocialScreenState extends State<SocialScreen> {
               ),
               const SizedBox(width: 6),
               Text(
-                hasGang
-                    ? state.tt('KARTEL', 'CARTEL')
-                    : state.tt('KARTEL YÖNETİMİ', 'CARTEL MANAGEMENT'),
+                state.tt('KARTEL YÖNETİMİ', 'CARTEL MANAGEMENT'),
                 style: const TextStyle(
                   color: Color(0xFFFBBF24),
                   fontSize: 15,
@@ -281,69 +283,7 @@ class _SocialScreenState extends State<SocialScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          if (hasGang) ...[
-            Text(
-              gangName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${state.tt('Rütbe', 'Rank')}: ${state.gangRank}   •   ${state.tt('Toplam Güç', 'Total Power')}: ${state.totalGangPower}',
-              style: const TextStyle(color: Color(0xFFFBBF24), fontSize: 12),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '${state.tt('Aktif Üye', 'Online Members')}: ${state.onlineGangMembers}/${state.gangMembers.length}',
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-            ),
-            if (state.isGangLeader) ...[
-              const SizedBox(height: 8),
-              SwitchListTile.adaptive(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                value: state.gangInviteOnly,
-                onChanged: (v) => state.setGangInviteOnly(v),
-                title: Text(
-                  state.tt('Sadece davet ile katılım', 'Invite-only joins'),
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                ),
-                subtitle: Text(
-                  state.gangInviteOnly
-                      ? state.tt(
-                          'İstekler kapalı. Sadece davet edilenler katılır.',
-                          'Join requests closed. Only invited players can join.',
-                        )
-                      : state.tt(
-                          'İstekler açık. Oyuncular katılım isteği gönderebilir.',
-                          'Join requests open. Players can send join requests.',
-                        ),
-                  style: const TextStyle(
-                    color: Color(0xFF94A3B8),
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const GangLeaderboardScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.emoji_events_outlined, size: 18),
-                label: Text(state.tt('Kartel Sırası', 'Cartel Rank')),
-              ),
-            ),
-          ] else ...[
+          ...[
             TextField(
               controller: _newGangCtrl,
               decoration: InputDecoration(
@@ -469,6 +409,190 @@ class _SocialScreenState extends State<SocialScreen> {
     );
   }
 
+  Widget _buildGangLeaderboardSection(GameState state) {
+    final gangs = List<Map<String, dynamic>>.from(state.discoverableGangs)
+      ..sort(
+        (a, b) => _gangLeaderboardScore(b).compareTo(_gangLeaderboardScore(a)),
+      );
+    final top = gangs.take(5).toList(growable: false);
+
+    return GlassPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.emoji_events_outlined,
+                color: Color(0xFFFBBF24),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                state.tt('ÇETE SIRALAMASI', 'GANG LEADERBOARD'),
+                style: const TextStyle(
+                  color: Color(0xFFFBBF24),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const GangLeaderboardScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                label: Text(state.tt('Tamamı', 'Full')),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (top.isEmpty)
+            Text(
+              state.tt(
+                'Henüz çete sıralaması verisi yok.',
+                'No gang leaderboard data yet.',
+              ),
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          else
+            ...top.asMap().entries.map((e) {
+              final rank = e.key + 1;
+              final g = e.value;
+              final id = (g['id']?.toString() ?? '').trim();
+              final name = (g['name']?.toString() ?? '').trim();
+              final members = (g['memberCount'] as num?)?.toInt() ?? 0;
+              final totalPower = (g['totalPower'] as num?)?.toInt() ?? 0;
+              final respect = (g['respectPoints'] as num?)?.toInt() ?? 0;
+              final isMine = id.isNotEmpty && id == state.gangId;
+
+              return InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: id.isEmpty ? null : () => _openGangMembersSheet(state, g),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isMine
+                          ? const Color(0x88FBBF24)
+                          : const Color(0x334B5563),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 26,
+                        child: Text(
+                          '#$rank',
+                          style: const TextStyle(
+                            color: Color(0xFFFBBF24),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    name.isEmpty
+                                        ? state.tt('Çete', 'Gang')
+                                        : name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isMine
+                                          ? const Color(0xFFFBBF24)
+                                          : Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                if (isMine) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFBBF24).withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      state.tt('Senin', 'Yours'),
+                                      style: const TextStyle(
+                                        color: Color(0xFFFBBF24),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            Text(
+                              '${members}/5 ${state.tt('üye', 'members')}  •  ${state.tt('Saygınlık', 'Respect')}: $respect',
+                              style: const TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '$totalPower',
+                            style: const TextStyle(
+                              color: Color(0xFF34D399),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            state.tt('Güç', 'Power'),
+                            style: const TextStyle(
+                              color: Color(0xFF6B7280),
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<GameState>(
@@ -524,6 +648,8 @@ class _SocialScreenState extends State<SocialScreen> {
             ),
             const SizedBox(height: 8),
             _buildGangSection(state),
+            const SizedBox(height: 8),
+            _buildGangLeaderboardSection(state),
             const SizedBox(height: 8),
             Row(
               children: [
