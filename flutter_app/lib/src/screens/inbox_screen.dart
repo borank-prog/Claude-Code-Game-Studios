@@ -69,6 +69,10 @@ class _InboxScreenState extends State<InboxScreen> {
   IconData _resolveIcon(Map<String, dynamic> data) {
     final type = (data['type'] ?? '').toString().trim();
     if (type == 'attack_report') {
+      final attackType = (data['attackType'] ?? '').toString().trim();
+      if (attackType == 'gang' || data['isGangRaid'] == true) {
+        return Icons.groups_rounded;
+      }
       final direction = (data['direction'] ?? '').toString().trim();
       return direction == 'outgoing'
           ? Icons.outbound_rounded
@@ -82,7 +86,13 @@ class _InboxScreenState extends State<InboxScreen> {
 
   Color _resolveColor(Map<String, dynamic> data) {
     final type = (data['type'] ?? '').toString().trim();
-    if (type == 'attack_report') return const Color(0xFFFBBF24);
+    if (type == 'attack_report') {
+      final attackType = (data['attackType'] ?? '').toString().trim();
+      if (attackType == 'gang' || data['isGangRaid'] == true) {
+        return const Color(0xFF60A5FA);
+      }
+      return const Color(0xFFFBBF24);
+    }
     if (type == 'friend_request') return const Color(0xFF34D399);
     if (type == 'gang_join_request') return const Color(0xFF60A5FA);
     if (type == 'gang_invite') return const Color(0xFFA78BFA);

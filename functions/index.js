@@ -1283,17 +1283,44 @@ exports.onAttackCreated = onDocumentCreated(
 
     const incomingBody = buildAttackReportBody(attack, 'incoming');
     const outgoingBody = buildAttackReportBody(attack, 'outgoing');
+    const attackType = String(type ?? 'quick');
+    const isGangAttack = attackType === 'gang';
+    const attackerGangName = hasText(attack?.attackerGangName)
+      ? String(attack.attackerGangName).trim()
+      : '';
+    const targetGangName = hasText(attack?.targetGangName)
+      ? String(attack.targetGangName).trim()
+      : '';
+    const participantIds = Array.from(
+      new Set(
+        [
+          String(attackerId ?? '').trim(),
+          ...(Array.isArray(attack?.participantIds) ? attack.participantIds : []),
+        ]
+          .map((uid) => String(uid ?? '').trim())
+          .filter((uid) => uid.length > 0),
+      ),
+    );
+    const outgoingRecipients = isGangAttack
+      ? participantIds
+      : [String(attackerId ?? '').trim()];
+    const incomingTitle = isGangAttack
+      ? `${attackerGangName || attackerName} karteli baskın düzenledi`
+      : `${attackerName} sana saldırdı`;
+    const outgoingTitle = isGangAttack
+      ? `${targetName} hedefine kartel baskını tamamlandı`
+      : `${targetName} hedefine saldırı tamamlandı`;
 
     await writeInboxMessage(targetId, {
       type: 'attack_report',
       attackId,
-      title: `${attackerName} sana saldırdı`,
+      title: incomingTitle,
       body: incomingBody || body || attack.message || 'Saldırı raporu hazır.',
       attackerId,
       attackerName,
       outcome: String(outcome ?? 'draw'),
       stolenCash: Number(stolenCash ?? 0),
-      attackType: String(type ?? 'quick'),
+      attackType,
       atkTotal: Number(attack?.atkTotal ?? 0),
       defTotal: Number(attack?.defTotal ?? 0),
       xpGained: Number(attack?.xpGained ?? 0),
@@ -1310,37 +1337,53 @@ exports.onAttackCreated = onDocumentCreated(
       armorPct: Number(attack?.armorPct ?? 0),
       vehiclePct: Number(attack?.vehiclePct ?? 0),
       loadoutTotalPct: Number(attack?.loadoutTotalPct ?? 0),
+      attackerGangName,
+      targetGangName,
+      memberCount: Number(attack?.memberCount ?? 0),
+      raidMemberNames: Array.isArray(attack?.raidMemberNames)
+        ? attack.raidMemberNames
+        : [],
+      isGangRaid: isGangAttack,
       direction: 'incoming',
     });
 
-    await writeInboxMessage(attackerId, {
-      type: 'attack_report',
-      attackId,
-      title: `${targetName} hedefine saldırı tamamlandı`,
-      body: outgoingBody || String(attack.message ?? 'Saldırı raporu hazır.'),
-      targetId,
-      targetName,
-      outcome: String(outcome ?? 'draw'),
-      stolenCash: Number(stolenCash ?? 0),
-      attackType: String(type ?? 'quick'),
-      atkTotal: Number(attack?.atkTotal ?? 0),
-      defTotal: Number(attack?.defTotal ?? 0),
-      xpGained: Number(attack?.xpGained ?? 0),
-      attackerWeaponId: String(attack?.attackerWeaponId ?? ''),
-      targetWeaponId: String(attack?.targetWeaponId ?? ''),
-      attackerKnifeId: String(attack?.attackerKnifeId ?? ''),
-      targetKnifeId: String(attack?.targetKnifeId ?? ''),
-      attackerArmorId: String(attack?.attackerArmorId ?? ''),
-      targetArmorId: String(attack?.targetArmorId ?? ''),
-      attackerVehicleId: String(attack?.attackerVehicleId ?? ''),
-      targetVehicleId: String(attack?.targetVehicleId ?? ''),
-      weaponTotalPct: Number(attack?.weaponTotalPct ?? 0),
-      knifePct: Number(attack?.knifePct ?? 0),
-      armorPct: Number(attack?.armorPct ?? 0),
-      vehiclePct: Number(attack?.vehiclePct ?? 0),
-      loadoutTotalPct: Number(attack?.loadoutTotalPct ?? 0),
-      direction: 'outgoing',
-    });
+    await Promise.all(
+      outgoingRecipients.map((uid) => writeInboxMessage(uid, {
+        type: 'attack_report',
+        attackId,
+        title: outgoingTitle,
+        body: outgoingBody || String(attack.message ?? 'Saldırı raporu hazır.'),
+        targetId,
+        targetName,
+        outcome: String(outcome ?? 'draw'),
+        stolenCash: Number(stolenCash ?? 0),
+        attackType,
+        atkTotal: Number(attack?.atkTotal ?? 0),
+        defTotal: Number(attack?.defTotal ?? 0),
+        xpGained: Number(attack?.xpGained ?? 0),
+        attackerWeaponId: String(attack?.attackerWeaponId ?? ''),
+        targetWeaponId: String(attack?.targetWeaponId ?? ''),
+        attackerKnifeId: String(attack?.attackerKnifeId ?? ''),
+        targetKnifeId: String(attack?.targetKnifeId ?? ''),
+        attackerArmorId: String(attack?.attackerArmorId ?? ''),
+        targetArmorId: String(attack?.targetArmorId ?? ''),
+        attackerVehicleId: String(attack?.attackerVehicleId ?? ''),
+        targetVehicleId: String(attack?.targetVehicleId ?? ''),
+        weaponTotalPct: Number(attack?.weaponTotalPct ?? 0),
+        knifePct: Number(attack?.knifePct ?? 0),
+        armorPct: Number(attack?.armorPct ?? 0),
+        vehiclePct: Number(attack?.vehiclePct ?? 0),
+        loadoutTotalPct: Number(attack?.loadoutTotalPct ?? 0),
+        attackerGangName,
+        targetGangName,
+        memberCount: Number(attack?.memberCount ?? 0),
+        raidMemberNames: Array.isArray(attack?.raidMemberNames)
+          ? attack.raidMemberNames
+          : [],
+        isGangRaid: isGangAttack,
+        direction: 'outgoing',
+      })),
+    );
 
     if (outcome === 'lose') {
       const attackerToken = attackerDoc.data()?.fcmToken;
@@ -1919,6 +1962,18 @@ exports.executeGangRaid = onCall({ invoker: 'public' }, async (request) => {
     );
   }
 
+  const leaderMember = validMembers.find((m) => m.uid === leaderId) || validMembers[0];
+  const attackerGangId = safeText(leaderMember?.data?.gangId, '', 64);
+  const attackerGangName = safeText(leaderMember?.data?.gangName, '', 48);
+  const targetGangId = safeText(targetData.gangId, '', 64);
+  const targetGangName = safeText(targetData.gangName, '', 48);
+  const raidMemberIds = validMembers
+    .map((m) => String(m.uid ?? '').trim())
+    .filter((uid) => uid.length > 0);
+  const raidMemberNames = validMembers
+    .map((m) => safeText(m?.data?.displayName ?? m?.data?.name ?? m.uid, m.uid, 24))
+    .filter((name) => hasText(name));
+
   const targetPower = Math.max(1, Number(targetData.power ?? 1));
 
   // Gang raid combat calculation
@@ -2021,6 +2076,12 @@ exports.executeGangRaid = onCall({ invoker: 'public' }, async (request) => {
     defTotal,
     raidId,
     memberCount: validMembers.length,
+    participantIds: raidMemberIds,
+    raidMemberNames,
+    attackerGangId,
+    attackerGangName,
+    targetGangId,
+    targetGangName,
     timestamp: admin.firestore.Timestamp.now(),
   });
 
@@ -2556,6 +2617,7 @@ function attackTypeLabelTr(type) {
 function buildAttackReportBody(attack, direction = 'incoming') {
   const dir = direction === 'outgoing' ? 'outgoing' : 'incoming';
   const isOutgoing = dir === 'outgoing';
+  const isGangAttack = String(attack?.type ?? '').trim() === 'gang';
   const lines = [];
   lines.push(formatOutcomeTr(attack?.outcome, dir));
   lines.push(`Tür: ${attackTypeLabelTr(attack?.type)}`);
@@ -2569,6 +2631,28 @@ function buildAttackReportBody(attack, direction = 'incoming') {
   const myName = isOutgoing ? attackerName : targetName;
   const enemyName = isOutgoing ? targetName : attackerName;
   lines.push(`Taraflar: Sen (${myName}) | Rakip (${enemyName})`);
+
+  if (isGangAttack) {
+    const attackerGangName = hasText(attack?.attackerGangName)
+      ? String(attack.attackerGangName).trim()
+      : 'Saldıran Kartel';
+    const targetGangName = hasText(attack?.targetGangName)
+      ? String(attack.targetGangName).trim()
+      : 'Savunan Taraf';
+    lines.push(`Karteller: ${attackerGangName} vs ${targetGangName}`);
+    const memberCount = Math.max(0, Number(attack?.memberCount ?? 0));
+    if (memberCount > 0) {
+      lines.push(`Saldıran Üye Sayısı: ${memberCount}`);
+    }
+    const memberNames = Array.isArray(attack?.raidMemberNames)
+      ? attack.raidMemberNames
+        .map((name) => String(name ?? '').trim())
+        .filter((name) => hasText(name))
+      : [];
+    if (memberNames.length > 0) {
+      lines.push(`Saldırı Ekibi: ${memberNames.join(', ')}`);
+    }
+  }
 
   const atkTotal = Number(attack?.atkTotal ?? NaN);
   const defTotal = Number(attack?.defTotal ?? NaN);
