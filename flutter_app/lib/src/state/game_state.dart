@@ -47,7 +47,7 @@ class _GameStateBase extends ChangeNotifier {
   static const _maxItemDurability = 100;
   static const _oneTimeGoldGiftAmount = 1000000;
   static const _oneTimeCashGiftAmount = 1000000;
-  static const _hospitalPenaltyDurationSec = 2700;
+  static const _hospitalPenaltyDurationSec = 600;
   static const _jailPenaltyDurationSec = 600;
   static const _missionFailXpRatio = 0.2;
   static const _rookieEasyLevelCap = 5;

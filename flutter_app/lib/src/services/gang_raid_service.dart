@@ -11,7 +11,7 @@ class GangRaidService {
   static const int memberBonusPctPerExtra = 10;
   static const int raidXpReward = 50;
   static const int prisonDurationMinutes = 10;
-  static const int hospitalDurationMinutes = 45;
+  static const int hospitalDurationMinutes = 10;
 
   final _db = FirebaseFirestore.instance;
   final _rng = Random();
