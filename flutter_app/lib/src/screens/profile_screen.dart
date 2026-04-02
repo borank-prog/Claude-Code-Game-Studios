@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../data/game_models.dart';
 import '../state/game_state.dart';
@@ -10,7 +9,6 @@ import '../widgets/glass_panel.dart';
 import '../widgets/item_asset_image.dart';
 import 'gang_chat_screen.dart';
 import 'gang_leaderboard_screen.dart';
-import 'inbox_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -1297,8 +1295,6 @@ class ProfileScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          _buildInboxShortcut(context, state),
-          const SizedBox(height: 8),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1443,99 +1439,6 @@ class ProfileScreen extends StatelessWidget {
             }),
         ],
       ),
-    );
-  }
-
-  Widget _buildInboxShortcut(BuildContext context, GameState state) {
-    final uid = state.userId.trim();
-    if (uid.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('inbox')
-          .where('isRead', isEqualTo: false)
-          .snapshots(),
-      builder: (context, snap) {
-        final unread = snap.hasData ? snap.data!.docs.length : 0;
-        return Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => InboxScreen(uid: uid)),
-              );
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFF14213B).withValues(alpha: 0.65),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: unread > 0
-                      ? const Color(0xFFF87171).withValues(alpha: 0.75)
-                      : const Color(0xFF334155),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    unread > 0
-                        ? Icons.mark_email_unread_rounded
-                        : Icons.mark_email_read_outlined,
-                    color: unread > 0
-                        ? const Color(0xFFF87171)
-                        : const Color(0xFF94A3B8),
-                    size: 18,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    state.tt('Mesaj Kutusu', 'Inbox'),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (unread > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF87171),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        unread > 99 ? '99+' : '$unread',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    )
-                  else
-                    Text(
-                      state.tt('Boş', 'Empty'),
-                      style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 
