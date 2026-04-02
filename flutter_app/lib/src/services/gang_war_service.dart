@@ -345,6 +345,7 @@ class GangWarService {
     return _participants
         .where('warId', isEqualTo: warId)
         .where('status', isEqualTo: GangWarParticipantStatus.active.name)
+        .orderBy('powerSnapshot', descending: true)
         .snapshots()
         .map(
           (snap) => snap.docs
@@ -361,18 +362,14 @@ class GangWarService {
     if (cleanWarId.isEmpty) return const Stream<List<GangWarEvent>>.empty();
     return _events
         .where('warId', isEqualTo: cleanWarId)
+        .orderBy('turn')
+        .orderBy('createdAt')
         .limit(limit)
         .snapshots()
         .map((snap) {
-          final rows = snap.docs
+          return snap.docs
               .map((d) => GangWarEvent.fromFirestore(d.id, d.data()))
-              .toList(growable: true);
-          rows.sort((a, b) {
-            final turnCompare = a.turn.compareTo(b.turn);
-            if (turnCompare != 0) return turnCompare;
-            return a.createdAt.compareTo(b.createdAt);
-          });
-          return rows;
+              .toList(growable: false);
         });
   }
 
@@ -416,14 +413,13 @@ class GangWarService {
     if (cleanUid.isEmpty) return const Stream<List<GangWarReport>>.empty();
     return _reports
         .where('viewerUid', isEqualTo: cleanUid)
+        .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
-        .map((snap) {
-          final rows = snap.docs
+        .map(
+          (snap) => snap.docs
               .map((d) => GangWarReport.fromFirestore(d.id, d.data()))
-              .toList(growable: true);
-          rows.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-          return rows;
-        });
+              .toList(growable: false),
+        );
   }
 }

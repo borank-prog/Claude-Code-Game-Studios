@@ -1,0 +1,63 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "gang_wars",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pairKey", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gang_wars",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "pairKey", "order": "ASCENDING" },
+        { "fieldPath": "pairCooldownUntilEpoch", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gang_wars",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "attackerGangId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gang_wars",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "defenderGangId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gang_war_participants",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "warId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "powerSnapshot", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gang_war_events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "warId", "order": "ASCENDING" },
+        { "fieldPath": "turn", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "gang_war_reports",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "viewerUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -2722,26 +2722,32 @@ exports.createGangWar = onCall({ invoker: 'public' }, async (request) => {
   }
 
   const pairKey = gangWarPairKey(attackerGangId, targetGangId);
-  const pairWarSnap = await db
-    .collection('gang_wars')
-    .where('pairKey', '==', pairKey)
-    .limit(25)
-    .get();
+  const [activePairWarsSnap, latestPairCooldownSnap] = await Promise.all([
+    db
+      .collection('gang_wars')
+      .where('pairKey', '==', pairKey)
+      .where('status', 'in', ['recruiting', 'ready', 'active'])
+      .limit(1)
+      .get(),
+    db
+      .collection('gang_wars')
+      .where('pairKey', '==', pairKey)
+      .orderBy('pairCooldownUntilEpoch', 'desc')
+      .limit(1)
+      .get(),
+  ]);
+
+  if (!activePairWarsSnap.empty) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Bu iki kartel arasında zaten aktif bir savaş var.',
+    );
+  }
 
   let maxCooldownUntil = 0;
-  for (const doc of pairWarSnap.docs) {
-    const data = doc.data() || {};
-    const status = String(data.status ?? '').trim();
-    if (status === 'recruiting' || status === 'ready' || status === 'active') {
-      throw new HttpsError(
-        'failed-precondition',
-        'Bu iki kartel arasında zaten aktif bir savaş var.',
-      );
-    }
-    const cooldownUntil = asInt(data.pairCooldownUntilEpoch, 0);
-    if (cooldownUntil > maxCooldownUntil) {
-      maxCooldownUntil = cooldownUntil;
-    }
+  if (!latestPairCooldownSnap.empty) {
+    const latestData = latestPairCooldownSnap.docs[0].data() || {};
+    maxCooldownUntil = asInt(latestData.pairCooldownUntilEpoch, 0);
   }
   if (maxCooldownUntil > nowEpoch) {
     const waitMin = Math.max(1, Math.ceil((maxCooldownUntil - nowEpoch) / 60));
