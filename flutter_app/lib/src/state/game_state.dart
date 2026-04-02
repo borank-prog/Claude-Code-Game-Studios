@@ -145,6 +145,7 @@ class _GameStateBase extends ChangeNotifier {
   int statEnergy = 0;
   int lastRegenCheckEpoch = 0;
   int shieldUntilEpoch = 0;
+  int vipShieldLastUseDayKey = 0;
 
   int hospitalUntilEpoch = 0;
   int jailUntilEpoch = 0;
@@ -1259,6 +1260,11 @@ class _GameStateBase extends ChangeNotifier {
     return '$y-$m-$d';
   }
 
+  int _turkeyDayKeyFromEpoch([int? epochSec]) {
+    final base = epochSec ?? (DateTime.now().millisecondsSinceEpoch ~/ 1000);
+    return ((base + (3 * 60 * 60)) ~/ (24 * 60 * 60));
+  }
+
   int _daysBetweenIso(String fromIso, String toIso) {
     try {
       final a = DateTime.parse(fromIso);
@@ -2015,6 +2021,7 @@ class _GameStateBase extends ChangeNotifier {
         maxEnergy: maxEnerji,
         attackEnergyCost: attackEnergyCost,
         shieldUntilEpoch: shieldUntilEpoch,
+        vipShieldLastUseDayKey: vipShieldLastUseDayKey,
         status: profileStatus,
         statusUntilEpoch: profileStatusUntilEpoch,
         online: playerOnline,
@@ -2184,6 +2191,7 @@ class _GameStateBase extends ChangeNotifier {
     statEnergy = 0;
     lastRegenCheckEpoch = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     shieldUntilEpoch = 0;
+    vipShieldLastUseDayKey = 0;
     hospitalUntilEpoch = 0;
     jailUntilEpoch = 0;
     playerOnline = true;
@@ -2260,6 +2268,7 @@ class _GameStateBase extends ChangeNotifier {
       'maxEnerji': maxEnerji,
       'currentEnerji': currentEnerji,
       'shieldUntilEpoch': shieldUntilEpoch,
+      'vipShieldLastUseDayKey': vipShieldLastUseDayKey,
       'stamina': stamina,
       'maxStamina': maxStamina,
       'statPoints': statPoints,
@@ -2383,6 +2392,7 @@ class _GameStateBase extends ChangeNotifier {
       dailyStreak = 0;
       lastDailyLoginDate = '';
       dailyLoginClaimed = false;
+      vipShieldLastUseDayKey = 0;
       oneTimeGoldGiftGranted = false;
       oneTimeCashGiftGranted = false;
       balanceMetrics.clear();
@@ -2424,6 +2434,7 @@ class _GameStateBase extends ChangeNotifier {
     currentEnerji =
         map['currentEnerji'] as int? ?? (map['stamina'] as int? ?? 100);
     shieldUntilEpoch = map['shieldUntilEpoch'] as int? ?? 0;
+    vipShieldLastUseDayKey = map['vipShieldLastUseDayKey'] as int? ?? 0;
     stamina = currentEnerji;
     maxStamina = maxEnerji;
     statPoints = map['statPoints'] as int? ?? 0;

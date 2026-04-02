@@ -185,10 +185,10 @@ class MarketScreen extends StatelessWidget {
             _premiumCard(
               context,
               state,
-              title: state.tt('24 Saatlik VIP Kalkan', '24-Hour VIP Shield'),
+              title: state.tt('6 Saatlik VIP Kalkan', '6-Hour VIP Shield'),
               description: state.tt(
-                'Bu süre boyunca diğer oyuncular sana saldıramaz.',
-                'Other players cannot attack you during this period.',
+                'Günde 1 kez kullanılabilir. Süre boyunca diğer oyuncular sana saldıramaz.',
+                'Can be used once per day. Other players cannot attack you during this period.',
               ),
               icon: Icons.shield_outlined,
               iconColor: const Color(0xFF22D3EE),
@@ -208,8 +208,8 @@ class MarketScreen extends StatelessWidget {
                     context,
                     state,
                     serviceTitle: state.tt(
-                      '24 Saatlik VIP Kalkan',
-                      '24-Hour VIP Shield',
+                      '6 Saatlik VIP Kalkan',
+                      '6-Hour VIP Shield',
                     ),
                     serviceDesc: msg,
                     serviceIcon: Icons.shield_outlined,

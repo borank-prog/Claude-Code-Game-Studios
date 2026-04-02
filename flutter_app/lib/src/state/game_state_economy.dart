@@ -73,16 +73,24 @@ mixin _GameStateEconomy on _GameStateBase {
       return actionLockMessage;
     }
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final todayKey = _turkeyDayKeyFromEpoch(now);
+    if (vipShieldLastUseDayKey == todayKey) {
+      return tt(
+        'VIP koruma kalkanını bugün zaten kullandın. Yeni kullanım için yarını bekle.',
+        'You already used VIP shield today. Wait until tomorrow for the next use.',
+      );
+    }
     final snapshot = _premiumSnapshotPlayer();
     final result = _premiumShopService.buyVipShield(snapshot, nowEpoch: now);
     if (!result.success) {
       return tt(
-        'Yeterli altının yok. 24 saatlik kalkan için $vipShieldGoldCost Altın gerekli.',
-        'Not enough gold. 24h shield requires $vipShieldGoldCost gold.',
+        'Yeterli altının yok. 6 saatlik kalkan için $vipShieldGoldCost Altın gerekli.',
+        'Not enough gold. 6h shield requires $vipShieldGoldCost gold.',
       );
     }
 
     _applyPremiumSnapshotPlayer(snapshot);
+    vipShieldLastUseDayKey = todayKey;
     _queueEvent('premium_shield', {
       'costGold': result.spentGold,
       'until': result.newShieldUntilEpoch,
@@ -90,16 +98,16 @@ mixin _GameStateEconomy on _GameStateBase {
     _addNews(
       tt('VIP Koruma Kalkanı', 'VIP Shield'),
       tt(
-        '24 saatlik koruma açıldı. Bu sürede sana saldırı engellenir.',
-        '24-hour protection enabled. Attacks are blocked during this time.',
+        '6 saatlik koruma açıldı. Bu sürede sana saldırı engellenir.',
+        '6-hour protection enabled. Attacks are blocked during this time.',
       ),
     );
     await _save();
     _syncOnlineSoon();
     notifyListeners();
     return tt(
-      '🛡️ VIP Kalkan aktif: 24 saat saldırı koruması.',
-      '🛡️ VIP Shield active: 24h attack protection.',
+      '🛡️ VIP Kalkan aktif: 6 saat saldırı koruması.',
+      '🛡️ VIP Shield active: 6h attack protection.',
     );
   }
 

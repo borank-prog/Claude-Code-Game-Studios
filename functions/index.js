@@ -110,6 +110,11 @@ function hasOwn(obj, key) {
   return Object.prototype.hasOwnProperty.call(obj || {}, key);
 }
 
+function turkeyDayKey(epochSec) {
+  const normalized = Math.max(0, asInt(epochSec, 0));
+  return Math.floor((normalized + (3 * 60 * 60)) / (24 * 60 * 60));
+}
+
 function sanitizeIdFromMap(raw, mapObj, fallback = '') {
   const id = String(raw ?? '').trim();
   if (!id) return fallback;
@@ -303,17 +308,33 @@ function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
     statusUntilEpoch = 0;
   }
 
+  const todayVipShieldDayKey = turkeyDayKey(nowEpoch);
+  const prevVipShieldLastUseDayKey = clamp(asInt(prev.vipShieldLastUseDayKey, 0), 0, todayVipShieldDayKey);
+  const requestedVipShieldLastUseDayKey = clamp(
+    asInt(input.vipShieldLastUseDayKey, prevVipShieldLastUseDayKey),
+    0,
+    todayVipShieldDayKey,
+  );
   const prevShieldUntil = Math.max(0, asInt(prev.shieldUntilEpoch, 0));
   const requestedShieldUntil = clamp(
     Math.max(0, asInt(input.shieldUntilEpoch, prevShieldUntil)),
     0,
-    nowEpoch + (3 * 60 * 60),
+    nowEpoch + (6 * 60 * 60),
   );
   let shieldUntilEpoch = prevShieldUntil;
+  let vipShieldLastUseDayKey = prevVipShieldLastUseDayKey;
   if (requestedShieldUntil > prevShieldUntil) {
-    shieldUntilEpoch = requestedShieldUntil;
+    if (prevVipShieldLastUseDayKey >= todayVipShieldDayKey) {
+      markClamp('shield_daily_limit_blocked');
+    } else {
+      shieldUntilEpoch = requestedShieldUntil;
+      vipShieldLastUseDayKey = todayVipShieldDayKey;
+    }
   } else if (requestedShieldUntil < prevShieldUntil && prevShieldUntil > nowEpoch) {
     markClamp('shield_reduce_blocked');
+  }
+  if (requestedVipShieldLastUseDayKey > vipShieldLastUseDayKey) {
+    vipShieldLastUseDayKey = requestedVipShieldLastUseDayKey;
   }
   if (shieldUntilEpoch <= nowEpoch) {
     shieldUntilEpoch = 0;
@@ -388,6 +409,7 @@ function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
         ? admin.firestore.Timestamp.fromDate(new Date(statusUntilEpoch * 1000))
         : null,
       shieldUntilEpoch,
+      vipShieldLastUseDayKey,
       equippedWeaponId,
       equippedKnifeId,
       equippedArmorId,

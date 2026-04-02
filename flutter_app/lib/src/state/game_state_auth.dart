@@ -271,6 +271,7 @@ mixin _GameStateAuth on _GameStateBase {
           currentEnergy: currentEnerji,
           maxEnergy: maxEnerji,
           shieldUntilEpoch: shieldUntilEpoch,
+          vipShieldLastUseDayKey: vipShieldLastUseDayKey,
           status: 'active',
           statusUntilEpoch: 0,
           online: false,
