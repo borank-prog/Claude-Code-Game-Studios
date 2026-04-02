@@ -268,12 +268,11 @@ class ProfileScreen extends StatelessWidget {
     BuildContext context,
     GameState state,
   ) async {
-    await state.refreshSocialData();
-    if (!context.mounted) return;
     final members = _sortedGangMembers(state);
     final gangName = (state.currentGang?['name']?.toString() ?? '').trim();
     await showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF0F1B33),
       shape: const RoundedRectangleBorder(
