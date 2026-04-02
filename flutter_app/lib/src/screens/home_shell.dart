@@ -176,6 +176,69 @@ class _HomeShellState extends State<HomeShell> {
         });
   }
 
+  Widget _buildInboxLetterGlyph({required bool hasUnread}) {
+    final borderColor = hasUnread
+        ? const Color(0xFFFCA5A5)
+        : const Color(0xFFFCD34D);
+    final paperTop = hasUnread
+        ? const Color(0xFFFEF2F2)
+        : const Color(0xFFFEF3C7);
+    final paperBottom = hasUnread
+        ? const Color(0xFFFDE2E2)
+        : const Color(0xFFFDE68A);
+
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [paperTop, paperBottom],
+                ),
+                border: Border.all(color: borderColor, width: 1.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: (hasUnread
+                            ? const Color(0x55EF4444)
+                            : const Color(0x55F59E0B))
+                        .withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.mail_outline_rounded,
+                size: 14,
+                color: const Color(0xFF334155),
+              ),
+            ),
+          ),
+          if (hasUnread)
+            Positioned(
+              top: -2,
+              right: -2,
+              child: Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEF4444),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showOfflineReportsIfAny() async {
     if (!mounted) return;
     final state = context.read<GameState>();
@@ -884,24 +947,8 @@ class _HomeShellState extends State<HomeShell> {
                                       'Mesaj Kutusu',
                                       'Inbox',
                                     ),
-                                    icon: Container(
-                                      width: 24,
-                                      height: 24,
-                                      decoration: BoxDecoration(
-                                        color: _inboxUnreadCount > 0
-                                            ? const Color(0x55EF4444)
-                                            : const Color(0x33FBBF24),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Icon(
-                                        _inboxUnreadCount > 0
-                                            ? Icons.mail_rounded
-                                            : Icons.mark_email_read_rounded,
-                                        size: 16,
-                                        color: _inboxUnreadCount > 0
-                                            ? Colors.white
-                                            : const Color(0xFFFBBF24),
-                                      ),
+                                    icon: _buildInboxLetterGlyph(
+                                      hasUnread: _inboxUnreadCount > 0,
                                     ),
                                     onPressed: () {
                                       final uid = state.userId.trim();
