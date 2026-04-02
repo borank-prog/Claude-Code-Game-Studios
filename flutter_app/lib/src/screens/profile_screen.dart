@@ -2044,15 +2044,6 @@ class ProfileScreen extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => _openGangMembersSheet(context, state),
-              icon: const Icon(Icons.visibility_outlined, size: 18),
-              label: Text(state.tt('Kartel İçini Aç', 'Open Cartel Details')),
-            ),
-          ),
           if (state.isGangLeader) ...[
             const SizedBox(height: 8),
             SizedBox(
