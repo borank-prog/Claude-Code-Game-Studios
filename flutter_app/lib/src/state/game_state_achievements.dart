@@ -13,8 +13,7 @@ mixin _GameStateAchievements on _GameStateBase {
     for (final def in defs) {
       if (unlockedAchievements.contains(def.id)) continue;
       if (claimedAchievements.contains(def.id)) continue;
-      final progress = _achievementProgress(def);
-      if (progress >= def.target) {
+      if (_isAchievementCompleted(def)) {
         unlockedAchievements.add(def.id);
         _addNews(
           tt('Basarim Acildi!', 'Achievement Unlocked!'),
@@ -69,6 +68,10 @@ mixin _GameStateAchievements on _GameStateBase {
     }
   }
 
+  bool _isAchievementCompleted(AchievementDef def) {
+    return _achievementProgress(def) >= def.target;
+  }
+
   /// Returns progress ratio (0.0-1.0) for display
   double achievementRatio(AchievementDef def) {
     if (def.target <= 0) return 1.0;
@@ -80,8 +83,13 @@ mixin _GameStateAchievements on _GameStateBase {
     return _achievementProgress(def);
   }
 
-  bool isAchievementUnlocked(String id) =>
-      unlockedAchievements.contains(id) || claimedAchievements.contains(id);
+  bool isAchievementUnlocked(String id) {
+    if (claimedAchievements.contains(id)) return true;
+    if (unlockedAchievements.contains(id)) return true;
+    final def = AchievementData.getById(id);
+    if (def == null) return false;
+    return _isAchievementCompleted(def);
+  }
 
   bool isAchievementClaimed(String id) => claimedAchievements.contains(id);
 
@@ -89,12 +97,17 @@ mixin _GameStateAchievements on _GameStateBase {
     if (claimedAchievements.contains(id)) {
       return tt('Bu odulu zaten aldin.', 'Already claimed this reward.');
     }
-    if (!unlockedAchievements.contains(id)) {
-      return tt('Basarim henuz acilmadi.', 'Achievement not unlocked yet.');
-    }
     final def = AchievementData.getById(id);
     if (def == null) {
       return tt('Gecersiz basarim.', 'Invalid achievement.');
+    }
+    // Defensive unlock: progress hedefe ulasmissa ama unlock seti gec kaldiysa
+    // oyuncunun odulu kilitli kalmasin.
+    if (!unlockedAchievements.contains(id) && _isAchievementCompleted(def)) {
+      unlockedAchievements.add(id);
+    }
+    if (!unlockedAchievements.contains(id)) {
+      return tt('Basarim henuz acilmadi.', 'Achievement not unlocked yet.');
     }
 
     unlockedAchievements.remove(id);
@@ -126,5 +139,12 @@ mixin _GameStateAchievements on _GameStateBase {
     );
   }
 
-  int get unclaimedAchievementCount => unlockedAchievements.length;
+  int get unclaimedAchievementCount {
+    var count = 0;
+    for (final def in AchievementData.all) {
+      if (claimedAchievements.contains(def.id)) continue;
+      if (_isAchievementCompleted(def)) count++;
+    }
+    return count;
+  }
 }

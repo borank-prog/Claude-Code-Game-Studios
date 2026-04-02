@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_app/src/state/game_state.dart';
 import 'package:flutter_app/src/data/game_models.dart';
 import 'package:flutter_app/src/data/static_data.dart';
+import 'package:flutter_app/src/data/achievement_data.dart';
 
 void main() {
   setUp(() {
@@ -222,6 +223,53 @@ void main() {
     });
   });
 
+  group('Mission penalty routing', () {
+    test('robbery/baskin missions route failure to jail', () {
+      final gs = GameState();
+      final robbery = const MissionDef(
+        id: 'market_easy',
+        name: 'Market Soygunu',
+        difficulty: 'easy',
+        staminaCost: 8,
+        rewardMin: 10,
+        rewardMax: 20,
+        xp: 10,
+        successRate: 0.5,
+      );
+      expect(gs.missionFailureLeadsToJail(robbery), true);
+    });
+
+    test('non-robbery missions route failure to hospital', () {
+      final gs = GameState();
+      final nonRobbery = const MissionDef(
+        id: 'teslimat_easy',
+        name: 'Madde Teslimatı',
+        difficulty: 'easy',
+        staminaCost: 7,
+        rewardMin: 10,
+        rewardMax: 20,
+        xp: 10,
+        successRate: 0.5,
+      );
+      expect(gs.missionFailureLeadsToJail(nonRobbery), false);
+    });
+
+    test('hard mission is not automatically jail without robbery marker', () {
+      final gs = GameState();
+      final hardButNonRobbery = const MissionDef(
+        id: 'egitim_hard',
+        name: 'Egitim Operasyonu',
+        difficulty: 'hard',
+        staminaCost: 11,
+        rewardMin: 20,
+        rewardMax: 35,
+        xp: 18,
+        successRate: 0.4,
+      );
+      expect(gs.missionFailureLeadsToJail(hardButNonRobbery), false);
+    });
+  });
+
   group('Economy', () {
     test('one-time starter gifts are applied once and persisted', () async {
       SharedPreferences.setMockInitialValues({});
@@ -427,6 +475,62 @@ void main() {
       expect(gs.attackEnergyCost, lessThan(baseCost));
       expect(gs.attackEnergyCost, 25);
     });
+  });
+
+  group('Achievement rewards', () {
+    test(
+      'collector reward can be claimed even if unlock set is stale',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final gs = GameState();
+        await gs.initialize();
+
+        gs.ownedItems.clear();
+        for (var i = 0; i < 13; i++) {
+          gs.ownedItems['item_$i'] = 1;
+        }
+        gs.unlockedAchievements.remove('collector');
+        gs.claimedAchievements.remove('collector');
+
+        final cashBefore = gs.cash;
+        final xpBefore = gs.xp;
+        final levelBefore = gs.level;
+
+        final msg = await gs.claimAchievement('collector');
+
+        expect(gs.isAchievementClaimed('collector'), true);
+        expect(gs.cash, cashBefore + 5000);
+        expect(gs.xp > xpBefore || gs.level > levelBefore, true);
+        expect(
+          msg.contains('Odul alindi') || msg.contains('Reward claimed'),
+          true,
+        );
+      },
+    );
+
+    test(
+      'unclaimedAchievementCount includes completed-but-not-listed rewards',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final gs = GameState();
+        await gs.initialize();
+
+        gs.ownedItems.clear();
+        for (var i = 0; i < 10; i++) {
+          gs.ownedItems['item_$i'] = 1;
+        }
+        gs.unlockedAchievements.clear();
+        gs.claimedAchievements.remove('collector');
+
+        final collectorDef = AchievementData.getById('collector');
+        expect(collectorDef, isNotNull);
+        expect(
+          gs.achievementProgressValue(collectorDef!),
+          greaterThanOrEqualTo(10),
+        );
+        expect(gs.unclaimedAchievementCount, greaterThanOrEqualTo(1));
+      },
+    );
   });
 
   group('Static data integrity', () {
