@@ -4266,3 +4266,12 @@ async function sendNotification(token, title, body, data = {}) {
     console.error('FCM hatası:', err.message);
   }
 }
+
+// Test hook: expose pure helpers for unit tests.
+exports.__test__ = {
+  asInt,
+  safeText,
+  normalizeGangRole,
+  resolvePenaltyStatus,
+  gangWarPairKey,
+};
