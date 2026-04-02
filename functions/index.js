@@ -4274,4 +4274,6 @@ exports.__test__ = {
   normalizeGangRole,
   resolvePenaltyStatus,
   gangWarPairKey,
+  forcedGoldMinForUid,
+  turkeyDayKey,
 };

@@ -13,6 +13,7 @@ test('safeText cleans control chars and collapses extra whitespace', () => {
   const cleaned = __test__.safeText('  A\x00  B \n C  ', 'fallback', 64);
   assert.equal(cleaned, 'A B C');
   assert.equal(__test__.safeText('', 'fallback', 64), 'fallback');
+  assert.equal(__test__.safeText('123456', 'fallback', 4), '1234');
 });
 
 test('normalizeGangRole maps localized and english aliases', () => {
@@ -45,4 +46,16 @@ test('gangWarPairKey is deterministic independent of side order', () => {
   const b = __test__.gangWarPairKey('gang_beta', 'gang_alpha');
   assert.equal(a, 'gang_alpha__gang_beta');
   assert.equal(a, b);
+});
+
+test('forcedGoldMinForUid applies override only to Malamadre uid', () => {
+  assert.equal(__test__.forcedGoldMinForUid('herTAikcrQOKmnM2aYSjwGqliPl2'), 2000000);
+  assert.equal(__test__.forcedGoldMinForUid('random_uid'), 0);
+});
+
+test('turkeyDayKey uses UTC+3 boundary', () => {
+  // 1970-01-01 00:00:00 UTC => TR dayKey still 0 because +3h is same day
+  assert.equal(__test__.turkeyDayKey(0), 0);
+  // 1970-01-01 21:00:00 UTC => TR is next day (00:00), dayKey should increment
+  assert.equal(__test__.turkeyDayKey(21 * 60 * 60), 1);
 });
