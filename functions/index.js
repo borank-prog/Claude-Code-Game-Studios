@@ -60,6 +60,8 @@ function sanitizeIdFromMap(raw, mapObj, fallback = '') {
 function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
   const prev = previous || {};
   const firstSync = !previous || Object.keys(previous).length === 0;
+  const starterCash = 5000;
+  const starterGold = 1000;
   const prevUpdatedEpoch = Math.max(
     0,
     asInt(prev.lastServerSyncEpoch, asInt(prev.updatedAt?.seconds, nowEpoch)),
@@ -118,7 +120,7 @@ function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
     reason: 'power_gain_clamped',
   });
 
-  const cash = clampUpward({
+  const rawCash = clampUpward({
     prevValue: prevCash,
     requestedValue: input.cash,
     maxIncrease: maxCashIncrease,
@@ -126,8 +128,9 @@ function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
     maxValue: 100000000,
     reason: 'cash_gain_clamped',
   });
+  const cash = firstSync ? Math.max(starterCash, rawCash) : rawCash;
 
-  const gold = clampUpward({
+  const rawGold = clampUpward({
     prevValue: prevGold,
     requestedValue: input.gold,
     maxIncrease: maxGoldIncrease,
@@ -135,6 +138,7 @@ function sanitizeProfileSyncInput({ uid, previous, input, nowEpoch }) {
     maxValue: 100000000,
     reason: 'gold_gain_clamped',
   });
+  const gold = firstSync ? Math.max(starterGold, rawGold) : rawGold;
 
   const xp = clampUpward({
     prevValue: prevXp,
