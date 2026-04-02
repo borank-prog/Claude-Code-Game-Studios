@@ -53,18 +53,6 @@ service cloud.firestore {
           'updatedAt'
         ]);
     }
-    function gangWarParticipantDocId(warId, uid) {
-      return warId + "_" + uid;
-    }
-    function isGangWarParticipant(warId, uid) {
-      let pid = gangWarParticipantDocId(warId, uid);
-      let path = /databases/$(database)/documents/gang_war_participants/$(pid);
-      return exists(path) &&
-        get(path).data.warId == warId &&
-        get(path).data.uid == uid &&
-        get(path).data.status == 'active';
-    }
-
     // ── User profiles (all game data, leaderboard, social, FCM) ──
     match /users/{uid} {
       allow read: if isLoggedIn();
@@ -310,76 +298,27 @@ service cloud.firestore {
     // ── Gang wars (foundation) ──
     match /gang_wars/{warId} {
       allow read: if isLoggedIn();
-      allow create: if isLoggedIn() &&
-        request.resource.data.createdByUid == request.auth.uid &&
-        request.resource.data.attackerGangId is string &&
-        request.resource.data.defenderGangId is string &&
-        request.resource.data.attackerGangId != request.resource.data.defenderGangId &&
-        request.resource.data.status in ['recruiting', 'ready', 'active', 'resolved', 'cancelled'];
-      allow update: if isLoggedIn() && (
-        resource.data.createdByUid == request.auth.uid ||
-        (
-          isGangWarParticipant(warId, request.auth.uid) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status',
-            'result',
-            'winnerGangId',
-            'attackerCount',
-            'defenderCount',
-            'attackerPowerSnapshot',
-            'defenderPowerSnapshot',
-            'startsAt',
-            'endsAt',
-            'resolvedAt',
-            'updatedAt'
-          ])
-        )
-      );
-      allow delete: if false;
+      // Server-authoritative: cartel wars are written only by Cloud Functions.
+      allow create, update, delete: if false;
     }
 
     match /gang_war_participants/{participantId} {
       allow read: if isLoggedIn();
-      allow create: if isLoggedIn() &&
-        request.resource.data.uid == request.auth.uid &&
-        request.resource.data.warId is string &&
-        request.resource.data.warId != '' &&
-        request.resource.data.status == 'active' &&
-        participantId == gangWarParticipantDocId(
-          request.resource.data.warId,
-          request.auth.uid
-        );
-      allow update: if isLoggedIn() && (
-        request.auth.uid == resource.data.uid ||
-        (
-          resource.data.warId is string &&
-          resource.data.warId != '' &&
-          exists(/databases/$(database)/documents/gang_wars/$(resource.data.warId)) &&
-          get(/databases/$(database)/documents/gang_wars/$(resource.data.warId)).data.createdByUid == request.auth.uid
-        )
-      );
-      allow delete: if false;
+      // Server-authoritative: participant snapshots are immutable from clients.
+      allow create, update, delete: if false;
     }
 
     match /gang_war_events/{eventId} {
       allow read: if isLoggedIn();
-      allow create: if isLoggedIn() &&
-        request.resource.data.actorUid == request.auth.uid &&
-        request.resource.data.warId is string &&
-        request.resource.data.warId != '' &&
-        isGangWarParticipant(request.resource.data.warId, request.auth.uid);
-      allow update, delete: if false;
+      // Server-authoritative event timeline.
+      allow create, update, delete: if false;
     }
 
     match /gang_war_reports/{reportId} {
       allow read: if isLoggedIn() &&
         resource.data.viewerUid == request.auth.uid;
-      allow create: if isLoggedIn() &&
-        request.resource.data.viewerUid == request.auth.uid &&
-        request.resource.data.warId is string &&
-        request.resource.data.warId != '' &&
-        isGangWarParticipant(request.resource.data.warId, request.auth.uid);
-      allow update, delete: if false;
+      // Reports are written by Cloud Functions to prevent forgery.
+      allow create, update, delete: if false;
     }
   }
 }
