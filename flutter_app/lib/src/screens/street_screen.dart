@@ -807,7 +807,10 @@ class _MissionResultSheet extends StatelessWidget {
                     if (res.sentToJail)
                       _resultRow(
                         '🔒 ${state.tt('Durum', 'Status')}',
-                        state.tt('Hapishane (30 dk)', 'Jail (30 min)'),
+                        state.tt(
+                          'Hapishane (${state.jailPenaltyDurationMinutes} dk)',
+                          'Jail (${state.jailPenaltyDurationMinutes} min)',
+                        ),
                         const Color(0xFFEF4444),
                       ),
                     if (res.sentToHospital)
