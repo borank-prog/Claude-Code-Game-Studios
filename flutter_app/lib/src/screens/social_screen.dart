@@ -18,8 +18,6 @@ class SocialScreen extends StatefulWidget {
 }
 
 class _SocialScreenState extends State<SocialScreen> {
-  final TextEditingController _newGangCtrl = TextEditingController();
-  final TextEditingController _joinGangCtrl = TextEditingController();
   static const int _pageSize = 10;
   int _playerLeaderboardPage = 1;
   int _gangLeaderboardPage = 1;
@@ -35,8 +33,6 @@ class _SocialScreenState extends State<SocialScreen> {
 
   @override
   void dispose() {
-    _newGangCtrl.dispose();
-    _joinGangCtrl.dispose();
     super.dispose();
   }
 
@@ -283,36 +279,6 @@ class _SocialScreenState extends State<SocialScreen> {
     return (totalPower * 8) + (respect * 10) + (members * 500);
   }
 
-  Future<void> _createGang(GameState state) async {
-    final ok = await state.createGang(_newGangCtrl.text);
-    if (!mounted) return;
-    if (ok) {
-      _newGangCtrl.clear();
-      _snack(state.tt('Çete kuruldu.', 'Gang created.'));
-      return;
-    }
-    _snack(
-      state.lastAuthError.isNotEmpty
-          ? state.lastAuthError
-          : state.tt('Çete kurulamadı.', 'Gang could not be created.'),
-    );
-  }
-
-  Future<void> _joinGang(GameState state, String targetId) async {
-    final ok = await state.joinGang(targetId);
-    if (!mounted) return;
-    if (ok) {
-      _joinGangCtrl.clear();
-      _snack(state.tt('Katılım isteği gönderildi.', 'Join request sent.'));
-      return;
-    }
-    _snack(
-      state.lastAuthError.isNotEmpty
-          ? state.lastAuthError
-          : state.tt('Çeteye katılınamadı.', 'Could not join gang.'),
-    );
-  }
-
   void _openGangMembersSheet(GameState state, Map<String, dynamic> gang) {
     final id = (gang['id']?.toString() ?? '').trim();
     if (id.isEmpty) return;
@@ -325,164 +291,6 @@ class _SocialScreenState extends State<SocialScreen> {
         gangId: id,
         gangName: name.isEmpty ? state.tt('Çete', 'Gang') : name,
         currentUid: state.userId,
-      ),
-    );
-  }
-
-  Widget _buildGangSection(GameState state) {
-    if (state.hasGang) {
-      // Mevcut kartel bilgisi sadece profil ekranında gösterilir.
-      return const SizedBox.shrink();
-    }
-    final discoverable = state.discoverableGangs
-        .take(6)
-        .toList(growable: false);
-
-    return GlassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.groups_rounded,
-                color: Color(0xFFFBBF24),
-                size: 18,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                state.tt('KARTEL YÖNETİMİ', 'CARTEL MANAGEMENT'),
-                style: const TextStyle(
-                  color: Color(0xFFFBBF24),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ...[
-            TextField(
-              controller: _newGangCtrl,
-              decoration: InputDecoration(
-                hintText: state.tt('Yeni çete adı', 'New gang name'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: 140,
-              child: FilledButton(
-                onPressed: state.userId.isEmpty
-                    ? null
-                    : () => _createGang(state),
-                child: Text(state.tt('Çete Kur', 'Create')),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _joinGangCtrl,
-                    decoration: InputDecoration(
-                      hintText: state.tt(
-                        'Çete ID ile katıl',
-                        'Join with gang ID',
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: state.userId.isEmpty
-                      ? null
-                      : () => _joinGang(state, _joinGangCtrl.text),
-                  child: Text(state.tt('Katıl', 'Join')),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              state.tt('AÇIK ÇETELER', 'OPEN GANGS'),
-              style: const TextStyle(
-                color: Color(0xFFFBBF24),
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 6),
-            if (discoverable.isEmpty)
-              Text(
-                state.tt(
-                  'Şu an açık çete bulunamadı.',
-                  'No open gangs available right now.',
-                ),
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-              )
-            else
-              ...discoverable.map((g) {
-                final id = (g['id']?.toString() ?? '').trim();
-                final name = (g['name']?.toString() ?? '').trim();
-                final members = (g['memberCount'] as num?)?.toInt() ?? 0;
-                return InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: id.isEmpty
-                      ? null
-                      : () => _openGangMembersSheet(state, g),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.03),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0x334B5563)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name.isEmpty ? state.tt('Çete', 'Gang') : name,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              Text(
-                                '${state.tt('Üye', 'Members')}: $members  •  ID: $id',
-                                style: const TextStyle(
-                                  color: Color(0xFF94A3B8),
-                                  fontSize: 11,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          height: 34,
-                          child: OutlinedButton(
-                            onPressed: id.isEmpty
-                                ? null
-                                : () => _joinGang(state, id),
-                            child: Text(state.tt('Katıl', 'Join')),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-          ],
-        ],
       ),
     );
   }
@@ -750,8 +558,6 @@ class _SocialScreenState extends State<SocialScreen> {
                 minimumSize: const Size(double.infinity, 44),
               ),
             ),
-            const SizedBox(height: 8),
-            _buildGangSection(state),
             const SizedBox(height: 8),
             _buildGangLeaderboardSection(state),
             const SizedBox(height: 8),

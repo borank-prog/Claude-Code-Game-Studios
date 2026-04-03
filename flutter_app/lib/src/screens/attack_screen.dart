@@ -598,7 +598,10 @@ class _AttackScreenState extends State<AttackScreen>
           ) +
           attackerRoll;
       final defScore =
-          _applyPercent(current.power, defenderMatchup.totalPct + rookieDefNerfPct) +
+          _applyPercent(
+            current.power,
+            defenderMatchup.totalPct + rookieDefNerfPct,
+          ) +
           defenderRoll;
       final won = state.isRookieEasyMode
           ? (atkScore + 60 >= defScore)
@@ -901,12 +904,16 @@ class _AttackScreenState extends State<AttackScreen>
                             shape: BoxShape.circle,
                           ),
                         ),
-                        Text(
-                          '${state.tt('Sv.', 'Lv.')} ${target.level} | ${target.name}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Text(
+                            '${state.tt('Sv.', 'Lv.')} ${target.level} | ${target.name}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       ],
@@ -914,6 +921,8 @@ class _AttackScreenState extends State<AttackScreen>
                     const SizedBox(height: 4),
                     Text(
                       '${state.tt('Güç', 'Power')}: ${target.power}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.purpleAccent,
                         fontWeight: FontWeight.bold,
@@ -921,6 +930,8 @@ class _AttackScreenState extends State<AttackScreen>
                     ),
                     Text(
                       '${state.tt('Can', 'HP')}: ${target.currentTP}/100',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: target.currentTP > 20
                             ? Colors.redAccent
@@ -932,6 +943,8 @@ class _AttackScreenState extends State<AttackScreen>
                     if (target.gangName.isNotEmpty)
                       Text(
                         '${state.tt('Çete', 'Gang')}: ${target.gangName}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.orangeAccent,
                           fontSize: 12,
@@ -940,45 +953,55 @@ class _AttackScreenState extends State<AttackScreen>
                   ],
                 ),
               ),
-              Column(
-                children: [
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: canAttack
-                          ? Colors.red[700]
-                          : Colors.grey,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 140, maxWidth: 170),
+                child: Column(
+                  children: [
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canAttack
+                            ? Colors.red[700]
+                            : Colors.grey,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: canAttack
+                          ? () => _openAttackSheet(state, target)
+                          : null,
+                      child: Text(
+                        isTargetHospitalized
+                            ? state.tt('HASTANEDE', 'IN HOSPITAL')
+                            : isTargetDetained
+                            ? state.tt('CEZALI', 'DETAINED')
+                            : state.isActionLocked
+                            ? state.actionLockTitle
+                            : !hasEnergy
+                            ? state.tt('ENERJİ YOK', 'NO ENERGY')
+                            : (_busy ? '...' : state.tt('SALDIR', 'ATTACK')),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    onPressed: canAttack
-                        ? () => _openAttackSheet(state, target)
-                        : null,
-                    child: Text(
-                      isTargetHospitalized
-                          ? state.tt('HASTANEDE', 'IN HOSPITAL')
-                          : isTargetDetained
-                          ? state.tt('CEZALI', 'DETAINED')
-                          : state.isActionLocked
-                          ? state.actionLockTitle
-                          : !hasEnergy
-                          ? state.tt('ENERJİ YOK', 'NO ENERGY')
-                          : (_busy ? '...' : state.tt('SALDIR', 'ATTACK')),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                    if (!isTargetHospitalized)
+                      Text(
+                        '-${state.attackEnergyCost} ${state.tt('Enerji', 'Energy')}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: hasEnergy
+                              ? Colors.blueAccent
+                              : Colors.redAccent,
+                          fontSize: 10,
+                        ),
                       ),
-                    ),
-                  ),
-                  if (!isTargetHospitalized)
-                    Text(
-                      '-${state.attackEnergyCost} ${state.tt('Enerji', 'Energy')}',
-                      style: TextStyle(
-                        color: hasEnergy ? Colors.blueAccent : Colors.redAccent,
-                        fontSize: 10,
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

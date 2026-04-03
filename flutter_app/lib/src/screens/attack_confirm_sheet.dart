@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -109,10 +111,9 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
         return;
       }
 
-      final block = await _pvp.canAttack(
-        attackerId: widget.attackerId,
-        targetId: widget.targetId,
-      );
+      final block = await _pvp
+          .canAttack(attackerId: widget.attackerId, targetId: widget.targetId)
+          .timeout(const Duration(seconds: 10));
       if (block != null) {
         setState(() {
           _errorMsg = block;
@@ -145,17 +146,19 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
         return;
       }
 
-      final result = await _pvp.executeAttack(
-        attackerId: widget.attackerId,
-        targetId: widget.targetId,
-        attackerName: widget.attackerName,
-        targetName: widget.targetName,
-        type: _selectedType,
-        attackerPower: widget.attackerPower,
-        targetPower: widget.targetPower,
-        equipmentBonus: _selectedType == AttackType.planned ? 15 : 0,
-        attackCost: state.attackEnergyCost,
-      );
+      final result = await _pvp
+          .executeAttack(
+            attackerId: widget.attackerId,
+            targetId: widget.targetId,
+            attackerName: widget.attackerName,
+            targetName: widget.targetName,
+            type: _selectedType,
+            attackerPower: widget.attackerPower,
+            targetPower: widget.targetPower,
+            equipmentBonus: _selectedType == AttackType.planned ? 15 : 0,
+            attackCost: state.attackEnergyCost,
+          )
+          .timeout(const Duration(seconds: 12));
       await state.applyAttackItemWear(reason: 'online_pvp_attack');
       if (result.remainingEnergy != null) {
         await state.syncAttackEnergyFromServer(
@@ -171,6 +174,11 @@ class _AttackConfirmSheetState extends State<AttackConfirmSheet> {
         backgroundColor: Colors.transparent,
         builder: (_) => AttackResultSheet(result: result),
       );
+    } on TimeoutException {
+      setState(() {
+        _errorMsg = 'İşlem zaman aşımına uğradı. Tekrar dene.';
+        _loading = false;
+      });
     } catch (e) {
       setState(() {
         _errorMsg = _friendlyError(e);

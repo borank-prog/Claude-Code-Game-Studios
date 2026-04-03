@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
@@ -8,6 +10,7 @@ class PvpService {
   final _db = FirebaseFirestore.instance;
   final _functions = FirebaseFunctions.instance;
   static const int _attackWindowSize = 5;
+  static const Duration _networkTimeout = Duration(seconds: 10);
 
   String _normalizeStatus(String rawStatus) {
     final s = rawStatus.trim().toLowerCase();
@@ -79,7 +82,8 @@ class PvpService {
     final coolDoc = await _db
         .collection('attack_cooldowns')
         .doc(cooldownKey)
-        .get();
+        .get()
+        .timeout(_networkTimeout);
     if (coolDoc.exists) {
       final lastAttack = (coolDoc['lastAttack'] as Timestamp).toDate();
       final diff = DateTime.now().difference(lastAttack);
@@ -142,7 +146,8 @@ class PvpService {
             'type': type.name,
             'equipmentBonus': equipmentBonus,
             'attackCost': attackCost,
-          });
+          })
+          .timeout(_networkTimeout);
 
       final data = Map<String, dynamic>.from(
         (response.data as Map?) ?? const <String, dynamic>{},
@@ -177,6 +182,8 @@ class PvpService {
         vehiclePct: (data['vehiclePct'] as num?)?.toInt(),
         loadoutTotalPct: (data['loadoutTotalPct'] as num?)?.toInt(),
       );
+    } on TimeoutException {
+      throw Exception('İşlem zaman aşımına uğradı. Tekrar dene.');
     } on FirebaseFunctionsException catch (e) {
       throw Exception(e.message ?? 'Saldırı işlemi başarısız.');
     } catch (_) {
